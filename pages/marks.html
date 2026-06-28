@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — Marks Entry</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/dashboard.css"/>
+  <link rel="stylesheet" href="../css/marks.css"/>
+  <link rel="stylesheet" href="../css/mobile.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body class="dashboard-body">
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon"><i class="fas fa-graduation-cap"></i></div>
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">Scholar</span>
+        <span class="sidebar-brand-sub">Analytics</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sidebar-user">
+      <div class="sidebar-user-avatar" id="sidebarAvatar"></div>
+      <div class="sidebar-user-info">
+        <p class="sidebar-user-name" id="sidebarUserName">Loading...</p>
+        <p class="sidebar-user-role" id="sidebarUserRole">--</p>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-section-label">Main Menu</p>
+      <a href="dashboard.html"  class="nav-item"><i class="fas fa-house"></i><span>Dashboard</span></a>
+      <a href="students.html"   class="nav-item"><i class="fas fa-user-graduate"></i><span>Students</span></a>
+      <a href="classes.html"    class="nav-item"><i class="fas fa-school"></i><span>Classes</span></a>
+      <a href="subjects.html"   class="nav-item"><i class="fas fa-book-open"></i><span>Subjects</span></a>
+      <a href="exams.html"      class="nav-item"><i class="fas fa-calendar-check"></i><span>Exams</span></a>
+      <p class="nav-section-label">Academic</p>
+      <a href="marks.html"      class="nav-item active"><i class="fas fa-pen-to-square"></i><span>Marks Entry</span></a>
+      <a href="results.html"    class="nav-item"><i class="fas fa-chart-bar"></i><span>Results</span></a>
+      <a href="reports.html"    class="nav-item"><i class="fas fa-file-pdf"></i><span>Reports & PDFs</span></a>
+      <p class="nav-section-label">Insights</p>
+      <a href="analytics.html"  class="nav-item"><i class="fas fa-chart-line"></i><span>Analytics</span></a>
+      <div class="admin-only" id="adminMenu">
+        <p class="nav-section-label">Administration</p>
+        <a href="users.html"    class="nav-item"><i class="fas fa-users-gear"></i><span>Manage Users</span></a>
+        <a href="settings.html" class="nav-item"><i class="fas fa-sliders"></i><span>Settings</span></a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN AREA -->
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div class="topbar-title">
+          <h1>Marks Entry</h1>
+          <p><i class="fas fa-house"></i> Home &rsaquo; Marks Entry</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="term-badge"><i class="fas fa-calendar"></i><span id="currentTerm">Term 1 &bull; 2024</span></div>
+        <div class="user-menu" id="userMenuWrapper">
+          <button class="user-menu-trigger" id="userMenuBtn">
+            <div class="topbar-avatar" id="topbarAvatar"></div>
+            <span id="topbarUserName">Loading...</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><p id="dropdownName">--</p><p id="dropdownEmail">--</p></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><i class="fas fa-gear"></i> Settings</a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-logout" id="dropdownLogout">
+              <i class="fas fa-arrow-right-from-bracket"></i> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+
+      <!-- SELECTOR PANEL -->
+      <div class="marks-selector-panel">
+        <div class="marks-selector-grid">
+
+          <div class="marks-selector-field">
+            <label><i class="fas fa-school"></i> Class</label>
+            <select id="selClass" class="marks-select">
+              <option value="">-- Select Class --</option>
+              <optgroup label="Grade 7">
+                <option value="Grade 7 East">Grade 7 East</option>
+                <option value="Grade 7 West">Grade 7 West</option>
+              </optgroup>
+              <optgroup label="Grade 8">
+                <option value="Grade 8 East">Grade 8 East</option>
+                <option value="Grade 8 West">Grade 8 West</option>
+              </optgroup>
+              <optgroup label="Grade 9">
+                <option value="Grade 9 East">Grade 9 East</option>
+                <option value="Grade 9 West">Grade 9 West</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <div class="marks-selector-field">
+            <label><i class="fas fa-calendar"></i> Term</label>
+            <select id="selTerm" class="marks-select">
+              <option value="">-- Select Term --</option>
+              <option value="1">Term 1</option>
+              <option value="2">Term 2</option>
+              <option value="3">Term 3</option>
+            </select>
+          </div>
+
+          <div class="marks-selector-field">
+            <label><i class="fas fa-pen-to-square"></i> Exam</label>
+            <select id="selExam" class="marks-select">
+              <option value="">-- Select Exam --</option>
+              <option value="Opener">Opener</option>
+              <option value="Midterm">Midterm</option>
+              <option value="Endterm">Endterm</option>
+            </select>
+          </div>
+
+          <div class="marks-selector-field">
+            <label><i class="fas fa-book-open"></i> Subject</label>
+            <select id="selSubject" class="marks-select">
+              <option value="">-- Select Subject --</option>
+              <option value="ENG">English</option>
+              <option value="KIS">Kiswahili</option>
+              <option value="MATH">Mathematics</option>
+              <option value="INTER">Integrated Science</option>
+              <option value="SST">Social Studies</option>
+              <option value="CRE">Religious Education</option>
+              <option value="PRT">Pre Technical</option>
+              <option value="AGR">Agriculture</option>
+              <option value="CAS">Creative Arts & Sports</option>
+            </select>
+          </div>
+
+          <div class="marks-selector-action">
+            <button class="btn-load-marks" id="loadMarksBtn">
+              <i class="fas fa-table"></i>
+              <span id="loadMarksBtnText">Load Mark Sheet</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- EMPTY STATE -->
+      <div class="marks-empty-state" id="marksEmptyState">
+        <div class="marks-empty-icon">
+          <i class="fas fa-pen-to-square"></i>
+        </div>
+        <h3>Select parameters above</h3>
+        <p>Choose a class, term, exam and subject to load the mark sheet.</p>
+        <div class="marks-keyboard-hint">
+          <i class="fas fa-keyboard"></i>
+          <span>Tip: Press <kbd>Enter</kbd> or <kbd>Tab</kbd> to move to the next student</span>
+        </div>
+      </div>
+
+      <!-- MARK SHEET -->
+      <div class="marks-sheet-wrapper" id="marksSheetWrapper" style="display:none;">
+
+        <!-- Toolbar -->
+        <div class="marks-toolbar">
+          <div class="marks-toolbar-left">
+            <!-- Context info -->
+            <div class="marks-context" id="marksContext">
+              <span class="marks-context-cls" id="ctxClass">--</span>
+              <span class="marks-context-sep">›</span>
+              <span class="marks-context-subj" id="ctxSubject">--</span>
+              <span class="marks-context-sep">›</span>
+              <span class="marks-context-exam" id="ctxExam">--</span>
+            </div>
+
+            <!-- Progress -->
+            <div class="marks-progress" id="marksProgress">
+              <div class="marks-progress-bar">
+                <div class="marks-progress-fill" id="marksProgressFill"></div>
+              </div>
+              <span class="marks-progress-text" id="marksProgressText">0 of 0 filled</span>
+            </div>
+          </div>
+
+          <div class="marks-toolbar-right">
+            <!-- Autosave status -->
+            <div class="marks-save-status" id="marksSaveStatus">
+              <i class="fas fa-circle-check"></i>
+              <span>All saved</span>
+            </div>
+
+            <!-- Quick fill -->
+            <div class="marks-quickfill">
+              <input type="number" id="quickFillVal"
+                placeholder="Score" min="0" max="100"
+                class="marks-quickfill-input"/>
+              <button class="btn-quickfill" id="quickFillBtn"
+                title="Fill all empty cells with this score">
+                <i class="fas fa-fill-drip"></i> Fill Empty
+              </button>
+            </div>
+
+            <!-- Keyboard hint -->
+            <div class="marks-kb-hint">
+              <kbd>Enter</kbd> next row &nbsp;
+              <kbd>Tab</kbd> next cell
+            </div>
+
+            <!-- Save button -->
+            <button class="btn-save-marks" id="saveMarksBtn">
+              <i class="fas fa-floppy-disk"></i>
+              <span id="saveMarksBtnText">Save All Marks</span>
+              <span id="saveMarksBtnSpinner" style="display:none;">
+                <i class="fas fa-spinner fa-spin"></i> Saving...
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats strip -->
+        <div class="marks-stats-strip" id="marksStatsStrip">
+          <div class="marks-stat">
+            <span class="marks-stat-val" id="statFilled">0</span>
+            <span class="marks-stat-lbl">Filled</span>
+          </div>
+          <div class="marks-stat-div"></div>
+          <div class="marks-stat">
+            <span class="marks-stat-val" id="statAvg">—</span>
+            <span class="marks-stat-lbl">Average</span>
+          </div>
+          <div class="marks-stat-div"></div>
+          <div class="marks-stat">
+            <span class="marks-stat-val" id="statHighest">—</span>
+            <span class="marks-stat-lbl">Highest</span>
+          </div>
+          <div class="marks-stat-div"></div>
+          <div class="marks-stat">
+            <span class="marks-stat-val" id="statLowest">—</span>
+            <span class="marks-stat-lbl">Lowest</span>
+          </div>
+          <div class="marks-stat-div"></div>
+          <div class="marks-stat">
+            <span class="marks-stat-val" id="statAbsent">0</span>
+            <span class="marks-stat-lbl">Absent</span>
+          </div>
+          <div class="marks-stat-div"></div>
+          <div class="marks-stat">
+            <span class="marks-stat-val" id="statPass">—</span>
+            <span class="marks-stat-lbl">Pass Rate</span>
+          </div>
+        </div>
+
+        <!-- Mark sheet table -->
+        <div class="marks-table-wrap" id="marksTableWrap">
+          <table class="marks-table" id="marksTable">
+            <thead>
+              <tr>
+                <th class="col-num">#</th>
+                <th class="col-name">Learner Name</th>
+                <th class="col-upi">UPI No.</th>
+                <th class="col-score">Score (0–100)</th>
+                <th class="col-grade">Grade</th>
+                <th class="col-points">Points</th>
+                <th class="col-absent">Absent</th>
+                <th class="col-remark">Auto Remark</th>
+              </tr>
+            </thead>
+            <tbody id="marksTableBody"></tbody>
+          </table>
+        </div>
+
+        <!-- Footer save -->
+        <div class="marks-footer">
+          <div class="marks-footer-left">
+            <span id="footerUnsaved" class="marks-unsaved-badge" style="display:none;">
+              <i class="fas fa-circle-exclamation"></i>
+              Unsaved changes
+            </span>
+          </div>
+          <div class="marks-footer-right">
+            <button class="btn-clear-marks" id="clearMarksBtn">
+              <i class="fas fa-eraser"></i> Clear All
+            </button>
+            <button class="btn-save-marks" id="saveMarksBtnFooter">
+              <i class="fas fa-floppy-disk"></i> Save All Marks
+            </button>
+          </div>
+        </div>
+
+      </div><!-- end marks-sheet-wrapper -->
+
+    </main>
+  </div>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<script src="../js/api.js"></script>
+<script src="../js/marks.js"></script>
+</body>
+</html>

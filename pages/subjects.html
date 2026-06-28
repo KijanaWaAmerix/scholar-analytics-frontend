@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — Subjects</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/dashboard.css"/>
+  <link rel="stylesheet" href="../css/students.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="../css/mobile.css"/>
+</head>
+<body class="dashboard-body">
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon"><i class="fas fa-graduation-cap"></i></div>
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">Scholar</span>
+        <span class="sidebar-brand-sub">Analytics</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sidebar-user">
+      <div class="sidebar-user-avatar" id="sidebarAvatar"></div>
+      <div class="sidebar-user-info">
+        <p class="sidebar-user-name" id="sidebarUserName">Loading...</p>
+        <p class="sidebar-user-role" id="sidebarUserRole">--</p>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-section-label">Main Menu</p>
+      <a href="dashboard.html"  class="nav-item"><i class="fas fa-house"></i><span>Dashboard</span></a>
+      <a href="students.html"   class="nav-item"><i class="fas fa-user-graduate"></i><span>Students</span></a>
+      <a href="classes.html"    class="nav-item"><i class="fas fa-school"></i><span>Classes</span></a>
+      <a href="subjects.html"   class="nav-item active"><i class="fas fa-book-open"></i><span>Subjects</span></a>
+      <a href="exams.html"      class="nav-item"><i class="fas fa-calendar-check"></i><span>Exams</span></a>
+      <p class="nav-section-label">Academic</p>
+      <a href="marks.html"      class="nav-item"><i class="fas fa-pen-to-square"></i><span>Marks Entry</span></a>
+      <a href="results.html"    class="nav-item"><i class="fas fa-chart-bar"></i><span>Results</span></a>
+      <a href="reports.html"    class="nav-item"><i class="fas fa-file-pdf"></i><span>Reports & PDFs</span></a>
+      <p class="nav-section-label">Insights</p>
+      <a href="analytics.html"  class="nav-item"><i class="fas fa-chart-line"></i><span>Analytics</span></a>
+      <div class="admin-only" id="adminMenu">
+        <p class="nav-section-label">Administration</p>
+        <a href="users.html"    class="nav-item"><i class="fas fa-users-gear"></i><span>Manage Users</span></a>
+        <a href="settings.html" class="nav-item"><i class="fas fa-sliders"></i><span>Settings</span></a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div class="topbar-title">
+          <h1>Subjects</h1>
+          <p><i class="fas fa-house"></i> Home &rsaquo; Subjects</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="term-badge"><i class="fas fa-calendar"></i><span id="currentTerm">Term 1 &bull; 2024</span></div>
+        <div class="user-menu" id="userMenuWrapper">
+          <button class="user-menu-trigger" id="userMenuBtn">
+            <div class="topbar-avatar" id="topbarAvatar"></div>
+            <span id="topbarUserName">Loading...</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><p id="dropdownName">--</p><p id="dropdownEmail">--</p></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><i class="fas fa-gear"></i> Settings</a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-logout" id="dropdownLogout">
+              <i class="fas fa-arrow-right-from-bracket"></i> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2 class="page-header-title">Manage Subjects</h2>
+          <p class="page-header-sub" id="pageSubtitle">Select a class to view and manage its subjects</p>
+        </div>
+        <div class="page-header-right">
+          <select id="classFilter" class="filter-select" style="min-width:180px;">
+            <option value="">-- Select Class --</option>
+          </select>
+          <button class="btn-secondary" id="seedSubjectsBtn" style="display:none;">
+            <i class="fas fa-wand-magic-sparkles"></i> Seed 9 CBC Subjects
+          </button>
+          <button class="btn-primary" id="addSubjectBtn" style="display:none;">
+            <i class="fas fa-plus"></i> Add Subject
+          </button>
+        </div>
+      </div>
+
+      <!-- Subjects table card -->
+      <div class="table-card" id="subjectsCard" style="display:none;">
+        <div class="table-wrapper">
+          <table class="students-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Code</th>
+                <th>Subject Name</th>
+                <th>Learning Area</th>
+                <th>Teacher</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="subjectsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Placeholder -->
+      <div id="subjectsPlaceholder" style="text-align:center;padding:80px;
+        background:white;border-radius:var(--radius-md);
+        border:2px dashed rgba(209,220,235,0.8);">
+        <i class="fas fa-book-open" style="font-size:40px;opacity:0.2;display:block;margin-bottom:16px;"></i>
+        <h3 style="color:var(--text-dark);margin-bottom:8px;">Select a Class</h3>
+        <p style="color:var(--text-soft);font-size:0.875rem;">
+          Choose a class from the dropdown above to view and manage its subjects.
+        </p>
+      </div>
+
+    </main>
+  </div>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- ADD/EDIT SUBJECT MODAL -->
+<div class="modal-overlay" id="subjectModalOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title" id="subjectModalTitle">Add Subject</h3>
+        <p class="modal-subtitle">Enter subject details</p>
+      </div>
+      <button class="modal-close" id="subjectModalClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
+            Subject Name <span style="color:red;">*</span>
+          </label>
+          <input type="text" id="subjectName"
+            placeholder="e.g. Mathematics, English, Agriculture"
+            style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;"/>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
+            Subject Code <span style="color:red;">*</span>
+          </label>
+          <input type="text" id="subjectCode"
+            placeholder="e.g. MATH, ENG, AGR"
+            maxlength="6"
+            style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;text-transform:uppercase;"/>
+          <p style="font-size:0.72rem;color:var(--text-soft);margin-top:4px;">Short code used in mark sheets and reports</p>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
+            Learning Area
+          </label>
+          <select id="subjectArea"
+            style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;appearance:none;background:white;">
+            <option value="">-- Select Learning Area --</option>
+            <option value="Languages">Languages</option>
+            <option value="Mathematics">Mathematics</option>
+            <option value="Sciences">Sciences</option>
+            <option value="Humanities">Humanities</option>
+            <option value="Technical">Technical</option>
+            <option value="Creative Arts">Creative Arts</option>
+            <option value="Life Skills">Life Skills</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="subjectModalCancel"><i class="fas fa-times"></i> Cancel</button>
+      <button class="btn-primary" id="saveSubjectBtn">
+        <i class="fas fa-floppy-disk"></i>
+        <span id="saveSubjectText">Save Subject</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/subjects.js"></script>
+</body>
+</html>

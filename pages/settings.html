@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — Settings</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/dashboard.css"/>
+  <link rel="stylesheet" href="../css/settings.css"/>
+  <link rel="stylesheet" href="../css/mobile.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body class="dashboard-body">
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon"><i class="fas fa-graduation-cap"></i></div>
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">Scholar</span>
+        <span class="sidebar-brand-sub">Analytics</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sidebar-user">
+      <div class="sidebar-user-avatar" id="sidebarAvatar"></div>
+      <div class="sidebar-user-info">
+        <p class="sidebar-user-name" id="sidebarUserName">Loading...</p>
+        <p class="sidebar-user-role" id="sidebarUserRole">--</p>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-section-label">Main Menu</p>
+      <a href="dashboard.html"  class="nav-item"><i class="fas fa-house"></i><span>Dashboard</span></a>
+      <a href="students.html"   class="nav-item"><i class="fas fa-user-graduate"></i><span>Students</span></a>
+      <a href="classes.html"    class="nav-item"><i class="fas fa-school"></i><span>Classes</span></a>
+      <a href="subjects.html"   class="nav-item"><i class="fas fa-book-open"></i><span>Subjects</span></a>
+      <a href="exams.html"      class="nav-item"><i class="fas fa-calendar-check"></i><span>Exams</span></a>
+      <p class="nav-section-label">Academic</p>
+      <a href="marks.html"      class="nav-item"><i class="fas fa-pen-to-square"></i><span>Marks Entry</span></a>
+      <a href="results.html"    class="nav-item"><i class="fas fa-chart-bar"></i><span>Results</span></a>
+      <a href="reports.html"    class="nav-item"><i class="fas fa-file-pdf"></i><span>Reports & PDFs</span></a>
+      <p class="nav-section-label">Insights</p>
+      <a href="analytics.html"  class="nav-item"><i class="fas fa-chart-line"></i><span>Analytics</span></a>
+      <div class="admin-only" id="adminMenu">
+        <p class="nav-section-label">Administration</p>
+        <a href="users.html"    class="nav-item"><i class="fas fa-users-gear"></i><span>Manage Users</span></a>
+        <a href="settings.html" class="nav-item active"><i class="fas fa-sliders"></i><span>Settings</span></a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div class="topbar-title">
+          <h1>Settings</h1>
+          <p><i class="fas fa-house"></i> Home &rsaquo; Settings</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="term-badge"><i class="fas fa-calendar"></i><span id="currentTerm">Term 1 &bull; 2024</span></div>
+        <div class="user-menu" id="userMenuWrapper">
+          <button class="user-menu-trigger" id="userMenuBtn">
+            <div class="topbar-avatar" id="topbarAvatar"></div>
+            <span id="topbarUserName">Loading...</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><p id="dropdownName">--</p><p id="dropdownEmail">--</p></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><i class="fas fa-gear"></i> Settings</a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-logout" id="dropdownLogout">
+              <i class="fas fa-arrow-right-from-bracket"></i> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2 class="page-header-title">Settings</h2>
+          <p class="page-header-sub">Manage your school configuration and preferences</p>
+        </div>
+        <div class="page-header-right">
+          <span class="settings-last-saved" id="lastSavedInfo" style="display:none;">
+            <i class="fas fa-circle-check" style="color:var(--success);"></i>
+            Saved <span id="lastSavedTime">--</span>
+          </span>
+          <button class="btn-primary" id="saveAllBtn">
+            <i class="fas fa-floppy-disk"></i>
+            <span id="saveAllText">Save All Settings</span>
+            <span id="saveAllSpinner" style="display:none;">
+              <i class="fas fa-spinner fa-spin"></i> Saving...
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Settings layout -->
+      <div class="settings-layout">
+
+        <!-- Nav column -->
+        <div class="settings-nav-col">
+          <div class="settings-nav">
+
+            <button class="settings-nav-item active" data-section="school">
+              <i class="fas fa-school"></i>
+              <span>School Information</span>
+              <i class="fas fa-chevron-right arrow"></i>
+            </button>
+
+            <button class="settings-nav-item" data-section="academic">
+              <i class="fas fa-calendar-days"></i>
+              <span>Academic Year</span>
+              <i class="fas fa-chevron-right arrow"></i>
+            </button>
+
+            <button class="settings-nav-item" data-section="grading">
+              <i class="fas fa-star-half-stroke"></i>
+              <span>KJSEA Grading</span>
+              <i class="fas fa-chevron-right arrow"></i>
+            </button>
+
+            <button class="settings-nav-item" data-section="security">
+              <i class="fas fa-shield-halved"></i>
+              <span>Security</span>
+              <i class="fas fa-chevron-right arrow"></i>
+            </button>
+
+            <button class="settings-nav-item" data-section="subscription">
+              <i class="fas fa-credit-card"></i>
+              <span>Subscription</span>
+              <i class="fas fa-chevron-right arrow"></i>
+            </button>
+
+            <!-- NEW: SMS nav item -->
+            <button class="settings-nav-item" data-section="sms">
+              <i class="fas fa-message"></i>
+              <span>SMS Alerts</span>
+              <i class="fas fa-chevron-right arrow"></i>
+            </button>
+
+          </div>
+        </div>
+
+        <!-- Panels column -->
+        <div class="settings-panels-col">
+
+          <!-- ══ School Information ══ -->
+          <div class="settings-panel active" id="panel-school">
+            <div class="settings-panel-header">
+              <i class="fas fa-school"></i>
+              <div>
+                <h3>School Information</h3>
+                <p>Basic details about your school</p>
+              </div>
+            </div>
+
+            <!-- Logo -->
+            <div class="settings-logo-section">
+              <div class="settings-logo-preview" id="logoPreview">
+                <i class="fas fa-graduation-cap" style="font-size:36px;color:var(--primary-light);"></i>
+              </div>
+              <div>
+                <p class="settings-logo-label">School Logo</p>
+                <p class="settings-logo-sub">PNG or JPG. Max 2MB. Appears on report cards.</p>
+                <button class="btn-secondary btn-sm" id="uploadLogoBtn">
+                  <i class="fas fa-upload"></i> Upload Logo
+                </button>
+                <input type="file" id="logoFileInput" accept="image/*" style="display:none;"/>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-section-title">
+                <i class="fas fa-info-circle"></i> Basic Details
+              </div>
+              <div class="settings-fields-grid">
+                <div class="settings-field">
+                  <label>School Name <span class="required">*</span></label>
+                  <input type="text" id="schoolName" class="settings-input"
+                    placeholder="e.g. Nairobi Junior Academy"/>
+                </div>
+                <div class="settings-field">
+                  <label>School Motto</label>
+                  <input type="text" id="schoolMotto" class="settings-input"
+                    placeholder="e.g. Excellence Through Knowledge"/>
+                </div>
+                <div class="settings-field">
+                  <label>School Email</label>
+                  <input type="email" id="schoolEmail" class="settings-input"
+                    placeholder="school@email.ac.ke"/>
+                </div>
+                <div class="settings-field">
+                  <label>School Phone</label>
+                  <input type="tel" id="schoolPhone" class="settings-input"
+                    placeholder="e.g. 0712345678"/>
+                </div>
+                <div class="settings-field full-width">
+                  <label>School Address</label>
+                  <input type="text" id="schoolAddress" class="settings-input"
+                    placeholder="e.g. P.O. Box 1234, Nairobi"/>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-section-title">
+                <i class="fas fa-user-tie"></i> Principal Information
+              </div>
+              <div class="settings-fields-grid">
+                <div class="settings-field">
+                  <label>Principal Name</label>
+                  <input type="text" id="principalName" class="settings-input"
+                    placeholder="e.g. Mrs. Jane Njoroge"/>
+                </div>
+                <div class="settings-field">
+                  <label>Principal Phone</label>
+                  <input type="tel" id="principalPhone" class="settings-input"
+                    placeholder="e.g. 0722345678"/>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- end panel-school -->
+
+          <!-- ══ Academic Year ══ -->
+          <div class="settings-panel" id="panel-academic">
+            <div class="settings-panel-header">
+              <i class="fas fa-calendar-days"></i>
+              <div>
+                <h3>Academic Year Settings</h3>
+                <p>Current term, year and key dates</p>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-section-title">
+                <i class="fas fa-calendar"></i> Current Term
+              </div>
+              <div class="settings-fields-grid">
+                <div class="settings-field">
+                  <label>Academic Year</label>
+                  <input type="text" id="currentYear" class="settings-input"
+                    placeholder="e.g. 2024"/>
+                </div>
+                <div class="settings-field">
+                  <label>Current Term</label>
+                  <select id="currentTermSelect" class="settings-select">
+                    <option value="1">Term 1</option>
+                    <option value="2">Term 2</option>
+                    <option value="3">Term 3</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-section-title">
+                <i class="fas fa-calendar-check"></i> Term Dates
+              </div>
+              <div class="settings-fields-grid">
+                <div class="settings-field">
+                  <label>Term Opening Date</label>
+                  <input type="text" id="termOpeningDate" class="settings-input"
+                    placeholder="e.g. 5th January 2025"/>
+                </div>
+                <div class="settings-field">
+                  <label>Term Closing Date</label>
+                  <input type="text" id="termClosingDate" class="settings-input"
+                    placeholder="e.g. 13th April 2025"/>
+                </div>
+                <div class="settings-field">
+                  <label>Next Term Opens</label>
+                  <input type="text" id="nextTermDate" class="settings-input"
+                    placeholder="e.g. 5th May 2025"/>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-info-banner">
+              <i class="fas fa-circle-info"></i>
+              <p>Term closing and opening dates appear automatically on all generated report cards.</p>
+            </div>
+
+          </div><!-- end panel-academic -->
+
+          <!-- ══ KJSEA Grading ══ -->
+          <div class="settings-panel" id="panel-grading">
+            <div class="settings-panel-header">
+              <i class="fas fa-star-half-stroke"></i>
+              <div>
+                <h3>KJSEA Grading Scale</h3>
+                <p>Kenya Junior Secondary Examinations grading system</p>
+              </div>
+            </div>
+
+            <div class="settings-info-banner" style="margin-bottom:20px;">
+              <i class="fas fa-lock"></i>
+              <p>The KJSEA grading scale is set by KNEC and cannot be modified. This is for reference only.</p>
+            </div>
+
+            <div class="settings-grade-table">
+              <table class="students-table">
+                <thead>
+                  <tr>
+                    <th>Grade</th>
+                    <th>Score Range</th>
+                    <th>Points</th>
+                    <th>Description</th>
+                    <th>Measure of Ability</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="grade-badge ee1">EE1</span></td>
+                    <td><strong>90 – 100%</strong></td>
+                    <td><strong style="color:#7d3c98;">8/8</strong></td>
+                    <td>Exceeds Expectation</td>
+                    <td>Exceptional</td>
+                  </tr>
+                  <tr>
+                    <td><span class="grade-badge ee2">EE2</span></td>
+                    <td><strong>75 – 89%</strong></td>
+                    <td><strong style="color:#7d3c98;">7/8</strong></td>
+                    <td>Exceeds Expectation</td>
+                    <td>Very Good</td>
+                  </tr>
+                  <tr>
+                    <td><span class="grade-badge me1">ME1</span></td>
+                    <td><strong>58 – 74%</strong></td>
+                    <td><strong style="color:#7d3c98;">6/8</strong></td>
+                    <td>Meets Expectation</td>
+                    <td>Good</td>
+                  </tr>
+                  <tr>
+                    <td><span class="grade-badge me2">ME2</span></td>
+                    <td><strong>41 – 57%</strong></td>
+                    <td><strong style="color:#7d3c98;">5/8</strong></td>
+                    <td>Meets Expectation</td>
+                    <td>Fair</td>
+                  </tr>
+                  <tr>
+                    <td><span class="grade-badge ae1">AE1</span></td>
+                    <td><strong>31 – 40%</strong></td>
+                    <td><strong style="color:#7d3c98;">4/8</strong></td>
+                    <td>Approaches Expectation</td>
+                    <td>Developing</td>
+                  </tr>
+                  <tr>
+                    <td><span class="grade-badge ae2">AE2</span></td>
+                    <td><strong>21 – 30%</strong></td>
+                    <td><strong style="color:#7d3c98;">3/8</strong></td>
+                    <td>Approaches Expectation</td>
+                    <td>Improving</td>
+                  </tr>
+                  <tr>
+                    <td><span class="grade-badge be1">BE1</span></td>
+                    <td><strong>11 – 20%</strong></td>
+                    <td><strong style="color:#7d3c98;">2/8</strong></td>
+                    <td>Below Expectation</td>
+                    <td>Minimal</td>
+                  </tr>
+                  <tr>
+                    <td><span class="grade-badge be2">BE2</span></td>
+                    <td><strong>1 – 10%</strong></td>
+                    <td><strong style="color:#7d3c98;">1/8</strong></td>
+                    <td>Below Expectation</td>
+                    <td>Below Minimal</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="settings-section" style="margin-top:20px;">
+              <div class="settings-section-title">
+                <i class="fas fa-chart-pie"></i> Mean Grade Calculation
+              </div>
+              <div class="settings-mean-grid">
+                <div class="settings-mean-item">
+                  <span class="grade-badge ee1">EE1</span>
+                  <span>7.5 – 8.0 avg points</span>
+                </div>
+                <div class="settings-mean-item">
+                  <span class="grade-badge ee2">EE2</span>
+                  <span>6.5 – 7.4 avg points</span>
+                </div>
+                <div class="settings-mean-item">
+                  <span class="grade-badge me1">ME1</span>
+                  <span>5.5 – 6.4 avg points</span>
+                </div>
+                <div class="settings-mean-item">
+                  <span class="grade-badge me2">ME2</span>
+                  <span>4.5 – 5.4 avg points</span>
+                </div>
+                <div class="settings-mean-item">
+                  <span class="grade-badge ae1">AE1</span>
+                  <span>3.5 – 4.4 avg points</span>
+                </div>
+                <div class="settings-mean-item">
+                  <span class="grade-badge ae2">AE2</span>
+                  <span>2.5 – 3.4 avg points</span>
+                </div>
+                <div class="settings-mean-item">
+                  <span class="grade-badge be1">BE1</span>
+                  <span>1.5 – 2.4 avg points</span>
+                </div>
+                <div class="settings-mean-item">
+                  <span class="grade-badge be2">BE2</span>
+                  <span>1.0 – 1.4 avg points</span>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- end panel-grading -->
+
+          <!-- ══ Security ══ -->
+          <div class="settings-panel" id="panel-security">
+            <div class="settings-panel-header">
+              <i class="fas fa-shield-halved"></i>
+              <div>
+                <h3>Security</h3>
+                <p>Change your password and manage account security</p>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-section-title">
+                <i class="fas fa-key"></i> Change Password
+              </div>
+
+              <div class="settings-fields-grid" style="max-width:500px;">
+                <div class="settings-field full-width">
+                  <label>Current Password</label>
+                  <div class="settings-pw-wrapper">
+                    <input type="password" id="currentPassword"
+                      class="settings-input" placeholder="Enter current password"/>
+                    <button class="settings-pw-toggle" data-target="currentPassword">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="settings-field full-width">
+                  <label>New Password</label>
+                  <div class="settings-pw-wrapper">
+                    <input type="password" id="newPassword"
+                      class="settings-input" placeholder="Min. 8 characters"/>
+                    <button class="settings-pw-toggle" data-target="newPassword">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                  </div>
+                  <div class="pw-strength-wrap" id="pwStrengthWrap" style="display:none;">
+                    <div class="pw-strength-bar">
+                      <div class="pw-strength-fill" id="pwStrengthFill"></div>
+                    </div>
+                    <span class="pw-strength-label" id="pwStrengthLabel">Enter a password</span>
+                  </div>
+                </div>
+                <div class="settings-field full-width">
+                  <label>Confirm New Password</label>
+                  <div class="settings-pw-wrapper">
+                    <input type="password" id="confirmPassword"
+                      class="settings-input" placeholder="Repeat new password"/>
+                    <button class="settings-pw-toggle" data-target="confirmPassword">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <button class="btn-primary btn-sm" id="changePasswordBtn" style="margin-top:4px;">
+                <i class="fas fa-key"></i> Update Password
+              </button>
+
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-section-title">
+                <i class="fas fa-circle-info"></i> Account Information
+              </div>
+              <div class="settings-account-info">
+                <div class="settings-account-row">
+                  <span class="settings-account-label">Email Address</span>
+                  <span class="settings-account-value" id="accountEmail">--</span>
+                </div>
+                <div class="settings-account-row">
+                  <span class="settings-account-label">Role</span>
+                  <span class="settings-account-value" id="accountRole">--</span>
+                </div>
+                <div class="settings-account-row">
+                  <span class="settings-account-label">School</span>
+                  <span class="settings-account-value" id="accountSchool">--</span>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- end panel-security -->
+
+          <!-- ══ Subscription ══ -->
+          <div class="settings-panel" id="panel-subscription">
+            <div class="settings-panel-header">
+              <i class="fas fa-credit-card"></i>
+              <div>
+                <h3>Subscription</h3>
+                <p>Your current plan and billing information</p>
+              </div>
+            </div>
+
+            <div class="settings-subscription-card" id="subscriptionCard">
+              <div class="sub-card-top">
+                <div>
+                  <p class="sub-plan-label">Current Plan</p>
+                  <p class="sub-plan-name" id="subPlanName">Standard</p>
+                </div>
+                <span class="badge badge-success" id="subStatusBadge">Active</span>
+              </div>
+
+              <div class="sub-details-grid">
+                <div class="sub-detail-item">
+                  <p class="sub-detail-label">Expiry Date</p>
+                  <p class="sub-detail-value" id="subExpiry">--</p>
+                </div>
+                <div class="sub-detail-item">
+                  <p class="sub-detail-label">Days Remaining</p>
+                  <p class="sub-detail-value" id="subDaysLeft">--</p>
+                </div>
+                <div class="sub-detail-item">
+                  <p class="sub-detail-label">Auto Renewal</p>
+                  <p class="sub-detail-value" id="subAutoRenew">--</p>
+                </div>
+              </div>
+
+              <div class="sub-progress-wrap">
+                <div class="sub-progress-bar">
+                  <div class="sub-progress-fill" id="subProgressFill"></div>
+                </div>
+                <p class="sub-progress-label" id="subProgressLabel">--</p>
+              </div>
+            </div>
+
+            <div class="settings-info-banner" style="margin-top:16px;">
+              <i class="fas fa-envelope"></i>
+              <p>
+                To extend or upgrade your subscription contact
+                <strong>dankibe1998@gmail.com</strong>
+              </p>
+            </div>
+
+          </div><!-- end panel-subscription -->
+
+          <!-- ══ SMS Alerts ══ -->
+          <div class="settings-panel" id="panel-sms">
+            <div class="settings-panel-header">
+              <i class="fas fa-message"></i>
+              <div>
+                <h3>SMS Alerts — Africa's Talking</h3>
+                <p>Notify parents via SMS</p>
+              </div>
+            </div>
+
+            <!-- Test SMS -->
+            <div class="settings-section">
+              <div class="settings-section-title">
+                <i class="fas fa-paper-plane"></i> Test SMS
+              </div>
+              <div class="settings-fields-grid">
+                <div class="settings-field">
+                  <label>Phone Number</label>
+                  <input type="tel" id="testSmsPhone" class="settings-input"
+                    placeholder="e.g. 0712345678"/>
+                </div>
+                <div class="settings-field">
+                  <label>Message</label>
+                  <input type="text" id="testSmsMsg" class="settings-input"
+                    value="Test message from Scholar Analytics"/>
+                </div>
+              </div>
+              <button class="btn-secondary btn-sm" id="sendTestSmsBtn" style="margin-top:8px;">
+                <i class="fas fa-paper-plane"></i> Send Test SMS
+              </button>
+              <div id="testSmsResult" style="margin-top:10px;"></div>
+            </div>
+
+            <!-- Notify At-Risk -->
+            <div class="settings-section">
+              <div class="settings-section-title">
+                <i class="fas fa-triangle-exclamation"></i> Notify At-Risk Parents
+              </div>
+              <p style="font-size:var(--text-sm);color:var(--text-soft);margin-bottom:12px;">
+                Sends an SMS to parents of all students scoring below 41% in the selected exam.
+              </p>
+              <div class="settings-field" style="max-width:300px;margin-bottom:12px;">
+                <label>Select Exam</label>
+                <select id="smsExamSelect" class="settings-select">
+                  <option value="">-- Select Exam --</option>
+                </select>
+              </div>
+              <button class="btn-danger btn-sm" id="notifyAtRiskBtn">
+                <i class="fas fa-triangle-exclamation"></i> Notify At-Risk Parents
+              </button>
+            </div>
+
+            <div class="settings-info-banner">
+              <i class="fas fa-circle-info"></i>
+              <p>SMS requires Africa's Talking credentials in your backend <code>.env</code> file.
+              Set <code>AT_API_KEY</code> and <code>AT_USERNAME</code>.</p>
+            </div>
+
+          </div><!-- end panel-sms -->
+
+        </div><!-- end panels col -->
+
+      </div><!-- end settings-layout -->
+
+    </main>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<script src="../js/api.js"></script>
+<script src="../js/settings.js"></script>
+</body>
+</html>

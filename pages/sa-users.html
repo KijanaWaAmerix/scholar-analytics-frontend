@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — All Users</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/sa.css"/>
+  <link rel="stylesheet" href="../css/mobile.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body class="sa-body">
+
+  <header class="sa-topbar">
+    <div class="sa-topbar-left">
+      <div class="sa-brand">
+        <div class="sa-brand-icon"><i class="fas fa-shield-halved"></i></div>
+        <div>
+          <div class="sa-brand-name">Scholar Analytics</div>
+          <div class="sa-brand-sub">SuperAdmin Panel</div>
+        </div>
+      </div>
+    </div>
+    <div class="sa-topbar-right">
+      <div class="sa-admin-chip">
+        <i class="fas fa-circle" style="font-size:7px;color:#9b59b6;"></i>
+        <span id="saAdminName">SuperAdmin</span>
+      </div>
+      <button class="sa-logout-btn" id="saLogoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i> Logout
+      </button>
+    </div>
+  </header>
+
+  <nav class="sa-nav">
+    <a href="sa-dashboard.html" class="sa-nav-item">
+      <i class="fas fa-gauge-high"></i> Dashboard
+    </a>
+    <a href="sa-schools.html" class="sa-nav-item">
+      <i class="fas fa-school"></i> Schools
+    </a>
+    <a href="sa-users.html" class="sa-nav-item active">
+      <i class="fas fa-users"></i> Users
+    </a>
+  </nav>
+
+  <main class="sa-main">
+
+    <div class="sa-page-header">
+      <div>
+        <h1 class="sa-page-title">All Users</h1>
+        <p class="sa-page-sub">Admins and teachers across all schools</p>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="sa-kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+      <div class="sa-kpi-card" data-color="blue">
+        <div class="sa-kpi-icon"><i class="fas fa-users"></i></div>
+        <div class="sa-kpi-info">
+          <p class="sa-kpi-label">Total Users</p>
+          <p class="sa-kpi-value" id="totalUsersKpi">--</p>
+        </div>
+      </div>
+      <div class="sa-kpi-card" data-color="purple">
+        <div class="sa-kpi-icon"><i class="fas fa-user-shield"></i></div>
+        <div class="sa-kpi-info">
+          <p class="sa-kpi-label">Admins</p>
+          <p class="sa-kpi-value" id="totalAdminsKpi">--</p>
+        </div>
+      </div>
+      <div class="sa-kpi-card" data-color="green">
+        <div class="sa-kpi-icon"><i class="fas fa-chalkboard-teacher"></i></div>
+        <div class="sa-kpi-info">
+          <p class="sa-kpi-label">Teachers</p>
+          <p class="sa-kpi-value" id="totalTeachersKpi">--</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="sa-filters-bar">
+      <div class="sa-search-box">
+        <i class="fas fa-magnifying-glass"></i>
+        <input type="text" id="userSearch" placeholder="Search by name or email..."/>
+      </div>
+      <select id="userRoleFilter" class="sa-select">
+        <option value="all">All Roles</option>
+        <option value="admin">Admins</option>
+        <option value="teacher">Teachers</option>
+      </select>
+    </div>
+
+    <!-- Table -->
+    <div class="sa-card">
+      <div class="sa-table-wrapper">
+        <table class="sa-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Full Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>School</th>
+              <th>Account Setup</th>
+              <th>Last Login</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-soft);">
+              <i class="fas fa-spinner fa-spin" style="font-size:20px;"></i>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="sa-table-footer">
+        <span id="usersCount">--</span>
+        <div id="usersPagination" class="pagination"></div>
+      </div>
+    </div>
+
+  </main>
+
+<script src="../js/api.js"></script>
+<script src="../js/sa-users.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+{
+  "name"            : "Scholar Analytics",
+  "short_name"      : "Scholar",
+  "description"     : "CBC Kenya Junior Secondary School Analytics Platform",
+  "start_url"       : "/pages/login.html",
+  "display"         : "standalone",
+  "background_color": "#0a2540",
+  "theme_color"     : "#0a2540",
+  "orientation"     : "portrait-primary",
+  "icons": [
+    {
+      "src"    : "/assets/icons/icon-72.png",
+      "sizes"  : "72x72",
+      "type"   : "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src"    : "/assets/icons/icon-96.png",
+      "sizes"  : "96x96",
+      "type"   : "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src"    : "/assets/icons/icon-128.png",
+      "sizes"  : "128x128",
+      "type"   : "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src"    : "/assets/icons/icon-192.png",
+      "sizes"  : "192x192",
+      "type"   : "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src"    : "/assets/icons/icon-512.png",
+      "sizes"  : "512x512",
+      "type"   : "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories"  : ["education", "productivity"],
+  "lang"        : "en-KE",
+  "screenshots" : []
+}

@@ -1,0 +1,65 @@
+/* ═══════════════════════════════════════════════════════════
+   SCHOLAR ANALYTICS — Analytics Page
+   File: css/analytics.css  Version: 2.0
+═══════════════════════════════════════════════════════════ */
+
+.analytics-grid-2 {
+  display              : grid;
+  grid-template-columns: 1fr 1fr;
+  gap                  : 18px;
+}
+
+.analytics-grade-legend {
+  display       : flex;
+  flex-direction: column;
+  gap           : 6px;
+  flex          : 1;
+}
+
+.analytics-grade-legend-item {
+  display    : flex;
+  align-items: center;
+  gap        : 8px;
+  font-size  : var(--text-xs);
+}
+
+.analytics-grade-legend-dot {
+  width        : 10px;
+  height       : 10px;
+  border-radius: 2px;
+  flex-shrink  : 0;
+}
+
+.analytics-grade-legend-label { font-weight:700; color:var(--text-mid); width:32px; }
+.analytics-grade-legend-count { color:var(--text-soft); flex:1; }
+
+.analytics-grade-legend-bar-wrap {
+  flex      : 2;
+  height    : 5px;
+  background: rgba(209,220,235,0.5);
+  border-radius: var(--radius-full);
+  overflow  : hidden;
+}
+
+.analytics-grade-legend-bar {
+  height      : 100%;
+  border-radius: var(--radius-full);
+  transition  : width 0.5s ease;
+}
+
+.analytics-at-risk-count {
+  display      : inline-flex;
+  align-items  : center;
+  gap          : 6px;
+  padding      : 4px 12px;
+  background   : var(--danger-light);
+  border       : 1px solid var(--danger-border);
+  border-radius: var(--radius-full);
+  font-size    : var(--text-xs);
+  font-weight  : 700;
+  color        : var(--danger);
+}
+
+@media (max-width: 1100px) {
+  .analytics-grid-2 { grid-template-columns: 1fr; }
+}

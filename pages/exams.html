@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — Exams</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/dashboard.css"/>
+  <link rel="stylesheet" href="../css/students.css"/>
+  <link rel="stylesheet" href="../css/mobile.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body class="dashboard-body">
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon"><i class="fas fa-graduation-cap"></i></div>
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">Scholar</span>
+        <span class="sidebar-brand-sub">Analytics</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sidebar-user">
+      <div class="sidebar-user-avatar" id="sidebarAvatar"></div>
+      <div class="sidebar-user-info">
+        <p class="sidebar-user-name" id="sidebarUserName">Loading...</p>
+        <p class="sidebar-user-role" id="sidebarUserRole">--</p>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-section-label">Main Menu</p>
+      <a href="dashboard.html"  class="nav-item"><i class="fas fa-house"></i><span>Dashboard</span></a>
+      <a href="students.html"   class="nav-item"><i class="fas fa-user-graduate"></i><span>Students</span></a>
+      <a href="classes.html"    class="nav-item"><i class="fas fa-school"></i><span>Classes</span></a>
+      <a href="subjects.html"   class="nav-item"><i class="fas fa-book-open"></i><span>Subjects</span></a>
+      <a href="exams.html"      class="nav-item active"><i class="fas fa-calendar-check"></i><span>Exams</span></a>
+      <p class="nav-section-label">Academic</p>
+      <a href="marks.html"      class="nav-item"><i class="fas fa-pen-to-square"></i><span>Marks Entry</span></a>
+      <a href="results.html"    class="nav-item"><i class="fas fa-chart-bar"></i><span>Results</span></a>
+      <a href="reports.html"    class="nav-item"><i class="fas fa-file-pdf"></i><span>Reports & PDFs</span></a>
+      <p class="nav-section-label">Insights</p>
+      <a href="analytics.html"  class="nav-item"><i class="fas fa-chart-line"></i><span>Analytics</span></a>
+      <div class="admin-only" id="adminMenu">
+        <p class="nav-section-label">Administration</p>
+        <a href="users.html"    class="nav-item"><i class="fas fa-users-gear"></i><span>Manage Users</span></a>
+        <a href="settings.html" class="nav-item"><i class="fas fa-sliders"></i><span>Settings</span></a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div class="topbar-title">
+          <h1>Exams</h1>
+          <p><i class="fas fa-house"></i> Home &rsaquo; Exams</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="term-badge"><i class="fas fa-calendar"></i><span id="currentTerm">Term 1 &bull; 2024</span></div>
+        <div class="user-menu" id="userMenuWrapper">
+          <button class="user-menu-trigger" id="userMenuBtn">
+            <div class="topbar-avatar" id="topbarAvatar"></div>
+            <span id="topbarUserName">Loading...</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><p id="dropdownName">--</p><p id="dropdownEmail">--</p></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><i class="fas fa-gear"></i> Settings</a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-logout" id="dropdownLogout">
+              <i class="fas fa-arrow-right-from-bracket"></i> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2 class="page-header-title">Manage Exams</h2>
+          <p class="page-header-sub">Create and manage exams for each class and term</p>
+        </div>
+        <div class="page-header-right">
+          <select id="classFilter" class="filter-select" style="min-width:180px;">
+            <option value="">-- Filter by Class --</option>
+          </select>
+          <select id="termFilter" class="filter-select">
+            <option value="">All Terms</option>
+            <option value="1">Term 1</option>
+            <option value="2">Term 2</option>
+            <option value="3">Term 3</option>
+          </select>
+          <button class="btn-secondary" id="seedExamsBtn">
+            <i class="fas fa-wand-magic-sparkles"></i> Seed All Exams
+          </button>
+          <button class="btn-primary" id="addExamBtn">
+            <i class="fas fa-plus"></i> Add Exam
+          </button>
+        </div>
+      </div>
+
+      <!-- Exams table -->
+      <div class="table-card">
+        <div class="table-wrapper">
+          <table class="students-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Exam Name</th>
+                <th>Class</th>
+                <th>Term</th>
+                <th>Year</th>
+                <th>Marks Entered</th>
+                <th>Status</th>
+                <th>Published</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="examsTableBody">
+              <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-soft);">
+                <i class="fas fa-spinner fa-spin" style="font-size:24px;display:block;margin-bottom:10px;"></i>
+                Loading exams...
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- ADD EXAM MODAL -->
+<div class="modal-overlay" id="examModalOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Add Exam</h3>
+        <p class="modal-subtitle">Create a new exam for a class</p>
+      </div>
+      <button class="modal-close" id="examModalClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
+            Exam Name <span style="color:red;">*</span>
+          </label>
+          <select id="examName" style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;appearance:none;background:white;">
+            <option value="">-- Select Exam Type --</option>
+            <option value="Opener">Opener</option>
+            <option value="Midterm">Midterm</option>
+            <option value="Endterm">Endterm</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
+            Class <span style="color:red;">*</span>
+          </label>
+          <select id="examClass" style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;appearance:none;background:white;">
+            <option value="">-- Select Class --</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
+            Term <span style="color:red;">*</span>
+          </label>
+          <select id="examTerm" style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;appearance:none;background:white;">
+            <option value="">-- Select Term --</option>
+            <option value="1">Term 1</option>
+            <option value="2">Term 2</option>
+            <option value="3">Term 3</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
+            Academic Year
+          </label>
+          <input type="text" id="examYear" value="2024"
+            style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="examModalCancel"><i class="fas fa-times"></i> Cancel</button>
+      <button class="btn-primary" id="saveExamBtn">
+        <i class="fas fa-floppy-disk"></i> Save Exam
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/exams.js"></script>
+</body>
+</html>

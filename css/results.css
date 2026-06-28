@@ -1,0 +1,375 @@
+/* ═══════════════════════════════════════════════════════════
+   SCHOLAR ANALYTICS — Results Page
+   File: css/results.css  Version: 3.1
+═══════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════
+   SELECTOR
+══════════════════════════════════════════════════════════ */
+.results-selector-card {
+  background   : var(--bg-white);
+  border-radius: var(--radius-md);
+  border       : 1px solid var(--border-mid);
+  box-shadow   : var(--shadow-sm);
+  padding      : 20px 24px;
+}
+
+.results-selector-grid {
+  display              : grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap                  : 14px;
+  align-items          : end;
+}
+
+.rpt-field {
+  display       : flex;
+  flex-direction: column;
+  gap           : 7px;
+}
+
+.rpt-field label {
+  font-size     : var(--text-xs);
+  font-weight   : 700;
+  color         : var(--text-mid);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display       : flex;
+  align-items   : center;
+  gap           : 6px;
+}
+
+.rpt-field label i { color: var(--primary-light); font-size: 11px; }
+
+/* ══════════════════════════════════════════════════════════
+   PLACEHOLDER
+══════════════════════════════════════════════════════════ */
+.results-placeholder {
+  display        : flex;
+  align-items    : center;
+  justify-content: center;
+  min-height     : 400px;
+  background     : var(--bg-white);
+  border-radius  : var(--radius-lg);
+  border         : 2px dashed rgba(209,220,235,0.8);
+}
+
+.results-placeholder-inner { text-align:center; padding:48px 32px; }
+
+.results-placeholder-icon {
+  width          : 80px;
+  height         : 80px;
+  background     : var(--primary-pale);
+  border         : 1px solid rgba(46,134,193,0.18);
+  border-radius  : 20px;
+  display        : flex;
+  align-items    : center;
+  justify-content: center;
+  font-size      : 34px;
+  color          : var(--primary-light);
+  margin         : 0 auto 18px;
+  animation      : iconFloat 3s ease-in-out infinite;
+}
+
+@keyframes iconFloat {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+.results-placeholder-inner h3 {
+  font-family  : var(--font-display);
+  font-size    : 1.2rem;
+  color        : var(--text-dark);
+  margin-bottom: 8px;
+}
+
+.results-placeholder-inner p {
+  font-size : var(--text-base);
+  color     : var(--text-soft);
+  max-width : 320px;
+  margin    : 0 auto;
+  line-height: 1.6;
+}
+
+.results-placeholder-inner p strong { color: var(--primary); }
+
+/* ══════════════════════════════════════════════════════════
+   SUBJECT AVERAGES BAR
+══════════════════════════════════════════════════════════ */
+.subj-avg-grid {
+  display              : grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap                  : 10px;
+}
+
+.subj-avg-item {
+  background   : var(--bg-light);
+  border-radius: var(--radius-sm);
+  border       : 1px solid var(--border-light);
+  padding      : 10px 14px;
+  transition   : background var(--ease-base);
+}
+
+.subj-avg-item:hover { background: var(--primary-pale); }
+
+.subj-avg-code {
+  font-size     : var(--text-xs);
+  font-weight   : 700;
+  color         : var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom : 4px;
+}
+
+.subj-avg-name {
+  font-size    : var(--text-xs);
+  color        : var(--text-soft);
+  margin-bottom: 8px;
+  white-space  : nowrap;
+  overflow     : hidden;
+  text-overflow: ellipsis;
+}
+
+.subj-avg-score {
+  font-family: var(--font-display);
+  font-size  : 1.4rem;
+  font-weight: 700;
+  color      : var(--text-dark);
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.subj-avg-bar-wrap {
+  height       : 4px;
+  background   : rgba(209,220,235,0.5);
+  border-radius: var(--radius-full);
+  overflow     : hidden;
+}
+
+.subj-avg-bar-fill {
+  height       : 100%;
+  border-radius: var(--radius-full);
+  transition   : width 0.6s ease;
+}
+
+/* ══════════════════════════════════════════════════════════
+   RESULTS TABLE
+══════════════════════════════════════════════════════════ */
+.results-table {
+  width          : 100%;
+  border-collapse: collapse;
+  font-size      : 12px;
+  min-width      : 900px;
+}
+
+.results-table thead {
+  position: sticky;
+  top     : 0;
+  z-index : var(--z-raised);
+}
+
+.results-table thead tr:first-child {
+  background: linear-gradient(135deg, #0a2540, #1a4a6b);
+}
+
+.results-table thead tr:last-child {
+  background: linear-gradient(135deg, #0d3349, #1a5276);
+}
+
+.results-table th {
+  padding       : 9px 10px;
+  text-align    : center;
+  font-size     : 0.60rem;
+  font-weight   : 700;
+  color         : rgba(255,255,255,0.75);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space   : nowrap;
+  border-right  : 1px solid rgba(255,255,255,0.06);
+}
+
+.results-table th:last-child  { border-right: none; }
+.results-table th.col-name    { text-align: left; min-width: 160px; }
+.results-table th.col-rank    { width: 50px; }
+.results-table th.col-upi     { text-align: left; width: 110px; }
+.results-table th.col-subj    { width: 52px; }
+.results-table th.col-total   { width: 70px; }
+.results-table th.col-avg     { width: 60px; }
+.results-table th.col-pts     { width: 55px; }
+.results-table th.col-grade   { width: 58px; }
+.results-table th.col-actions { width: 70px; }
+
+/* Body rows */
+.results-table tbody tr {
+  border-bottom: 1px solid var(--border-light);
+  transition   : background var(--ease-fast);
+  cursor       : pointer;
+}
+
+.results-table tbody tr:nth-child(even) { background: #fafbfc; }
+.results-table tbody tr:hover           { background: rgba(46,134,193,0.05); }
+.results-table tbody tr.top-1 { background: rgba(255,215,0,0.05)  !important; }
+.results-table tbody tr.top-2 { background: rgba(192,192,192,0.05)!important; }
+.results-table tbody tr.top-3 { background: rgba(205,127,50,0.05) !important; }
+
+.results-table td {
+  padding       : 9px 10px;
+  text-align    : center;
+  vertical-align: middle;
+  border-right  : 1px solid var(--border-light);
+}
+
+.results-table td:last-child   { border-right: none; }
+.results-table td.col-name     { text-align: left; }
+.results-table td.col-upi      { text-align: left; }
+
+/* Rank cell */
+.res-rank {
+  font-size  : 0.80rem;
+  font-weight: 800;
+  display    : block;
+  text-align : center;
+}
+
+.res-rank.gold   { color: #d4a017; }
+.res-rank.silver { color: #888;    }
+.res-rank.bronze { color: #cd7f32; }
+.res-rank.other  { color: var(--text-light); }
+
+/* Name cell */
+.res-name-cell {
+  display    : flex;
+  align-items: center;
+  gap        : 8px;
+}
+
+.res-avatar {
+  width          : 28px;
+  height         : 28px;
+  border-radius  : 7px;
+  display        : flex;
+  align-items    : center;
+  justify-content: center;
+  font-size      : 0.65rem;
+  font-weight    : 700;
+  color          : white;
+  flex-shrink    : 0;
+}
+
+.res-name      { font-weight:600; color:var(--text-dark); font-size:12px; }
+.res-gender    { font-size:10px; color:var(--text-soft); margin-top:1px; }
+
+/* Score cells */
+.res-score {
+  font-weight: 600;
+  font-size  : 12px;
+  padding    : 3px 5px;
+  border-radius: 4px;
+  display    : inline-block;
+  min-width  : 32px;
+  text-align : center;
+}
+
+.res-score.ee1 { background:#d5f5e3; color:#1e8449; }
+.res-score.ee2 { background:#d5f5e3; color:#27ae60; }
+.res-score.me1 { background:#d6eaf8; color:#1a6fa8; }
+.res-score.me2 { background:#d6eaf8; color:#2980b9; }
+.res-score.ae1 { background:#fef9e7; color:#d68910; }
+.res-score.ae2 { background:#fdebd0; color:#ca6f1e; }
+.res-score.be1 { background:#fce4e4; color:#c0392b; }
+.res-score.be2 { background:#f9d6d6; color:#922b21; }
+.res-score.abs { background:rgba(100,116,139,0.10); color:#94a3b8; }
+
+/* Total / points */
+.res-total  { font-weight:700; color:var(--text-dark); font-size:12px; }
+.res-avg    { font-weight:700; color:var(--primary);   font-size:12px; }
+.res-pts    { font-weight:800; color:#7d3c98;           font-size:13px; }
+
+/* Mean grade badge */
+.res-mean-badge {
+  display      : inline-block;
+  padding      : 2px 7px;
+  border-radius: 4px;
+  font-size    : 0.68rem;
+  font-weight  : 700;
+}
+
+/* Footer row */
+.results-table tfoot tr {
+  background: linear-gradient(135deg, #f0f4f8, #e8ecf2);
+  border-top: 2px solid var(--border-mid);
+}
+
+.results-table tfoot td {
+  padding   : 10px;
+  font-weight: 700;
+  font-size : 11px;
+  color     : var(--text-dark);
+}
+
+/* View button */
+.res-view-btn {
+  display        : inline-flex;
+  align-items    : center;
+  justify-content: center;
+  width          : 28px;
+  height         : 28px;
+  border-radius  : 7px;
+  border         : 1.5px solid var(--border-input);
+  background     : var(--bg-white);
+  color          : var(--text-soft);
+  font-size      : 12px;
+  cursor         : pointer;
+  transition     : all var(--ease-base);
+}
+
+.res-view-btn:hover {
+  background  : var(--primary-light);
+  color       : white;
+  border-color: var(--primary-light);
+}
+
+/* ══════════════════════════════════════════════════════════
+   STUDENT DETAIL MODAL
+══════════════════════════════════════════════════════════ */
+.detail-subject-row {
+  display      : flex;
+  align-items  : center;
+  gap          : 12px;
+  padding      : 10px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.detail-subject-row:last-child { border-bottom: none; }
+
+.detail-subj-name {
+  flex       : 1;
+  font-size  : var(--text-sm);
+  font-weight: 600;
+  color      : var(--text-dark);
+}
+
+.detail-subj-score-bar {
+  width        : 160px;
+  height       : 6px;
+  background   : rgba(209,220,235,0.5);
+  border-radius: var(--radius-full);
+  overflow     : hidden;
+}
+
+.detail-subj-score-fill {
+  height       : 100%;
+  border-radius: var(--radius-full);
+  transition   : width 0.5s ease;
+}
+
+/* ══════════════════════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════════════════════ */
+@media (max-width: 1100px) {
+  .results-selector-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 768px) {
+  .results-selector-grid { grid-template-columns: 1fr; }
+  .subj-avg-grid { grid-template-columns: repeat(3, 1fr); }
+}

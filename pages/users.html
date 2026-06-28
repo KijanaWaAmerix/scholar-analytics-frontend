@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — Manage Users</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/dashboard.css"/>
+  <link rel="stylesheet" href="../css/students.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="../css/mobile.css"/>
+</head>
+<body class="dashboard-body">
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon"><i class="fas fa-graduation-cap"></i></div>
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">Scholar</span>
+        <span class="sidebar-brand-sub">Analytics</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sidebar-user">
+      <div class="sidebar-user-avatar" id="sidebarAvatar"></div>
+      <div class="sidebar-user-info">
+        <p class="sidebar-user-name" id="sidebarUserName">Loading...</p>
+        <p class="sidebar-user-role" id="sidebarUserRole">--</p>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-section-label">Main Menu</p>
+      <a href="dashboard.html"  class="nav-item"><i class="fas fa-house"></i><span>Dashboard</span></a>
+      <a href="students.html"   class="nav-item"><i class="fas fa-user-graduate"></i><span>Students</span></a>
+      <a href="classes.html"    class="nav-item"><i class="fas fa-school"></i><span>Classes</span></a>
+      <a href="subjects.html"   class="nav-item"><i class="fas fa-book-open"></i><span>Subjects</span></a>
+      <a href="exams.html"      class="nav-item"><i class="fas fa-calendar-check"></i><span>Exams</span></a>
+      <p class="nav-section-label">Academic</p>
+      <a href="marks.html"      class="nav-item"><i class="fas fa-pen-to-square"></i><span>Marks Entry</span></a>
+      <a href="results.html"    class="nav-item"><i class="fas fa-chart-bar"></i><span>Results</span></a>
+      <a href="reports.html"    class="nav-item"><i class="fas fa-file-pdf"></i><span>Reports & PDFs</span></a>
+      <p class="nav-section-label">Insights</p>
+      <a href="analytics.html"  class="nav-item"><i class="fas fa-chart-line"></i><span>Analytics</span></a>
+      <div class="admin-only" id="adminMenu">
+        <p class="nav-section-label">Administration</p>
+        <a href="users.html"    class="nav-item active"><i class="fas fa-users-gear"></i><span>Manage Users</span></a>
+        <a href="settings.html" class="nav-item"><i class="fas fa-sliders"></i><span>Settings</span></a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div class="topbar-title">
+          <h1>Manage Users</h1>
+          <p><i class="fas fa-house"></i> Home &rsaquo; Manage Users</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="term-badge"><i class="fas fa-calendar"></i><span id="currentTerm">Term 1 &bull; 2024</span></div>
+        <div class="user-menu" id="userMenuWrapper">
+          <button class="user-menu-trigger" id="userMenuBtn">
+            <div class="topbar-avatar" id="topbarAvatar"></div>
+            <span id="topbarUserName">Loading...</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><p id="dropdownName">--</p><p id="dropdownEmail">--</p></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><i class="fas fa-gear"></i> Settings</a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-logout" id="dropdownLogout">
+              <i class="fas fa-arrow-right-from-bracket"></i> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2 class="page-header-title">School Users</h2>
+          <p class="page-header-sub">Manage admin and teacher accounts</p>
+        </div>
+        <div class="page-header-right">
+          <button class="btn-primary" id="addTeacherBtn">
+            <i class="fas fa-user-plus"></i> Add Teacher
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="students-stats-strip">
+        <div class="strip-stat">
+          <i class="fas fa-users"></i>
+          <div><p class="strip-value" id="totalUsers">--</p><p class="strip-label">Total Users</p></div>
+        </div>
+        <div class="strip-divider"></div>
+        <div class="strip-stat">
+          <i class="fas fa-user-shield" style="color:#2e86c1;"></i>
+          <div><p class="strip-value" id="totalAdmins">--</p><p class="strip-label">Admins</p></div>
+        </div>
+        <div class="strip-divider"></div>
+        <div class="strip-stat">
+          <i class="fas fa-chalkboard-teacher" style="color:#27ae60;"></i>
+          <div><p class="strip-value" id="totalTeachers">--</p><p class="strip-label">Teachers</p></div>
+        </div>
+        <div class="strip-divider"></div>
+        <div class="strip-stat">
+          <i class="fas fa-circle-check" style="color:#2ecc71;"></i>
+          <div><p class="strip-value" id="activeUsers">--</p><p class="strip-label">Active</p></div>
+        </div>
+      </div>
+
+      <!-- Users table -->
+      <div class="table-card">
+        <div class="table-wrapper">
+          <table class="students-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Account Setup</th>
+                <th>Last Login</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-soft);">
+                <i class="fas fa-spinner fa-spin" style="font-size:24px;display:block;margin-bottom:10px;"></i>
+                Loading users...
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- ADD TEACHER MODAL -->
+<div class="modal-overlay" id="teacherModalOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Add Teacher</h3>
+        <p class="modal-subtitle">Teacher will receive an email to set their password</p>
+      </div>
+      <button class="modal-close" id="teacherModalClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
+            Full Name <span style="color:red;">*</span>
+          </label>
+          <input type="text" id="teacherName"
+            placeholder="e.g. Mr. John Kamau"
+            style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;"/>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
+            Email Address <span style="color:red;">*</span>
+          </label>
+          <input type="email" id="teacherEmail"
+            placeholder="e.g. john.kamau@school.ac.ke"
+            style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;"/>
+        </div>
+        <div>
+          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
+            Phone Number
+          </label>
+          <input type="tel" id="teacherPhone"
+            placeholder="e.g. 0712345678"
+            style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;"/>
+        </div>
+        <div style="background:rgba(46,134,193,0.06);border:1px solid rgba(46,134,193,0.15);border-radius:8px;padding:12px;">
+          <p style="font-size:0.80rem;color:var(--text-mid);display:flex;align-items:flex-start;gap:8px;">
+            <i class="fas fa-circle-info" style="color:var(--primary-light);margin-top:2px;flex-shrink:0;"></i>
+            The teacher will receive an email with a link to set their own password and activate their account.
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="teacherModalCancel"><i class="fas fa-times"></i> Cancel</button>
+      <button class="btn-primary" id="saveTeacherBtn">
+        <i class="fas fa-paper-plane"></i>
+        <span id="saveTeacherText">Send Invite</span>
+        <span id="saveTeacherSpinner" style="display:none;"><i class="fas fa-spinner fa-spin"></i> Sending...</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/users.js"></script>
+</body>
+</html>

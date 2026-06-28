@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — Login</title>
+
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/mobile.css"/>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:wght@600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+  />
+
+  <style>
+    /* ══════════════════════════════════════════════
+       SUSPENSION SCREEN — Scholar Analytics v2.1
+    ══════════════════════════════════════════════ */
+    .suspension-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: linear-gradient(
+        145deg,
+        #0a0f1e 0%,
+        #0f1a2e 40%,
+        #1a1a2e 100%
+      );
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      animation: suspensionFadeIn 0.5s ease;
+    }
+
+    .suspension-screen.visible {
+      display: flex;
+    }
+
+    @keyframes suspensionFadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    /* Mesh background */
+    .suspension-screen::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 36px 36px;
+      pointer-events: none;
+    }
+
+    /* Red glow blob */
+    .suspension-screen::after {
+      content: '';
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(
+        ellipse at center,
+        rgba(231, 76, 60, 0.12) 0%,
+        transparent 70%
+      );
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .suspension-card {
+      position: relative;
+      z-index: 2;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(231, 76, 60, 0.25);
+      border-radius: 28px;
+      padding: 56px 52px;
+      max-width: 520px;
+      width: 100%;
+      text-align: center;
+      backdrop-filter: blur(24px) saturate(150%);
+      -webkit-backdrop-filter: blur(24px) saturate(150%);
+      box-shadow:
+        0 0 0 1px rgba(231,76,60,0.10),
+        0 24px 80px rgba(0,0,0,0.40),
+        inset 0 1px 0 rgba(255,255,255,0.06);
+      animation: cardRise 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both;
+    }
+
+    @keyframes cardRise {
+      from { opacity: 0; transform: translateY(32px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0)    scale(1);    }
+    }
+
+    /* Lock icon */
+    .suspension-icon {
+      width: 88px;
+      height: 88px;
+      background: linear-gradient(
+        135deg,
+        rgba(231,76,60,0.20),
+        rgba(192,57,43,0.15)
+      );
+      border: 2px solid rgba(231,76,60,0.35);
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 28px;
+      font-size: 38px;
+      color: #e74c3c;
+      box-shadow:
+        0 0 40px rgba(231,76,60,0.20),
+        inset 0 1px 0 rgba(255,255,255,0.08);
+      animation: lockPulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes lockPulse {
+      0%, 100% { box-shadow: 0 0 40px rgba(231,76,60,0.20), inset 0 1px 0 rgba(255,255,255,0.08); }
+      50%       { box-shadow: 0 0 60px rgba(231,76,60,0.35), inset 0 1px 0 rgba(255,255,255,0.08); }
+    }
+
+    .suspension-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 16px;
+      background: rgba(231,76,60,0.15);
+      border: 1px solid rgba(231,76,60,0.30);
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #e74c3c;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-bottom: 20px;
+    }
+
+    .suspension-badge i {
+      font-size: 10px;
+    }
+
+    .suspension-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.9rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 14px;
+      line-height: 1.2;
+    }
+
+    .suspension-message {
+      font-size: 0.90rem;
+      color: rgba(255,255,255,0.60);
+      line-height: 1.7;
+      margin-bottom: 10px;
+    }
+
+    .suspension-reason {
+      display: inline-block;
+      margin: 4px 0 28px;
+      padding: 8px 18px;
+      background: rgba(231,76,60,0.10);
+      border: 1px solid rgba(231,76,60,0.20);
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.75);
+      font-style: italic;
+    }
+
+    .suspension-reason i {
+      color: #e74c3c;
+      margin-right: 6px;
+    }
+
+    /* Contact box */
+    .suspension-contact {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 16px;
+      padding: 22px 24px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    .suspension-contact h4 {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.40);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 14px;
+    }
+
+    .contact-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .contact-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .contact-item-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      background: rgba(46,204,113,0.12);
+      border: 1px solid rgba(46,204,113,0.20);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #2ecc71;
+      flex-shrink: 0;
+    }
+
+    .contact-item-label {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.40);
+      margin-bottom: 1px;
+    }
+
+    .contact-item-value {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.85);
+    }
+
+    .contact-item-value a {
+      color: #5dade2;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .contact-item-value a:hover {
+      color: #85c1e9;
+      text-decoration: underline;
+    }
+
+    /* Action buttons */
+    .suspension-actions {
+      display: flex;
+      gap: 10px;
+      flex-direction: column;
+    }
+
+    .btn-contact-support {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #c0392b, #e74c3c);
+      color: white;
+      font-size: 0.90rem;
+      font-weight: 700;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      font-family: 'DM Sans', sans-serif;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 6px 20px rgba(231,76,60,0.35);
+      letter-spacing: 0.2px;
+    }
+
+    .btn-contact-support:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px rgba(231,76,60,0.45);
+    }
+
+    .btn-try-again {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 12px 24px;
+      background: transparent;
+      color: rgba(255,255,255,0.55);
+      font-size: 0.84rem;
+      font-weight: 600;
+      border-radius: 12px;
+      border: 1.5px solid rgba(255,255,255,0.12);
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.2s ease;
+    }
+
+    .btn-try-again:hover {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.80);
+      border-color: rgba(255,255,255,0.20);
+    }
+
+    /* Powered by footer */
+    .suspension-footer {
+      margin-top: 28px;
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .suspension-footer i {
+      color: rgba(46,204,113,0.50);
+      font-size: 13px;
+    }
+
+    /* Responsive */
+    @media (max-width: 540px) {
+      .suspension-card {
+        padding: 40px 28px;
+        border-radius: 20px;
+      }
+
+      .suspension-title { font-size: 1.55rem; }
+
+      .suspension-icon {
+        width: 72px;
+        height: 72px;
+        font-size: 30px;
+      }
+    }
+  </style>
+</head>
+
+<body class="login-body">
+
+  <!-- ══════════════════════════════════════════════════════
+       🔒 SUSPENSION SCREEN (hidden by default)
+       Shown when school account is locked by SuperAdmin
+  ══════════════════════════════════════════════════════ -->
+  <div class="suspension-screen" id="suspensionScreen">
+    <div class="suspension-card">
+
+      <!-- Lock icon -->
+      <div class="suspension-icon">
+        <i class="fas fa-lock"></i>
+      </div>
+
+      <!-- Status badge -->
+      <div class="suspension-badge">
+        <i class="fas fa-circle"></i>
+        Account Suspended
+      </div>
+
+      <!-- Title -->
+      <h2 class="suspension-title">Access Restricted</h2>
+
+      <!-- Message -->
+      <p class="suspension-message">
+        Your school's Scholar Analytics account has been
+        suspended. This may be due to an expired subscription
+        or an outstanding payment.
+      </p>
+
+      <!-- Dynamic reason injected by JS -->
+      <div class="suspension-reason" id="suspensionReason">
+        <i class="fas fa-info-circle"></i>
+        <span id="suspensionReasonText">Subscription expired or payment overdue.</span>
+      </div>
+
+      <!-- Contact box -->
+      <div class="suspension-contact">
+        <h4>Contact Scholar Analytics Support</h4>
+
+        <div class="contact-item">
+          <div class="contact-item-icon">
+            <i class="fas fa-envelope"></i>
+          </div>
+          <div>
+            <p class="contact-item-label">Email Support</p>
+            <p class="contact-item-value">
+              <a href="mailto:dankibe1998@gmail.com">
+                dankibe1998@gmail.com
+              </a>
+            </p>
+          </div>
+        </div>
+
+        <div class="contact-item">
+          <div class="contact-item-icon">
+            <i class="fas fa-clock"></i>
+          </div>
+          <div>
+            <p class="contact-item-label">Response Time</p>
+            <p class="contact-item-value">Within 24 hours</p>
+          </div>
+        </div>
+
+        <div class="contact-item">
+          <div class="contact-item-icon">
+            <i class="fas fa-shield-halved"></i>
+          </div>
+          <div>
+            <p class="contact-item-label">Your Data</p>
+            <p class="contact-item-value">
+              Safely stored — no data lost
+            </p>
+          </div>
+        </div>
+
+      </div><!-- end suspension-contact -->
+
+      <!-- Action buttons -->
+      <div class="suspension-actions">
+        
+          href="mailto:dankibe1998@gmail.com?subject=Account%20Suspension%20-%20Scholar%20Analytics&body=Hello%2C%0A%0AMy%20school%20account%20has%20been%20suspended.%20Please%20assist%20with%20reactivation.%0A%0ASchool%20Name%3A%20%5BYour%20School%20Name%5D%0AContact%20Person%3A%20%5BYour%20Name%5D%0APhone%3A%20%5BYour%20Phone%5D%0A%0AThank%20you."
+          class="btn-contact-support"
+        >
+          <i class="fas fa-envelope"></i>
+          Send Reactivation Request
+        </a>
+
+        <button class="btn-try-again" id="tryAgainBtn">
+          <i class="fas fa-rotate-left"></i>
+          Back to Login
+        </button>
+      </div>
+
+      <!-- Footer -->
+      <div class="suspension-footer">
+        <i class="fas fa-graduation-cap"></i>
+        Scholar Analytics &mdash; Empowering Education Through Data
+      </div>
+
+    </div><!-- end suspension-card -->
+  </div><!-- end suspension-screen -->
+
+
+  <!-- ══════════════════════════════════════════════════════
+       MAIN LOGIN WRAPPER
+  ══════════════════════════════════════════════════════ -->
+  <div class="login-wrapper" id="loginWrapper">
+
+    <!-- ▌LEFT PANEL — Branding ▌-->
+    <div class="login-left">
+
+      <!-- Decorative animated circles -->
+      <div class="deco-circle deco-circle-1"></div>
+      <div class="deco-circle deco-circle-2"></div>
+      <div class="deco-circle deco-circle-3"></div>
+
+      <!-- Brand -->
+      <div class="brand">
+        <div class="brand-icon">
+          <i class="fas fa-graduation-cap"></i>
+        </div>
+        <h1 class="brand-name">Scholar Analytics</h1>
+        <p class="brand-tagline">Empowering Education Through Data</p>
+      </div>
+
+      <!-- Feature highlights -->
+      <div class="features-list">
+
+        <div class="feature-item">
+          <i class="fas fa-chart-line"></i>
+          <div>
+            <h4>Performance Analytics</h4>
+            <p>Track and visualize student performance trends</p>
+          </div>
+        </div>
+
+        <div class="feature-item">
+          <i class="fas fa-file-alt"></i>
+          <div>
+            <h4>CBC Report Cards</h4>
+            <p>Auto-generate professional PDF report cards</p>
+          </div>
+        </div>
+
+        <div class="feature-item">
+          <i class="fas fa-trophy"></i>
+          <div>
+            <h4>Smart Ranking</h4>
+            <p>Automatic class positions and subject rankings</p>
+          </div>
+        </div>
+
+        <div class="feature-item">
+          <i class="fas fa-shield-alt"></i>
+          <div>
+            <h4>Role-Based Access</h4>
+            <p>Secure access for Admins and Teachers</p>
+          </div>
+        </div>
+
+      </div><!-- end features-list -->
+
+    </div><!-- end login-left -->
+
+
+    <!-- ▌RIGHT PANEL — Login Form ▌-->
+    <div class="login-right">
+
+      <div class="login-card">
+
+        <!-- Card Header -->
+        <div class="login-card-header">
+          <h2>Welcome Back</h2>
+          <p>Sign in to your Scholar Analytics account</p>
+        </div>
+
+        <!-- Error / Success Alert -->
+        <div class="alert alert-error" id="loginAlert" style="display:none;">
+          <i class="fas fa-exclamation-circle"></i>
+          <span id="alertMessage">Invalid email or password.</span>
+        </div>
+
+        <!-- Login Form -->
+        <form class="login-form" id="loginForm" novalidate>
+
+          <!-- Email -->
+          <div class="form-group">
+            <label for="email">
+              <i class="fas fa-envelope"></i> Email Address
+            </label>
+            <div class="input-wrapper">
+              <input
+                type="email"
+                id="email"
+                name="email"
+                placeholder="Enter your email address"
+                autocomplete="email"
+                required
+              />
+            </div>
+            <span class="field-error" id="emailError">
+              <i class="fas fa-circle-exclamation"></i>
+              Please enter a valid email address.
+            </span>
+          </div>
+
+          <!-- Password -->
+          <div class="form-group">
+            <label for="password">
+              <i class="fas fa-lock"></i> Password
+            </label>
+            <div class="password-wrapper">
+              <input
+                type="password"
+                id="password"
+                name="password"
+                placeholder="Enter your password"
+                autocomplete="current-password"
+                required
+              />
+              <button
+                type="button"
+                class="toggle-password"
+                id="togglePassword"
+                aria-label="Toggle password visibility"
+              >
+                <i class="fas fa-eye" id="toggleIcon"></i>
+              </button>
+            </div>
+            <span class="field-error" id="passwordError">
+              <i class="fas fa-circle-exclamation"></i>
+              Password must be at least 6 characters.
+            </span>
+          </div>
+
+          <!-- Remember me + Forgot password -->
+          <div class="form-options">
+            <label class="checkbox-label">
+              <input type="checkbox" id="rememberMe" />
+              Remember me
+            </label>
+            <a href="#" class="forgot-link">Forgot password?</a>
+          </div>
+
+          <!-- Submit -->
+          <button type="submit" class="btn-login" id="loginBtn">
+            <span id="btnText">
+              Sign In &nbsp;<i class="fas fa-arrow-right"></i>
+            </span>
+            <span id="btnSpinner" style="display:none;">
+              <i class="fas fa-spinner fa-spin"></i>&nbsp; Signing in...
+            </span>
+          </button>
+
+        </form><!-- end login-form -->
+
+        <!-- Card Footer -->
+        <div class="login-card-footer">
+          <p>
+            Having trouble?
+            <a href="mailto:dankibe1998@gmail.com">Contact Support</a>
+          </p>
+        </div>
+
+      </div><!-- end login-card -->
+
+      <!-- Bottom copyright -->
+      <p class="login-bottom-note">
+        &copy; 2024 Scholar Analytics &mdash;
+        Junior Secondary School Management System
+      </p>
+
+    </div><!-- end login-right -->
+
+  </div><!-- end login-wrapper -->
+<script src="../js/api.js"></script>
+<script src="../js/main.js"></script>
+  
+</body>
+</html>

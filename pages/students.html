@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — Students</title>
+
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/dashboard.css" />
+  <link rel="stylesheet" href="../css/students.css" />
+<link rel="stylesheet" href="../css/mobile.css"/>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:wght@600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+  />
+
+  <!-- SheetJS — reads .xlsx and .csv files in the browser -->
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+</head>
+
+<body class="dashboard-body">
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon">
+        <i class="fas fa-graduation-cap"></i>
+      </div>
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">Scholar</span>
+        <span class="sidebar-brand-sub">Analytics</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose" aria-label="Close menu">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="sidebar-user">
+      <div class="sidebar-user-avatar" id="sidebarAvatar"></div>
+      <div class="sidebar-user-info">
+        <p class="sidebar-user-name" id="sidebarUserName">Loading...</p>
+        <p class="sidebar-user-role" id="sidebarUserRole">--</p>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <p class="nav-section-label">Main Menu</p>
+      <a href="dashboard.html" class="nav-item" data-page="dashboard">
+        <i class="fas fa-house"></i><span>Dashboard</span>
+      </a>
+      <a href="students.html" class="nav-item active" data-page="students">
+        <i class="fas fa-user-graduate"></i><span>Students</span>
+        <span class="nav-badge" id="badgeStudents">--</span>
+      </a>
+      <a href="classes.html" class="nav-item" data-page="classes">
+        <i class="fas fa-school"></i><span>Classes</span>
+      </a>
+      <a href="subjects.html" class="nav-item" data-page="subjects">
+        <i class="fas fa-book-open"></i><span>Subjects</span>
+      </a>
+      <a href="exams.html" class="nav-item" data-page="exams">
+        <i class="fas fa-calendar-check"></i><span>Exams</span>
+      </a>
+
+      <p class="nav-section-label">Academic</p>
+      <a href="marks.html" class="nav-item" data-page="marks">
+        <i class="fas fa-pen-to-square"></i><span>Marks Entry</span>
+      </a>
+      <a href="results.html" class="nav-item" data-page="results">
+        <i class="fas fa-chart-bar"></i><span>Results</span>
+      </a>
+      <a href="reports.html" class="nav-item" data-page="reports">
+        <i class="fas fa-file-pdf"></i><span>Reports &amp; PDFs</span>
+      </a>
+
+      <p class="nav-section-label">Insights</p>
+      <a href="analytics.html" class="nav-item" data-page="analytics">
+        <i class="fas fa-chart-line"></i><span>Analytics</span>
+      </a>
+
+      <div class="admin-only" id="adminMenu">
+        <p class="nav-section-label">Administration</p>
+        <a href="users.html" class="nav-item" data-page="users">
+          <i class="fas fa-users-gear"></i><span>Manage Users</span>
+        </a>
+        <a href="settings.html" class="nav-item" data-page="settings">
+          <i class="fas fa-sliders"></i><span>Settings</span>
+        </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i>
+        <span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN AREA -->
+  <div class="main-area">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger" aria-label="Toggle sidebar">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="topbar-title">
+          <h1>Students</h1>
+          <p id="pageBreadcrumb">
+            <i class="fas fa-house"></i> Home &rsaquo; Students
+          </p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="term-badge">
+          <i class="fas fa-calendar"></i>
+          <span id="currentTerm">Term 1 &bull; 2024</span>
+        </div>
+        <button class="topbar-icon-btn" id="notifBtn" aria-label="Notifications">
+          <i class="fas fa-bell"></i>
+          <span class="notif-dot"></span>
+        </button>
+        <div class="user-menu" id="userMenuWrapper">
+          <button class="user-menu-trigger" id="userMenuBtn">
+            <div class="topbar-avatar" id="topbarAvatar"></div>
+            <span id="topbarUserName">Loading...</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header">
+              <p id="dropdownName">--</p>
+              <p id="dropdownEmail">--</p>
+            </div>
+            <div class="dropdown-divider"></div>
+            <a href="#" class="dropdown-item">
+              <i class="fas fa-user"></i> My Profile
+            </a>
+            <a href="settings.html" class="dropdown-item">
+              <i class="fas fa-gear"></i> Settings
+            </a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-logout" id="dropdownLogout">
+              <i class="fas fa-arrow-right-from-bracket"></i> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- PAGE CONTENT -->
+    <main class="page-content">
+
+      <!-- PAGE HEADER -->
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2 class="page-header-title">All Students</h2>
+          <p class="page-header-sub">
+            Manage learner records and class assignments
+          </p>
+        </div>
+        <div class="page-header-right">
+          <button class="btn-secondary" id="exportBtn">
+            <i class="fas fa-download"></i>
+            <span>Export CSV</span>
+          </button>
+          <button class="btn-import" id="importExcelBtn">
+            <i class="fas fa-file-excel"></i>
+            <span>Import Excel</span>
+          </button>
+          <button class="btn-primary" id="addStudentBtn">
+            <i class="fas fa-user-plus"></i>
+            <span>Add Learner</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- STATS STRIP -->
+      <div class="students-stats-strip">
+        <div class="strip-stat">
+          <i class="fas fa-users"></i>
+          <div>
+            <p class="strip-value" id="totalStudents">--</p>
+            <p class="strip-label">Total Learners</p>
+          </div>
+        </div>
+        <div class="strip-divider"></div>
+        <div class="strip-stat">
+          <i class="fas fa-mars" style="color:#3498db;"></i>
+          <div>
+            <p class="strip-value" id="totalMale">--</p>
+            <p class="strip-label">Male</p>
+          </div>
+        </div>
+        <div class="strip-divider"></div>
+        <div class="strip-stat">
+          <i class="fas fa-venus" style="color:#e91e8c;"></i>
+          <div>
+            <p class="strip-value" id="totalFemale">--</p>
+            <p class="strip-label">Female</p>
+          </div>
+        </div>
+        <div class="strip-divider"></div>
+        <div class="strip-stat">
+          <i class="fas fa-school" style="color:#f39c12;"></i>
+          <div>
+            <p class="strip-value" id="totalClasses">--</p>
+            <p class="strip-label">Classes</p>
+          </div>
+        </div>
+        <div class="strip-divider"></div>
+        <div class="strip-stat">
+          <i class="fas fa-circle-check" style="color:#2ecc71;"></i>
+          <div>
+            <p class="strip-value" id="totalActive">--</p>
+            <p class="strip-label">Active</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEARCH & FILTERS -->
+      <div class="table-controls">
+        <div class="search-box">
+          <i class="fas fa-search"></i>
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Search by name, Admission No or Assessment No..."
+            autocomplete="off"
+          />
+          <button class="search-clear" id="searchClear" style="display:none;">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div class="filters">
+          <select class="filter-select" id="filterClass">
+            <option value="">All Classes</option>
+            <option value="Grade 7 East">Grade 7 East</option>
+            <option value="Grade 7 West">Grade 7 West</option>
+            <option value="Grade 8 East">Grade 8 East</option>
+            <option value="Grade 8 West">Grade 8 West</option>
+            <option value="Grade 9 East">Grade 9 East</option>
+            <option value="Grade 9 West">Grade 9 West</option>
+          </select>
+
+          <select class="filter-select" id="filterGender">
+            <option value="">All Genders</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+
+          <select class="filter-select" id="filterStatus">
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+
+          <button class="btn-reset" id="resetFilters">
+            <i class="fas fa-rotate-left"></i>
+            <span>Reset</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- STUDENTS TABLE -->
+      <div class="table-card">
+        <div class="table-wrapper">
+          <table class="students-table" id="studentsTable">
+            <thead>
+              <tr>
+                <th class="th-check">
+                  <input type="checkbox" id="selectAll" />
+                </th>
+                <th class="th-num">#</th>
+                <th class="sortable" data-col="name">
+                  Learner Name <i class="fas fa-sort"></i>
+                </th>
+                <th class="sortable" data-col="admissionNo">
+                  Admission No <i class="fas fa-sort"></i>
+                </th>
+                <th class="sortable" data-col="assessmentNo">
+                  Assessment No <i class="fas fa-sort"></i>
+                </th>
+                <th class="sortable" data-col="class">
+                  Class <i class="fas fa-sort"></i>
+                </th>
+                <th>Gender</th>
+                <th class="sortable" data-col="status">
+                  Status <i class="fas fa-sort"></i>
+                </th>
+                <th class="th-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="studentsTableBody">
+              <!-- Injected by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Table footer -->
+        <div class="table-footer">
+          <p class="table-count">
+            Showing <strong id="showingFrom">0</strong>–
+            <strong id="showingTo">0</strong> of
+            <strong id="showingTotal">0</strong> learners
+          </p>
+          <div class="pagination" id="pagination">
+            <!-- Injected by JS -->
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div><!-- end main-area -->
+</div><!-- end app-shell -->
+
+<!-- Sidebar overlay -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     ADD / EDIT LEARNER MODAL
+══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="studentModalOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title" id="studentModalTitle">Add New Learner</h3>
+        <p class="modal-subtitle" id="studentModalSub">Fill in the learner details below</p>
+      </div>
+      <button class="modal-close" data-close-modal="studentModal">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- Row 1: Full Name + Gender -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>Full Name <span class="required">*</span></label>
+          <input type="text" id="studentFullName" class="input" placeholder="e.g. Aisha Kamau" autocomplete="off"/>
+        </div>
+        <div class="form-group">
+          <label>Gender <span class="required">*</span></label>
+          <select id="studentGender" class="input">
+            <option value="">-- Select --</option>
+            <option value="female">Female</option>
+            <option value="male">Male</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Row 2: Admission No + Assessment No (both optional) -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>Admission Number <span class="label-hint">(optional)</span></label>
+          <input type="text" id="studentAdmissionNo" class="input" placeholder="e.g. ADM/2024/001" autocomplete="off"/>
+        </div>
+        <div class="form-group">
+          <label>Assessment No <span class="label-hint">(KNEC — optional)</span></label>
+          <input type="text" id="studentAssessmentNo" class="input" placeholder="e.g. 23456780" autocomplete="off"/>
+        </div>
+      </div>
+
+      <!-- Row 3: Class + Status -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>Class <span class="required">*</span></label>
+          <select id="studentClass" class="input">
+            <option value="">-- Select Class --</option>
+            <optgroup label="Grade 7">
+              <option value="Grade 7 East">Grade 7 East</option>
+              <option value="Grade 7 West">Grade 7 West</option>
+            </optgroup>
+            <optgroup label="Grade 8">
+              <option value="Grade 8 East">Grade 8 East</option>
+              <option value="Grade 8 West">Grade 8 West</option>
+            </optgroup>
+            <optgroup label="Grade 9">
+              <option value="Grade 9 East">Grade 9 East</option>
+              <option value="Grade 9 West">Grade 9 West</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="studentStatus" class="input">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+
+    </div><!-- end modal-body -->
+
+    <div class="modal-footer">
+      <button class="btn-cancel" data-close-modal="studentModal">
+        <i class="fas fa-times"></i> Cancel
+      </button>
+      <button class="btn-primary" id="saveStudentBtn">
+        <i class="fas fa-floppy-disk"></i>
+        <span id="saveBtnText">Save Learner</span>
+        <span id="saveBtnSpinner" style="display:none;">
+          <i class="fas fa-spinner fa-spin"></i> Saving...
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     DELETE CONFIRMATION MODAL
+══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="deleteStudentModalOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Delete Learner</h3>
+        <p class="modal-subtitle">This cannot be undone</p>
+      </div>
+      <button class="modal-close" data-close-modal="deleteStudentModal">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="delete-warning">
+        <div class="delete-icon">
+          <i class="fas fa-triangle-exclamation"></i>
+        </div>
+        <p class="delete-message">
+          Are you sure you want to delete
+          <strong id="deleteStudentName">this learner</strong>?
+          All their marks and results will also be deleted.
+        </p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" data-close-modal="deleteStudentModal">Cancel</button>
+      <button class="btn-danger" id="confirmDeleteBtn">
+        <i class="fas fa-trash"></i> Yes, Delete
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     EXCEL IMPORT MODAL
+══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="importModalOverlay">
+  <div class="modal modal-import">
+
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">
+          <i class="fas fa-file-excel" style="color:#27ae60;margin-right:8px;"></i>
+          Import Learners from Excel
+        </h3>
+        <p class="modal-subtitle">
+          Upload an .xlsx or .csv file to add an entire class at once
+        </p>
+      </div>
+      <button class="modal-close" data-close-modal="importModal">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- Target class selector -->
+      <div class="form-group" style="margin-bottom:16px;">
+        <label>Target Class <span class="required">*</span></label>
+        <select id="importClass" class="input">
+          <option value="">-- Select Class --</option>
+          <optgroup label="Grade 7">
+            <option value="Grade 7 East">Grade 7 East</option>
+            <option value="Grade 7 West">Grade 7 West</option>
+          </optgroup>
+          <optgroup label="Grade 8">
+            <option value="Grade 8 East">Grade 8 East</option>
+            <option value="Grade 8 West">Grade 8 West</option>
+          </optgroup>
+          <optgroup label="Grade 9">
+            <option value="Grade 9 East">Grade 9 East</option>
+            <option value="Grade 9 West">Grade 9 West</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <!-- Column guide -->
+      <div class="template-info" style="margin-bottom:16px;">
+        <div class="template-columns">
+          <p class="template-columns-title">
+            <i class="fas fa-table-columns"></i>
+            Columns in your file:
+          </p>
+          <div class="template-tags">
+            <span class="tmpl-tag required">Full Name *</span>
+            <span class="tmpl-tag required">Gender *</span>
+            <span class="tmpl-tag optional">Admission No</span>
+            <span class="tmpl-tag optional">Assessment No</span>
+          </div>
+          <p class="template-note">
+            <i class="fas fa-circle-info"></i>
+            Gender: <strong>Male</strong> or <strong>Female</strong>
+            &nbsp;&bull;&nbsp;
+            Class: e.g. <strong>Grade 7 East</strong>
+          </p>
+        </div>
+      </div>
+
+      <!-- Drop zone / file upload -->
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-zone-inner" id="dropZoneInner">
+          <div class="drop-zone-icon" id="dropZoneIcon">
+            <i class="fas fa-cloud-arrow-up"></i>
+          </div>
+          <p class="drop-zone-title" id="dropZoneTitle">
+            Drag &amp; drop your file here
+          </p>
+          <p class="drop-zone-sub" id="dropZoneSub">
+            or click to browse your computer
+          </p>
+          <p class="drop-zone-formats">
+            Supported: .xlsx &nbsp;&bull;&nbsp; .xls &nbsp;&bull;&nbsp; .csv
+          </p>
+        </div>
+        <input
+          type="file"
+          id="importFileInput"
+          accept=".xlsx,.xls,.csv"
+          style="display:none;"
+        />
+      </div>
+
+      <!-- File info bar (shown after file selected) -->
+      <div class="file-info-bar" id="fileInfoBar" style="display:none;">
+        <div class="file-info-icon">
+          <i class="fas fa-file-excel"></i>
+        </div>
+        <div class="file-info-text">
+          <p class="file-info-name" id="fileInfoName">--</p>
+          <p class="file-info-size" id="fileInfoSize">--</p>
+        </div>
+        <button class="file-remove-btn" id="fileRemoveBtn" title="Remove file">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <!-- Row count summary -->
+      <div id="importCount" style="font-size:var(--text-sm);font-weight:600;color:var(--text-mid);margin-top:12px;margin-bottom:8px;"></div>
+
+      <!-- Preview table -->
+      <div id="importPreviewTable" style="overflow-x:auto;border-radius:var(--radius-sm);overflow:hidden;"></div>
+
+    </div><!-- end modal-body -->
+
+    <div class="modal-footer">
+      <div class="import-footer-left">
+        <p class="import-footer-note" id="importFooterNote" style="display:none;">
+          <i class="fas fa-circle-info"></i>
+          Only valid rows will be imported. Rows with errors are skipped.
+        </p>
+      </div>
+      <div class="import-footer-right">
+        <button class="btn-cancel" data-close-modal="importModal">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+        <button class="btn-confirm-import" id="confirmImportBtn" disabled>
+          <i class="fas fa-file-import"></i>
+          <span id="confirmImportText">Import Learners</span>
+          <span id="confirmImportSpinner" style="display:none;">
+            <i class="fas fa-spinner fa-spin"></i> Importing...
+          </span>
+        </button>
+      </div>
+    </div>
+
+  </div><!-- end modal -->
+</div><!-- end import modal overlay -->
+
+<script src="../js/api.js"></script>
+<script src="../js/students.js"></script>
+<script src="../js/dashboard.js"></script>
+
+</body>
+</html>

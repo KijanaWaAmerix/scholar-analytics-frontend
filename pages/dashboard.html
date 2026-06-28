@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — Dashboard</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/dashboard.css"/>
+  <link rel="stylesheet" href="../css/dash-page.css"/>
+  <link rel="stylesheet" href="../css/mobile.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+
+</head>
+
+<body class="dashboard-body">
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon"><i class="fas fa-graduation-cap"></i></div>
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">Scholar</span>
+        <span class="sidebar-brand-sub">Analytics</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sidebar-user">
+      <div class="sidebar-user-avatar" id="sidebarAvatar"></div>
+      <div class="sidebar-user-info">
+        <p class="sidebar-user-name" id="sidebarUserName">Loading...</p>
+        <p class="sidebar-user-role" id="sidebarUserRole">--</p>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-section-label">Main Menu</p>
+      <a href="dashboard.html"  class="nav-item active"><i class="fas fa-house"></i><span>Dashboard</span></a>
+      <a href="students.html"   class="nav-item"><i class="fas fa-user-graduate"></i><span>Students</span></a>
+      <a href="classes.html"    class="nav-item"><i class="fas fa-school"></i><span>Classes</span></a>
+      <a href="subjects.html"   class="nav-item"><i class="fas fa-book-open"></i><span>Subjects</span></a>
+      <a href="exams.html"      class="nav-item"><i class="fas fa-calendar-check"></i><span>Exams</span></a>
+      <p class="nav-section-label">Academic</p>
+      <a href="marks.html"      class="nav-item"><i class="fas fa-pen-to-square"></i><span>Marks Entry</span></a>
+      <a href="results.html"    class="nav-item"><i class="fas fa-chart-bar"></i><span>Results</span></a>
+      <a href="reports.html"    class="nav-item"><i class="fas fa-file-pdf"></i><span>Reports & PDFs</span></a>
+      <p class="nav-section-label">Insights</p>
+      <a href="analytics.html"  class="nav-item"><i class="fas fa-chart-line"></i><span>Analytics</span></a>
+      <div class="admin-only" id="adminMenu">
+        <p class="nav-section-label">Administration</p>
+        <a href="users.html"    class="nav-item"><i class="fas fa-users-gear"></i><span>Manage Users</span></a>
+        <a href="settings.html" class="nav-item"><i class="fas fa-sliders"></i><span>Settings</span></a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN AREA -->
+  <div class="main-area">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div class="topbar-title">
+          <h1>Dashboard</h1>
+          <p><i class="fas fa-house"></i> Home &rsaquo; Dashboard</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="term-badge">
+          <i class="fas fa-calendar"></i>
+          <span id="currentTerm">Term 1 &bull; 2024</span>
+        </div>
+        <button class="topbar-icon-btn" id="refreshBtn" title="Refresh data">
+          <i class="fas fa-rotate-right"></i>
+        </button>
+        <div class="user-menu" id="userMenuWrapper">
+          <button class="user-menu-trigger" id="userMenuBtn">
+            <div class="topbar-avatar" id="topbarAvatar"></div>
+            <span id="topbarUserName">Loading...</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header">
+              <p id="dropdownName">--</p>
+              <p id="dropdownEmail">--</p>
+            </div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><i class="fas fa-gear"></i> Settings</a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-logout" id="dropdownLogout">
+              <i class="fas fa-arrow-right-from-bracket"></i> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- PAGE CONTENT -->
+    <main class="page-content">
+
+      <!-- Welcome Banner -->
+      <div class="dash-welcome-banner">
+        <div class="dash-welcome-left">
+          <div class="dash-welcome-icon">
+            <i class="fas fa-graduation-cap"></i>
+          </div>
+          <div>
+            <h2 class="dash-welcome-title" id="welcomeTitle">Good morning! 👋</h2>
+            <p class="dash-welcome-sub" id="welcomeSub">Here is what is happening at your school today.</p>
+          </div>
+        </div>
+        <div class="dash-welcome-right">
+          <div class="dash-date-chip">
+            <i class="fas fa-calendar-day"></i>
+            <span id="todayDate">--</span>
+          </div>
+          <a href="marks.html" class="btn-primary btn-sm">
+            <i class="fas fa-pen-to-square"></i> Enter Marks
+          </a>
+        </div>
+      </div>
+
+      <!-- KPI CARDS -->
+      <div class="dash-kpi-grid">
+
+        <div class="dash-kpi-card" data-color="blue">
+          <div class="dash-kpi-icon">
+            <i class="fas fa-user-graduate"></i>
+          </div>
+          <div class="dash-kpi-info">
+            <p class="dash-kpi-label">Total Students</p>
+            <div class="dash-kpi-row">
+              <span class="dash-kpi-value" id="kpiStudents">--</span>
+              <span class="dash-kpi-trend up" id="kpiStudentsTrend">
+                <i class="fas fa-arrow-trend-up"></i> +12
+              </span>
+            </div>
+            <p class="dash-kpi-sub">Across all 6 classes</p>
+          </div>
+          <div class="dash-kpi-bar">
+            <canvas id="sparkStudents" width="80" height="36"
+              role="img" aria-label="Student count trend">Trend data</canvas>
+          </div>
+        </div>
+
+        <div class="dash-kpi-card" data-color="green">
+          <div class="dash-kpi-icon">
+            <i class="fas fa-chart-line"></i>
+          </div>
+          <div class="dash-kpi-info">
+            <p class="dash-kpi-label">School Average</p>
+            <div class="dash-kpi-row">
+              <span class="dash-kpi-value" id="kpiAverage">--</span>
+              <span class="dash-kpi-trend up" id="kpiAverageTrend">
+                <i class="fas fa-arrow-trend-up"></i> +3.2%
+              </span>
+            </div>
+            <p class="dash-kpi-sub">Term 1 Opener result</p>
+          </div>
+          <div class="dash-kpi-bar">
+            <canvas id="sparkAverage" width="80" height="36"
+              role="img" aria-label="Average score trend">Trend data</canvas>
+          </div>
+        </div>
+
+        <div class="dash-kpi-card" data-color="purple">
+          <div class="dash-kpi-icon">
+            <i class="fas fa-circle-check"></i>
+          </div>
+          <div class="dash-kpi-info">
+            <p class="dash-kpi-label">Pass Rate</p>
+            <div class="dash-kpi-row">
+              <span class="dash-kpi-value" id="kpiPassRate">--</span>
+              <span class="dash-kpi-trend up" id="kpiPassTrend">
+                <i class="fas fa-arrow-trend-up"></i> +5.1%
+              </span>
+            </div>
+            <p class="dash-kpi-sub">Learners above 41%</p>
+          </div>
+          <div class="dash-kpi-bar">
+            <canvas id="sparkPassRate" width="80" height="36"
+              role="img" aria-label="Pass rate trend">Trend data</canvas>
+          </div>
+        </div>
+
+        <div class="dash-kpi-card" data-color="orange">
+          <div class="dash-kpi-icon">
+            <i class="fas fa-trophy"></i>
+          </div>
+          <div class="dash-kpi-info">
+            <p class="dash-kpi-label">Top KJSEA Points</p>
+            <div class="dash-kpi-row">
+              <span class="dash-kpi-value" id="kpiTopPoints">--</span>
+              <span class="dash-kpi-trend flat" id="kpiPointsTrend">
+                <i class="fas fa-minus"></i> /72
+              </span>
+            </div>
+            <p class="dash-kpi-sub" id="kpiTopStudent">Best performing learner</p>
+          </div>
+          <div class="dash-kpi-bar">
+            <canvas id="sparkPoints" width="80" height="36"
+              role="img" aria-label="Top points trend">Trend data</canvas>
+          </div>
+        </div>
+
+      </div><!-- end kpi grid -->
+
+      <!-- MAIN CONTENT GRID -->
+      <div class="dash-content-grid">
+
+        <!-- LEFT COLUMN -->
+        <div class="dash-left-col">
+
+          <!-- Performance Trend Chart -->
+          <div class="dash-card">
+            <div class="dash-card-header">
+              <div>
+                <h3 class="dash-card-title">
+                  <i class="fas fa-chart-line"></i>
+                  Performance Trend
+                </h3>
+                <p class="dash-card-sub">School average across all exams this year</p>
+              </div>
+              <div class="dash-card-actions">
+                <select class="dash-select" id="trendClassFilter">
+                  <option value="all">All Classes</option>
+                  <option value="Grade 7 East">Grade 7 East</option>
+                  <option value="Grade 7 West">Grade 7 West</option>
+                  <option value="Grade 8 East">Grade 8 East</option>
+                  <option value="Grade 8 West">Grade 8 West</option>
+                  <option value="Grade 9 East">Grade 9 East</option>
+                  <option value="Grade 9 West">Grade 9 West</option>
+                </select>
+              </div>
+            </div>
+            <div class="dash-card-body">
+              <div class="dash-chart-legend">
+                <span class="dash-legend-item">
+                  <span style="background:#1a5276;"></span> Term 1
+                </span>
+                <span class="dash-legend-item">
+                  <span style="background:#2ecc71;"></span> Term 2
+                </span>
+                <span class="dash-legend-item">
+                  <span style="background:#e67e22;"></span> Term 3
+                </span>
+              </div>
+              <div style="position:relative;height:260px;">
+                <canvas id="performanceTrendChart"
+                  role="img"
+                  aria-label="Line chart showing school average performance across Opener, Midterm and Endterm for Terms 1-3">
+                  Performance trend data across all terms.
+                </canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subject Performance Chart -->
+          <div class="dash-card">
+            <div class="dash-card-header">
+              <div>
+                <h3 class="dash-card-title">
+                  <i class="fas fa-book-open"></i>
+                  Subject Performance
+                </h3>
+                <p class="dash-card-sub">Average score per learning area — Term 1 Opener</p>
+              </div>
+              <div class="dash-card-actions">
+                <select class="dash-select" id="subjectClassFilter">
+                  <option value="all">All Classes</option>
+                  <option value="grade7">Grade 7</option>
+                  <option value="grade8">Grade 8</option>
+                  <option value="grade9">Grade 9</option>
+                </select>
+              </div>
+            </div>
+            <div class="dash-card-body">
+              <div style="position:relative;height:240px;">
+                <canvas id="subjectPerfChart"
+                  role="img"
+                  aria-label="Horizontal bar chart showing average scores per CBC learning area">
+                  Subject performance data by learning area.
+                </canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Grade Distribution -->
+          <div class="dash-card">
+            <div class="dash-card-header">
+              <div>
+                <h3 class="dash-card-title">
+                  <i class="fas fa-chart-pie"></i>
+                  KJSEA Grade Distribution
+                </h3>
+                <p class="dash-card-sub">How learners are distributed across all 8 grades</p>
+              </div>
+            </div>
+            <div class="dash-card-body" style="display:flex;align-items:center;gap:24px;">
+              <div style="position:relative;width:200px;height:200px;flex-shrink:0;">
+                <canvas id="gradeDistChart"
+                  role="img"
+                  aria-label="Doughnut chart showing distribution of KJSEA grades from EE1 to BE2">
+                  Grade distribution data.
+                </canvas>
+              </div>
+              <div class="dash-grade-legend" id="gradeDistLegend"></div>
+            </div>
+          </div>
+
+        </div><!-- end left col -->
+
+        <!-- RIGHT COLUMN -->
+        <div class="dash-right-col">
+
+          <!-- Alerts -->
+          <div class="dash-card" id="alertsCard">
+            <div class="dash-card-header">
+              <div>
+                <h3 class="dash-card-title">
+                  <i class="fas fa-bell"></i> Alerts
+                </h3>
+                <p class="dash-card-sub">Needs your attention</p>
+              </div>
+              <span class="dash-badge-count" id="alertCount">3</span>
+            </div>
+            <div class="dash-card-body" id="alertsList" style="display:flex;flex-direction:column;gap:8px;padding:14px 18px;">
+              <!-- Injected by JS -->
+            </div>
+          </div>
+
+          <!-- Top Performers -->
+          <div class="dash-card">
+            <div class="dash-card-header">
+              <div>
+                <h3 class="dash-card-title">
+                  <i class="fas fa-trophy"></i> Top Performers
+                </h3>
+                <p class="dash-card-sub">Highest KJSEA points this term</p>
+              </div>
+              <a href="results.html" class="dash-view-all">View all</a>
+            </div>
+            <div class="dash-card-body" id="topPerformersList" style="padding:0;">
+              <!-- Injected by JS -->
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="dash-card">
+            <div class="dash-card-header">
+              <div>
+                <h3 class="dash-card-title">
+                  <i class="fas fa-bolt"></i> Quick Actions
+                </h3>
+              </div>
+            </div>
+            <div class="dash-card-body">
+              <div class="dash-quick-actions">
+                <a href="students.html" class="dash-quick-btn">
+                  <i class="fas fa-user-plus"></i>
+                  <span>Add Student</span>
+                </a>
+                <a href="marks.html" class="dash-quick-btn">
+                  <i class="fas fa-pen-to-square"></i>
+                  <span>Enter Marks</span>
+                </a>
+                <a href="reports.html" class="dash-quick-btn">
+                  <i class="fas fa-file-pdf"></i>
+                  <span>Print Reports</span>
+                </a>
+                <a href="results.html" class="dash-quick-btn">
+                  <i class="fas fa-chart-bar"></i>
+                  <span>View Results</span>
+                </a>
+                <a href="exams.html" class="dash-quick-btn">
+                  <i class="fas fa-calendar-check"></i>
+                  <span>Manage Exams</span>
+                </a>
+                <a href="analytics.html" class="dash-quick-btn">
+                  <i class="fas fa-chart-line"></i>
+                  <span>Analytics</span>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Needs Attention -->
+          <div class="dash-card">
+            <div class="dash-card-header">
+              <div>
+                <h3 class="dash-card-title">
+                  <i class="fas fa-circle-exclamation"></i> Needs Attention
+                </h3>
+                <p class="dash-card-sub">Learners scoring below 41%</p>
+              </div>
+              <a href="results.html" class="dash-view-all">View all</a>
+            </div>
+            <div class="dash-card-body" id="needsAttentionList" style="padding:0;">
+              <!-- Injected by JS -->
+            </div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div class="dash-card">
+            <div class="dash-card-header">
+              <div>
+                <h3 class="dash-card-title">
+                  <i class="fas fa-clock-rotate-left"></i> Recent Activity
+                </h3>
+              </div>
+            </div>
+            <div class="dash-card-body" id="activityFeed" style="display:flex;flex-direction:column;gap:0;padding:0;">
+              <!-- Injected by JS -->
+            </div>
+          </div>
+
+        </div><!-- end right col -->
+
+      </div><!-- end content grid -->
+
+    </main>
+  </div><!-- end main area -->
+</div><!-- end app-shell -->
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<script src="../js/api.js"></script>
+<script src="../js/dashboard.js"></script>
+</body>
+</html>

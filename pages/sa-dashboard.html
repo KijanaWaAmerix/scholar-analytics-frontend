@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — SuperAdmin Dashboard</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/sa.css"/>
+  <link rel="stylesheet" href="../css/mobile.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body class="sa-body">
+
+  <!-- TOPBAR -->
+  <header class="sa-topbar">
+    <div class="sa-topbar-left">
+      <div class="sa-brand">
+        <div class="sa-brand-icon"><i class="fas fa-shield-halved"></i></div>
+        <div>
+          <div class="sa-brand-name">Scholar Analytics</div>
+          <div class="sa-brand-sub">SuperAdmin Panel</div>
+        </div>
+      </div>
+    </div>
+    <div class="sa-topbar-right">
+      <div class="sa-admin-chip">
+        <i class="fas fa-circle" style="font-size:7px;color:#9b59b6;"></i>
+        <span id="saAdminName">SuperAdmin</span>
+      </div>
+      <button class="sa-logout-btn" id="saLogoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i> Logout
+      </button>
+    </div>
+  </header>
+
+  <!-- NAV -->
+  <nav class="sa-nav">
+    <a href="sa-dashboard.html" class="sa-nav-item active">
+      <i class="fas fa-gauge-high"></i> Dashboard
+    </a>
+    <a href="sa-schools.html" class="sa-nav-item">
+      <i class="fas fa-school"></i> Schools
+    </a>
+    <a href="sa-users.html" class="sa-nav-item">
+      <i class="fas fa-users"></i> Users
+    </a>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="sa-main">
+
+    <!-- Page title -->
+    <div class="sa-page-header">
+      <div>
+        <h1 class="sa-page-title">Overview Dashboard</h1>
+        <p class="sa-page-sub">Real-time stats across all schools</p>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="sa-btn-secondary" id="autoLockBtn">
+          <i class="fas fa-lock"></i> Auto-Lock Expired
+        </button>
+        <button class="sa-btn-primary" onclick="window.location.href='sa-schools.html'">
+          <i class="fas fa-plus"></i> Add School
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI Grid -->
+    <div class="sa-kpi-grid">
+      <div class="sa-kpi-card" data-color="purple">
+        <div class="sa-kpi-icon"><i class="fas fa-school"></i></div>
+        <div class="sa-kpi-info">
+          <p class="sa-kpi-label">Total Schools</p>
+          <p class="sa-kpi-value" id="kpiTotalSchools">--</p>
+        </div>
+      </div>
+      <div class="sa-kpi-card" data-color="green">
+        <div class="sa-kpi-icon"><i class="fas fa-circle-check"></i></div>
+        <div class="sa-kpi-info">
+          <p class="sa-kpi-label">Active Schools</p>
+          <p class="sa-kpi-value" id="kpiActiveSchools">--</p>
+        </div>
+      </div>
+      <div class="sa-kpi-card" data-color="red">
+        <div class="sa-kpi-icon"><i class="fas fa-lock"></i></div>
+        <div class="sa-kpi-info">
+          <p class="sa-kpi-label">Locked Schools</p>
+          <p class="sa-kpi-value" id="kpiLockedSchools">--</p>
+        </div>
+      </div>
+      <div class="sa-kpi-card" data-color="orange">
+        <div class="sa-kpi-icon"><i class="fas fa-clock"></i></div>
+        <div class="sa-kpi-info">
+          <p class="sa-kpi-label">Expiring Soon</p>
+          <p class="sa-kpi-value" id="kpiExpiringSoon">--</p>
+          <p class="sa-kpi-sub">Within 30 days</p>
+        </div>
+      </div>
+      <div class="sa-kpi-card" data-color="blue">
+        <div class="sa-kpi-icon"><i class="fas fa-users"></i></div>
+        <div class="sa-kpi-info">
+          <p class="sa-kpi-label">Total Users</p>
+          <p class="sa-kpi-value" id="kpiTotalUsers">--</p>
+        </div>
+      </div>
+      <div class="sa-kpi-card" data-color="teal">
+        <div class="sa-kpi-icon"><i class="fas fa-user-graduate"></i></div>
+        <div class="sa-kpi-info">
+          <p class="sa-kpi-label">Total Students</p>
+          <p class="sa-kpi-value" id="kpiTotalStudents">--</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Schools -->
+    <div class="sa-card">
+      <div class="sa-card-header">
+        <div>
+          <h3 class="sa-card-title">
+            <i class="fas fa-school"></i> Recently Added Schools
+          </h3>
+        </div>
+        <a href="sa-schools.html" class="sa-link">View all schools →</a>
+      </div>
+      <div class="sa-table-wrapper">
+        <table class="sa-table">
+          <thead>
+            <tr>
+              <th>School Name</th>
+              <th>Status</th>
+              <th>Plan</th>
+              <th>Students</th>
+              <th>Expires</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="recentSchoolsBody">
+            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-soft);">
+              <i class="fas fa-spinner fa-spin"></i> Loading...
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+<script src="../js/api.js"></script>
+<script src="../js/sa-dashboard.js"></script>
+</body>
+</html>

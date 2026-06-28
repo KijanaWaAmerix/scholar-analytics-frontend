@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — Results</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/dashboard.css"/>
+  <link rel="stylesheet" href="../css/results.css"/>
+  <link rel="stylesheet" href="../css/mobile.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body class="dashboard-body">
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon"><i class="fas fa-graduation-cap"></i></div>
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">Scholar</span>
+        <span class="sidebar-brand-sub">Analytics</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sidebar-user">
+      <div class="sidebar-user-avatar" id="sidebarAvatar"></div>
+      <div class="sidebar-user-info">
+        <p class="sidebar-user-name" id="sidebarUserName">Loading...</p>
+        <p class="sidebar-user-role" id="sidebarUserRole">--</p>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-section-label">Main Menu</p>
+      <a href="dashboard.html"  class="nav-item"><i class="fas fa-house"></i><span>Dashboard</span></a>
+      <a href="students.html"   class="nav-item"><i class="fas fa-user-graduate"></i><span>Students</span></a>
+      <a href="classes.html"    class="nav-item"><i class="fas fa-school"></i><span>Classes</span></a>
+      <a href="subjects.html"   class="nav-item"><i class="fas fa-book-open"></i><span>Subjects</span></a>
+      <a href="exams.html"      class="nav-item"><i class="fas fa-calendar-check"></i><span>Exams</span></a>
+      <p class="nav-section-label">Academic</p>
+      <a href="marks.html"      class="nav-item"><i class="fas fa-pen-to-square"></i><span>Marks Entry</span></a>
+      <a href="results.html"    class="nav-item active"><i class="fas fa-chart-bar"></i><span>Results</span></a>
+      <a href="reports.html"    class="nav-item"><i class="fas fa-file-pdf"></i><span>Reports & PDFs</span></a>
+      <p class="nav-section-label">Insights</p>
+      <a href="analytics.html"  class="nav-item"><i class="fas fa-chart-line"></i><span>Analytics</span></a>
+      <div class="admin-only" id="adminMenu">
+        <p class="nav-section-label">Administration</p>
+        <a href="users.html"    class="nav-item"><i class="fas fa-users-gear"></i><span>Manage Users</span></a>
+        <a href="settings.html" class="nav-item"><i class="fas fa-sliders"></i><span>Settings</span></a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div class="topbar-title">
+          <h1>Results</h1>
+          <p><i class="fas fa-house"></i> Home &rsaquo; Results</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="term-badge">
+          <i class="fas fa-calendar"></i>
+          <span id="currentTerm">Term 1 &bull; 2024</span>
+        </div>
+        <div class="user-menu" id="userMenuWrapper">
+          <button class="user-menu-trigger" id="userMenuBtn">
+            <div class="topbar-avatar" id="topbarAvatar"></div>
+            <span id="topbarUserName">Loading...</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header">
+              <p id="dropdownName">--</p>
+              <p id="dropdownEmail">--</p>
+            </div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><i class="fas fa-gear"></i> Settings</a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-logout" id="dropdownLogout">
+              <i class="fas fa-arrow-right-from-bracket"></i> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+
+      <!-- Selector -->
+      <div class="results-selector-card">
+        <div class="results-selector-grid">
+          <div class="rpt-field">
+            <label><i class="fas fa-school"></i> Class</label>
+            <select id="selClass" class="marks-select">
+              <option value="">-- Select Class --</option>
+            </select>
+          </div>
+          <div class="rpt-field">
+            <label><i class="fas fa-calendar"></i> Term</label>
+            <select id="selTerm" class="marks-select">
+              <option value="">-- Select Term --</option>
+              <option value="1">Term 1</option>
+              <option value="2">Term 2</option>
+              <option value="3">Term 3</option>
+            </select>
+          </div>
+          <div class="rpt-field">
+            <label><i class="fas fa-pen-to-square"></i> Exam</label>
+            <select id="selExam" class="marks-select">
+              <option value="">-- Select Exam --</option>
+            </select>
+          </div>
+          <div class="rpt-field" style="align-self:flex-end;">
+            <button class="marks-load-btn" id="loadResultsBtn">
+              <i class="fas fa-ranking-star"></i>
+              Load Results
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Placeholder -->
+      <div class="results-placeholder" id="resultsPlaceholder">
+        <div class="results-placeholder-inner">
+          <div class="results-placeholder-icon">
+            <i class="fas fa-ranking-star"></i>
+          </div>
+          <h3>Ready to View Results</h3>
+          <p>Select Class, Term and Exam then click <strong>Load Results</strong></p>
+        </div>
+      </div>
+
+      <!-- Results content -->
+      <div id="resultsContent" style="display:none;">
+
+        <!-- Stats strip -->
+        <div class="students-stats-strip" id="resultsStatsStrip">
+          <div class="strip-stat">
+            <i class="fas fa-users"></i>
+            <div><p class="strip-value" id="statTotal">--</p><p class="strip-label">Total Learners</p></div>
+          </div>
+          <div class="strip-divider"></div>
+          <div class="strip-stat">
+            <i class="fas fa-chart-line" style="color:#27ae60;"></i>
+            <div><p class="strip-value" id="statAvg">--</p><p class="strip-label">Class Average</p></div>
+          </div>
+          <div class="strip-divider"></div>
+          <div class="strip-stat">
+            <i class="fas fa-circle-check" style="color:#2ecc71;"></i>
+            <div><p class="strip-value" id="statPassRate">--</p><p class="strip-label">Pass Rate</p></div>
+          </div>
+          <div class="strip-divider"></div>
+          <div class="strip-stat">
+            <i class="fas fa-arrow-up" style="color:#1a6fa8;"></i>
+            <div><p class="strip-value" id="statHighest">--</p><p class="strip-label">Highest</p></div>
+          </div>
+          <div class="strip-divider"></div>
+          <div class="strip-stat">
+            <i class="fas fa-arrow-down" style="color:#e74c3c;"></i>
+            <div><p class="strip-value" id="statLowest">--</p><p class="strip-label">Lowest</p></div>
+          </div>
+        </div>
+
+        <!-- Subject averages -->
+        <div class="table-card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">
+                <i class="fas fa-book-open"></i>
+                Subject Averages
+              </h3>
+            </div>
+          </div>
+          <div class="card-body" id="subjectAveragesBar" style="padding:16px 20px;">
+          </div>
+        </div>
+
+        <!-- Results table -->
+        <div class="table-card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">
+                <i class="fas fa-ranking-star"></i>
+                Class Rankings
+              </h3>
+              <p class="card-subtitle" id="resultsSubtitle">--</p>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <button class="btn-secondary btn-sm" id="exportResultsBtn">
+                <i class="fas fa-file-csv"></i> Export CSV
+              </button>
+              <a href="reports.html" class="btn-primary btn-sm">
+                <i class="fas fa-file-pdf"></i> Print Reports
+              </a>
+            </div>
+          </div>
+
+          <div class="table-wrapper" style="overflow-x:auto;">
+            <table class="results-table" id="resultsTable">
+              <thead id="resultsTableHead"></thead>
+              <tbody id="resultsTableBody"></tbody>
+              <tfoot id="resultsTableFoot"></tfoot>
+            </table>
+          </div>
+
+        </div>
+
+      </div><!-- end resultsContent -->
+
+    </main>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- Student Detail Modal -->
+<div class="modal-overlay" id="studentDetailOverlay">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title" id="detailStudentName">--</h3>
+        <p class="modal-subtitle" id="detailStudentMeta">--</p>
+      </div>
+      <button class="modal-close" id="closeDetailModal">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body" id="detailModalBody">
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="closeDetailBtn">Close</button>
+      <a href="reports.html" class="btn-primary">
+        <i class="fas fa-file-pdf"></i> Generate Report Card
+      </a>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/results.js"></script>
+</body>
+</html>

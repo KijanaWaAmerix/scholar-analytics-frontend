@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — Analytics</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/dashboard.css"/>
+  <link rel="stylesheet" href="../css/analytics.css"/>
+  <link rel="stylesheet" href="../css/mobile.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+</head>
+<body class="dashboard-body">
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon"><i class="fas fa-graduation-cap"></i></div>
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">Scholar</span>
+        <span class="sidebar-brand-sub">Analytics</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sidebar-user">
+      <div class="sidebar-user-avatar" id="sidebarAvatar"></div>
+      <div class="sidebar-user-info">
+        <p class="sidebar-user-name" id="sidebarUserName">Loading...</p>
+        <p class="sidebar-user-role" id="sidebarUserRole">--</p>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-section-label">Main Menu</p>
+      <a href="dashboard.html"  class="nav-item"><i class="fas fa-house"></i><span>Dashboard</span></a>
+      <a href="students.html"   class="nav-item"><i class="fas fa-user-graduate"></i><span>Students</span></a>
+      <a href="classes.html"    class="nav-item"><i class="fas fa-school"></i><span>Classes</span></a>
+      <a href="subjects.html"   class="nav-item"><i class="fas fa-book-open"></i><span>Subjects</span></a>
+      <a href="exams.html"      class="nav-item"><i class="fas fa-calendar-check"></i><span>Exams</span></a>
+      <p class="nav-section-label">Academic</p>
+      <a href="marks.html"      class="nav-item"><i class="fas fa-pen-to-square"></i><span>Marks Entry</span></a>
+      <a href="results.html"    class="nav-item"><i class="fas fa-chart-bar"></i><span>Results</span></a>
+      <a href="reports.html"    class="nav-item"><i class="fas fa-file-pdf"></i><span>Reports & PDFs</span></a>
+      <p class="nav-section-label">Insights</p>
+      <a href="analytics.html"  class="nav-item active"><i class="fas fa-chart-line"></i><span>Analytics</span></a>
+      <div class="admin-only" id="adminMenu">
+        <p class="nav-section-label">Administration</p>
+        <a href="users.html"    class="nav-item"><i class="fas fa-users-gear"></i><span>Manage Users</span></a>
+        <a href="settings.html" class="nav-item"><i class="fas fa-sliders"></i><span>Settings</span></a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div class="topbar-title">
+          <h1>Analytics</h1>
+          <p><i class="fas fa-house"></i> Home &rsaquo; Analytics</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="term-badge"><i class="fas fa-calendar"></i><span id="currentTerm">Term 1 &bull; 2024</span></div>
+        <div class="user-menu" id="userMenuWrapper">
+          <button class="user-menu-trigger" id="userMenuBtn">
+            <div class="topbar-avatar" id="topbarAvatar"></div>
+            <span id="topbarUserName">Loading...</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><p id="dropdownName">--</p><p id="dropdownEmail">--</p></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><i class="fas fa-gear"></i> Settings</a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-logout" id="dropdownLogout">
+              <i class="fas fa-arrow-right-from-bracket"></i> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+
+      <!-- Page Header -->
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2 class="page-header-title">School Analytics</h2>
+          <p class="page-header-sub">In-depth performance analysis across all classes and exams</p>
+        </div>
+        <div class="page-header-right">
+          <select class="filter-select" id="globalExam">
+            <option value="">-- Select Exam --</option>
+          </select>
+          <select class="filter-select" id="globalClass">
+            <option value="all">All Classes</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- KPI Strip -->
+      <div class="analytics-kpi-grid">
+        <div class="kpi-card" data-color="blue">
+          <div class="kpi-icon"><i class="fas fa-user-graduate"></i></div>
+          <div class="kpi-info">
+            <p class="kpi-label">Total Students</p>
+            <p class="kpi-value" id="kpiStudents">--</p>
+          </div>
+        </div>
+        <div class="kpi-card" data-color="green">
+          <div class="kpi-icon"><i class="fas fa-chart-line"></i></div>
+          <div class="kpi-info">
+            <p class="kpi-label">School Average</p>
+            <p class="kpi-value" id="kpiAvg">--</p>
+          </div>
+        </div>
+        <div class="kpi-card" data-color="purple">
+          <div class="kpi-icon"><i class="fas fa-circle-check"></i></div>
+          <div class="kpi-info">
+            <p class="kpi-label">Pass Rate</p>
+            <p class="kpi-value" id="kpiPass">--</p>
+          </div>
+        </div>
+        <div class="kpi-card" data-color="orange">
+          <div class="kpi-icon"><i class="fas fa-school"></i></div>
+          <div class="kpi-info">
+            <p class="kpi-label">Total Classes</p>
+            <p class="kpi-value" id="kpiClasses">--</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts row 1 -->
+      <div class="analytics-grid-2">
+
+        <!-- Performance Trend -->
+        <div class="analytics-card">
+          <div class="analytics-card-header">
+            <div>
+              <h3 class="analytics-card-title">
+                <i class="fas fa-chart-line"></i>
+                Performance Trend
+              </h3>
+              <p class="analytics-card-sub">Average score across all exams</p>
+            </div>
+            <select class="analytics-select" id="trendClassFilter">
+              <option value="all">All Classes</option>
+            </select>
+          </div>
+          <div class="analytics-chart-body">
+            <canvas id="trendChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Grade Distribution -->
+        <div class="analytics-card">
+          <div class="analytics-card-header">
+            <div>
+              <h3 class="analytics-card-title">
+                <i class="fas fa-chart-pie"></i>
+                Grade Distribution
+              </h3>
+              <p class="analytics-card-sub">KJSEA grades across all students</p>
+            </div>
+          </div>
+          <div class="analytics-chart-body" style="display:flex;align-items:center;gap:20px;">
+            <div style="position:relative;width:200px;height:200px;flex-shrink:0;">
+              <canvas id="gradeChart"></canvas>
+            </div>
+            <div id="gradeLegend" class="analytics-grade-legend"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Charts row 2 -->
+      <div class="analytics-grid-2">
+
+        <!-- Class Comparison -->
+        <div class="analytics-card">
+          <div class="analytics-card-header">
+            <div>
+              <h3 class="analytics-card-title">
+                <i class="fas fa-ranking-star"></i>
+                Class Comparison
+              </h3>
+              <p class="analytics-card-sub">Average score per class</p>
+            </div>
+          </div>
+          <div class="analytics-chart-body">
+            <canvas id="classChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Subject Performance -->
+        <div class="analytics-card">
+          <div class="analytics-card-header">
+            <div>
+              <h3 class="analytics-card-title">
+                <i class="fas fa-book-open"></i>
+                Subject Performance
+              </h3>
+              <p class="analytics-card-sub">Average per learning area</p>
+            </div>
+            <select class="analytics-select" id="subjClassFilter">
+              <option value="">-- Select Class --</option>
+            </select>
+          </div>
+          <div class="analytics-chart-body">
+            <canvas id="subjectChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- At Risk Students -->
+      <div class="analytics-card">
+        <div class="analytics-card-header">
+          <div>
+            <h3 class="analytics-card-title">
+              <i class="fas fa-circle-exclamation"></i>
+              At-Risk Learners
+            </h3>
+            <p class="analytics-card-sub">Scoring below 41% — require immediate support</p>
+          </div>
+          <span class="analytics-at-risk-count" id="atRiskCount">0 learners</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="students-table" id="atRiskTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Learner Name</th>
+                <th>Class</th>
+                <th>Average Score</th>
+                <th>Grade</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="atRiskBody">
+              <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-soft);">
+                Select an exam above to see at-risk learners.
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<script src="../js/api.js"></script>
+<script src="../js/analytics.js"></script>
+</body>
+</html>

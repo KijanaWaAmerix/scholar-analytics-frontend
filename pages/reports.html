@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — Reports & PDFs</title>
+
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/dashboard.css"/>
+  <link rel="stylesheet" href="../css/reports.css"/>
+  <link rel="stylesheet" href="../css/mobile.css"/>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:wght@600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+  />
+
+  <!-- PDF Generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+
+<body class="dashboard-body">
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon"><i class="fas fa-graduation-cap"></i></div>
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">Scholar</span>
+        <span class="sidebar-brand-sub">Analytics</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sidebar-user">
+      <div class="sidebar-user-avatar" id="sidebarAvatar"></div>
+      <div class="sidebar-user-info">
+        <p class="sidebar-user-name" id="sidebarUserName">Loading...</p>
+        <p class="sidebar-user-role" id="sidebarUserRole">--</p>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-section-label">Main Menu</p>
+      <a href="dashboard.html"  class="nav-item"><i class="fas fa-house"></i><span>Dashboard</span></a>
+      <a href="students.html"   class="nav-item"><i class="fas fa-user-graduate"></i><span>Students</span></a>
+      <a href="classes.html"    class="nav-item"><i class="fas fa-school"></i><span>Classes</span></a>
+      <a href="subjects.html"   class="nav-item"><i class="fas fa-book-open"></i><span>Subjects</span></a>
+      <a href="exams.html"      class="nav-item"><i class="fas fa-calendar-check"></i><span>Exams</span></a>
+      <p class="nav-section-label">Academic</p>
+      <a href="marks.html"      class="nav-item"><i class="fas fa-pen-to-square"></i><span>Marks Entry</span></a>
+      <a href="results.html"    class="nav-item"><i class="fas fa-chart-bar"></i><span>Results</span></a>
+      <a href="reports.html"    class="nav-item active"><i class="fas fa-file-pdf"></i><span>Reports & PDFs</span></a>
+      <p class="nav-section-label">Insights</p>
+      <a href="analytics.html"  class="nav-item"><i class="fas fa-chart-line"></i><span>Analytics</span></a>
+      <div class="admin-only" id="adminMenu">
+        <p class="nav-section-label">Administration</p>
+        <a href="users.html"    class="nav-item"><i class="fas fa-users-gear"></i><span>Manage Users</span></a>
+        <a href="settings.html" class="nav-item"><i class="fas fa-sliders"></i><span>Settings</span></a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN AREA -->
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div class="topbar-title">
+          <h1>Reports & PDFs</h1>
+          <p><i class="fas fa-house"></i> Home &rsaquo; Reports & PDFs</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="term-badge"><i class="fas fa-calendar"></i><span id="currentTerm">Term 1 &bull; 2024</span></div>
+        <div class="user-menu" id="userMenuWrapper">
+          <button class="user-menu-trigger" id="userMenuBtn">
+            <div class="topbar-avatar" id="topbarAvatar"></div>
+            <span id="topbarUserName">Loading...</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header">
+              <p id="dropdownName">--</p><p id="dropdownEmail">--</p>
+            </div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><i class="fas fa-gear"></i> Settings</a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-logout" id="dropdownLogout">
+              <i class="fas fa-arrow-right-from-bracket"></i> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2 class="page-header-title">Reports & PDFs</h2>
+          <p class="page-header-sub">Generate professional CBC/KJSEA report cards and class result sheets</p>
+        </div>
+      </div>
+
+      <!-- Report Type Tabs -->
+      <div class="report-type-tabs">
+        <button class="report-tab active" id="tabIndividual" data-tab="individual">
+          <div class="report-tab-icon"><i class="fas fa-id-card"></i></div>
+          <div class="report-tab-text">
+            <span class="report-tab-title">Individual Report Card</span>
+            <span class="report-tab-sub">One learner's full CBC result</span>
+          </div>
+        </button>
+        <button class="report-tab" id="tabClass" data-tab="class">
+          <div class="report-tab-icon"><i class="fas fa-table-list"></i></div>
+          <div class="report-tab-text">
+            <span class="report-tab-title">Class Result Sheet</span>
+            <span class="report-tab-sub">All learners ranked in a table</span>
+          </div>
+        </button>
+        <button class="report-tab" id="tabBulk" data-tab="bulk">
+          <div class="report-tab-icon"><i class="fas fa-layer-group"></i></div>
+          <div class="report-tab-text">
+            <span class="report-tab-title">All Report Cards</span>
+            <span class="report-tab-sub">Every learner — one PDF</span>
+          </div>
+          <span class="report-tab-new">BULK</span>
+        </button>
+      </div>
+
+      <!-- Main Grid -->
+      <div class="reports-main-grid">
+
+        <!-- LEFT — Controls -->
+        <div class="reports-controls-col">
+
+          <!-- Parameters Card -->
+          <div class="rpt-ctrl-card">
+            <div class="rpt-ctrl-header">
+              <i class="fas fa-sliders"></i>
+              <h3>Report Parameters</h3>
+            </div>
+            <div class="rpt-ctrl-body">
+              <div class="rpt-field">
+                <label><i class="fas fa-school"></i> Class</label>
+                <select id="rptClass" class="rpt-select">
+                  <option value="">-- Select Class --</option>
+                  <optgroup label="Grade 7">
+                    <option value="Grade 7 East">Grade 7 East</option>
+                    <option value="Grade 7 West">Grade 7 West</option>
+                  </optgroup>
+                  <optgroup label="Grade 8">
+                    <option value="Grade 8 East">Grade 8 East</option>
+                    <option value="Grade 8 West">Grade 8 West</option>
+                  </optgroup>
+                  <optgroup label="Grade 9">
+                    <option value="Grade 9 East">Grade 9 East</option>
+                    <option value="Grade 9 West">Grade 9 West</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              <div class="rpt-field">
+                <label><i class="fas fa-calendar"></i> Term</label>
+                <select id="rptTerm" class="rpt-select">
+                  <option value="">-- Select Term --</option>
+                  <option value="1">Term 1</option>
+                  <option value="2">Term 2</option>
+                  <option value="3">Term 3</option>
+                </select>
+              </div>
+
+              <div class="rpt-field">
+                <label><i class="fas fa-pen-to-square"></i> Exam</label>
+                <select id="rptExam" class="rpt-select">
+                  <option value="">-- Select Exam --</option>
+                  <option value="Opener">Opener</option>
+                  <option value="Midterm">Midterm</option>
+                  <option value="Endterm">Endterm</option>
+                </select>
+              </div>
+
+              <!-- Individual only -->
+              <div class="rpt-field" id="rptLearnerField">
+                <label><i class="fas fa-user-graduate"></i> Learner</label>
+                <select id="rptLearner" class="rpt-select">
+                  <option value="">-- Select Learner --</option>
+                </select>
+              </div>
+
+              <!-- Bulk info -->
+              <div class="bulk-info-banner" id="bulkInfoBanner" style="display:none;">
+                <i class="fas fa-circle-info"></i>
+                <p>Generates a separate CBC report card for <strong>every learner</strong> in the class — all in one PDF.</p>
+              </div>
+
+              <button class="btn-generate-preview" id="generatePreviewBtn">
+                <i class="fas fa-eye"></i>
+                <span id="generateBtnText">Preview Report</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Settings Card -->
+          <div class="rpt-ctrl-card">
+            <div class="rpt-ctrl-header">
+              <i class="fas fa-gear"></i>
+              <h3>Report Settings</h3>
+            </div>
+            <div class="rpt-ctrl-body">
+              <div class="rpt-field">
+                <label><i class="fas fa-school"></i> School Name</label>
+                <input type="text" id="rptSchoolName" class="rpt-input"
+                  value="Scholar Analytics Demo School"/>
+              </div>
+              <div class="rpt-field">
+                <label><i class="fas fa-quote-left"></i> School Motto</label>
+                <input type="text" id="rptSchoolMotto" class="rpt-input"
+                  value="Excellence Through Knowledge"/>
+              </div>
+              <div class="rpt-field">
+                <label><i class="fas fa-chalkboard-teacher"></i> Class Teacher</label>
+                <input type="text" id="rptTeacher" class="rpt-input"
+                  placeholder="e.g. Mr. Kamau"/>
+              </div>
+              <div class="rpt-field">
+                <label><i class="fas fa-user-tie"></i> Principal</label>
+                <input type="text" id="rptPrincipal" class="rpt-input"
+                  placeholder="e.g. Mrs. Njoroge"/>
+              </div>
+              <div class="rpt-field">
+                <label><i class="fas fa-calendar-xmark"></i> Term Closing Date</label>
+                <input type="text" id="rptClosingDate" class="rpt-input"
+                  placeholder="e.g. 13th December 2024"/>
+              </div>
+              <div class="rpt-field">
+                <label><i class="fas fa-calendar-plus"></i> Next Term Opens</label>
+                <input type="text" id="rptNextTerm" class="rpt-input"
+                  placeholder="e.g. 5th January 2025"/>
+              </div>
+              <div class="rpt-field">
+                <label><i class="fas fa-file"></i> Paper Size</label>
+                <div class="rpt-toggle-group">
+                  <button class="rpt-toggle active" data-size="A4">A4</button>
+                  <button class="rpt-toggle" data-size="Letter">Letter</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Reports -->
+          <div class="rpt-ctrl-card">
+            <div class="rpt-ctrl-header">
+              <i class="fas fa-clock-rotate-left"></i>
+              <h3>Recent Reports</h3>
+            </div>
+            <div class="rpt-ctrl-body" style="padding:12px;">
+              <ul class="recent-reports-list" id="recentReportsList">
+                <li class="recent-reports-empty">No reports generated yet.</li>
+              </ul>
+            </div>
+          </div>
+
+        </div><!-- end controls -->
+
+        <!-- RIGHT — Preview -->
+        <div class="reports-preview-col">
+
+          <!-- Placeholder -->
+          <div class="preview-placeholder" id="previewPlaceholder">
+            <div class="preview-placeholder-inner">
+              <div class="preview-placeholder-icon">
+                <i class="fas fa-file-pdf"></i>
+              </div>
+              <h3>Report Preview</h3>
+              <p>Select parameters and click <strong>Preview Report</strong> to see your CBC report card.</p>
+            </div>
+          </div>
+
+          <!-- Preview Frame -->
+          <div class="preview-frame-wrapper" id="previewFrameWrapper" style="display:none;">
+
+            <!-- Toolbar -->
+            <div class="preview-toolbar">
+              <div class="preview-toolbar-left">
+                <span class="preview-label" id="previewLabel">
+                  <i class="fas fa-file-pdf"></i> Preview
+                </span>
+              </div>
+              <div class="preview-toolbar-right">
+                <button class="preview-tool-btn btn-print" id="printBtn">
+                  <i class="fas fa-print"></i> Print
+                </button>
+                <button class="preview-tool-btn btn-download-pdf" id="downloadPdfBtn">
+                  <i class="fas fa-file-arrow-down"></i>
+                  <span id="downloadBtnText">Download PDF</span>
+                  <span id="downloadBtnSpinner" style="display:none;">
+                    <i class="fas fa-spinner fa-spin"></i> Generating...
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Bulk progress -->
+            <div class="bulk-progress-bar" id="bulkProgressBar" style="display:none;">
+              <div class="bulk-progress-inner">
+                <div class="bulk-progress-fill" id="bulkProgressFill"></div>
+              </div>
+              <p class="bulk-progress-text" id="bulkProgressText">Generating...</p>
+            </div>
+
+            <!-- Paper -->
+            <div class="preview-paper" id="previewPaper"></div>
+
+          </div>
+
+        </div><!-- end preview -->
+
+      </div><!-- end grid -->
+
+    </main>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<div id="printArea" class="print-area"></div>
+
+<script src="../js/api.js"></script>
+<script src="../js/reports.js"></script>
+</body>
+</html>
