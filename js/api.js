@@ -4,7 +4,7 @@
    Used by every page to talk to the backend
 ═══════════════════════════════════════════════════════════ */
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://scholar-analytics-api.onrender.com/api';
 
 /* ══════════════════════════════════════════════════════════
    TOKEN HELPERS
