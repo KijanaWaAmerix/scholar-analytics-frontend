@@ -5,7 +5,9 @@
 ═══════════════════════════════════════════════════════════ */
 
 const CACHE_NAME    = 'scholar-analytics-v1';
-const API_BASE      = 'http://localhost:5000';
+const API_BASE      = 'https://scholar-analytics-api.onrender.com';
+
+
 
 /* All static assets to cache on install */
 const STATIC_ASSETS = [
