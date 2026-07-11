@@ -33,12 +33,8 @@ const Auth = {
   setSession: (token, user) => {
     localStorage.setItem('sa_token', token);
     localStorage.setItem('sa_user', JSON.stringify(user));
-    // FIX: always sync sa_school with the incoming user, clearing any
-    // stale value left behind by a previous session on this device.
     if (user.school) {
       localStorage.setItem('sa_school', JSON.stringify(user.school));
-    } else {
-      localStorage.removeItem('sa_school');
     }
   },
 
@@ -106,20 +102,15 @@ const apiFetch = async (endpoint, options = {}) => {
       data.errorCode === 'SUBSCRIPTION_EXPIRED'
     ) {
       Auth.clearSession();
-      window.location.href = '/pages/login.html?reason=' + data.errorCode;
-      // FIX: return a well-formed result instead of undefined.
-      // window.location.href does NOT halt script execution, so callers
-      // that destructure the return value (e.g. `const { ok, data } = ...`)
-      // would otherwise throw while the redirect is still in flight.
-      return { ok: false, status: response.status, data, redirecting: true };
+      window.location.href = '../pages/login.html?reason=' + data.errorCode;
+      return;
     }
 
     /* Token expired */
     if (response.status === 401) {
       Auth.clearSession();
-      window.location.href = '/pages/login.html?reason=SESSION_EXPIRED';
-      // FIX: same as above — return a safe, destructurable shape.
-      return { ok: false, status: 401, data, redirecting: true };
+      window.location.href = '../pages/login.html?reason=SESSION_EXPIRED';
+      return;
     }
 
     return { ok: response.ok, status: response.status, data };
@@ -195,10 +186,6 @@ const showToast = (message, type = 'success') => {
     info   : 'linear-gradient(135deg,#1a6fa8,#2e86c1)',
   };
 
-  // FIX: fall back to a known type instead of silently rendering
-  // `background:undefined` when an unrecognised type is passed in.
-  if (!icons[type]) type = 'info';
-
   const toast = document.createElement('div');
   toast.className = 'sa-toast';
   toast.style.cssText = `
@@ -269,14 +256,14 @@ const setButtonLoading = (button, loading, text = 'Loading...') => {
 const requireAuth = (allowedRoles = []) => {
 
   if (!Auth.isLoggedIn()) {
-    window.location.href = '/pages/login.html';
+    window.location.href = '../pages/login.html';
     return null;
   }
 
   const user = Auth.getUser();
 
   if (allowedRoles.length && !allowedRoles.includes(user?.role)) {
-    window.location.href = '/pages/dashboard.html';
+    window.location.href = '../pages/dashboard.html';
     return null;
   }
 
@@ -348,48 +335,42 @@ const initSidebar = (user) => {
     document.body.style.overflow = '';
   };
 
-  // FIX: guard the ENTIRE initialiser (not just the Escape-key listener)
-  // so calling initSidebar() more than once on the same page can't
-  // stack duplicate click handlers (open/close firing multiple times,
-  // dropdown toggling back and forth, logout firing several times, etc).
+  hamburger?.addEventListener('click', openSidebar);
+  sidebarClose?.addEventListener('click', closeSidebar);
+  sidebarOverlay?.addEventListener('click', closeSidebar);
+
   if (!window.__sidebarEventsBound) {
-
-    hamburger?.addEventListener('click', openSidebar);
-    sidebarClose?.addEventListener('click', closeSidebar);
-    sidebarOverlay?.addEventListener('click', closeSidebar);
-
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') closeSidebar();
     });
-
-    /* User dropdown */
-    const userMenuBtn  = document.getElementById('userMenuBtn');
-    const userDropdown = document.getElementById('userDropdown');
-
-    userMenuBtn?.addEventListener('click', e => {
-      e.stopPropagation();
-      const open = userDropdown?.classList.toggle('open');
-      userMenuBtn?.classList.toggle('open', open);
-    });
-
-    document.addEventListener('click', e => {
-      if (!userMenuBtn?.contains(e.target)) {
-        userDropdown?.classList.remove('open');
-        userMenuBtn?.classList.remove('open');
-      }
-    });
-
-    /* Logout */
-    const handleLogout = () => {
-      Auth.clearSession();
-      window.location.href = '/pages/login.html';
-    };
-
-    document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
-    document.getElementById('dropdownLogout')?.addEventListener('click', handleLogout);
-
     window.__sidebarEventsBound = true;
   }
+
+  /* User dropdown */
+  const userMenuBtn  = document.getElementById('userMenuBtn');
+  const userDropdown = document.getElementById('userDropdown');
+
+  userMenuBtn?.addEventListener('click', e => {
+    e.stopPropagation();
+    const open = userDropdown?.classList.toggle('open');
+    userMenuBtn?.classList.toggle('open', open);
+  });
+
+  document.addEventListener('click', e => {
+    if (!userMenuBtn?.contains(e.target)) {
+      userDropdown?.classList.remove('open');
+      userMenuBtn?.classList.remove('open');
+    }
+  });
+
+  /* Logout */
+  const handleLogout = () => {
+    Auth.clearSession();
+    window.location.href = '../pages/login.html';
+  };
+
+  document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
+  document.getElementById('dropdownLogout')?.addEventListener('click', handleLogout);
 };
 
 /* ══════════════════════════════════════════════════════════
