@@ -1,60 +1,61 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Login Page Logic
    File: js/main.js
-   Version: 3.1 — Fixed helper initialization order
+   Version: 3.1
 ═══════════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════════
-   HELPERS — defined first so they're available everywhere
+   DOM ELEMENTS
 ══════════════════════════════════════════════════════════ */
-const loginAlert    = document.getElementById('loginAlert');
-const alertMessage  = document.getElementById('alertMessage');
-const emailError    = document.getElementById('emailError');
-const passwordError = document.getElementById('passwordError');
-const loginBtn      = document.getElementById('loginBtn');
-const btnText       = document.getElementById('btnText');
-const btnSpinner    = document.getElementById('btnSpinner');
+const loginAlert     = document.getElementById('loginAlert');
+const alertMessage   = document.getElementById('alertMessage');
+const emailError     = document.getElementById('emailError');
+const passwordError  = document.getElementById('passwordError');
+const loginBtn       = document.getElementById('loginBtn');
+const btnText        = document.getElementById('btnText');
+const btnSpinner     = document.getElementById('btnSpinner');
+const loginForm      = document.getElementById('loginForm');
+const emailInput     = document.getElementById('email');
+const passwordInput  = document.getElementById('password');
+const rememberMe     = document.getElementById('rememberMe');
+const togglePassword = document.getElementById('togglePassword');
+const toggleIcon     = document.getElementById('toggleIcon');
+const suspensionScreen = document.getElementById('suspensionScreen');
+const suspensionReason = document.getElementById('suspensionReasonText');
+const tryAgainBtn    = document.getElementById('tryAgainBtn');
 
-const setLoading = (loading) => {
-  if (loginBtn)    loginBtn.disabled        = loading;
-  if (btnText)     btnText.style.display    = loading ? 'none'   : 'inline';
-  if (btnSpinner)  btnSpinner.style.display = loading ? 'inline' : 'none';
-};
+/* ══════════════════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════════════════ */
+function setLoading(loading) {
+  if (loginBtn)   loginBtn.disabled        = loading;
+  if (btnText)    btnText.style.display    = loading ? 'none'   : 'inline';
+  if (btnSpinner) btnSpinner.style.display = loading ? 'inline' : 'none';
+}
 
-const showFieldError = (el, msg) => {
+function showFieldError(el, msg) {
   if (!el) return;
   el.textContent   = msg;
   el.style.display = 'flex';
-};
+}
 
-const showLoginError = (msg) => {
+function showLoginError(msg) {
   if (loginAlert)   loginAlert.style.display = 'flex';
   if (alertMessage) alertMessage.textContent = msg;
-};
+}
 
-const clearErrors = () => {
+function clearErrors() {
   if (emailError)    emailError.style.display    = 'none';
   if (passwordError) passwordError.style.display = 'none';
   if (loginAlert)    loginAlert.style.display    = 'none';
-};
-
-/* ── Redirect to dashboard if already logged in ───────────── */
-if (Auth.isLoggedIn()) {
-  window.location.href = '../pages/dashboard.html';
 }
 
 /* ══════════════════════════════════════════════════════════
-   REMAINING DOM ELEMENTS
+   REDIRECT IF ALREADY LOGGED IN
 ══════════════════════════════════════════════════════════ */
-const loginForm       = document.getElementById('loginForm');
-const emailInput      = document.getElementById('email');
-const passwordInput   = document.getElementById('password');
-const rememberMe      = document.getElementById('rememberMe');
-const togglePassword  = document.getElementById('togglePassword');
-const toggleIcon      = document.getElementById('toggleIcon');
-const suspensionScreen= document.getElementById('suspensionScreen');
-const suspensionReason= document.getElementById('suspensionReasonText');
-const tryAgainBtn     = document.getElementById('tryAgainBtn');
+if (Auth.isLoggedIn()) {
+  window.location.href = '../pages/dashboard.html';
+}
 
 /* ══════════════════════════════════════════════════════════
    PRE-FILL REMEMBERED EMAIL
@@ -94,7 +95,7 @@ togglePassword?.addEventListener('click', () => {
 });
 
 /* ══════════════════════════════════════════════════════════
-   TRY AGAIN — back to login from suspension screen
+   TRY AGAIN
 ══════════════════════════════════════════════════════════ */
 tryAgainBtn?.addEventListener('click', () => {
   if (suspensionScreen) {
@@ -112,7 +113,7 @@ loginForm?.addEventListener('submit', async (e) => {
   const email    = emailInput?.value.trim() || '';
   const password = passwordInput?.value     || '';
 
-  /* ── Client-side validation ───────────────────────────── */
+  /* Validate */
   let valid = true;
 
   if (!email) {
@@ -130,17 +131,17 @@ loginForm?.addEventListener('submit', async (e) => {
 
   if (!valid) return;
 
-  /* ── Show loading state ───────────────────────────────── */
+  /* Loading */
   setLoading(true);
 
-  /* ── Call login API ───────────────────────────────────── */
+  /* API call */
   const result = await API.post('/auth/login', { email, password });
 
   setLoading(false);
 
   if (!result) return;
 
-  /* ── Handle errors ────────────────────────────────────── */
+  /* Handle errors */
   if (!result.ok) {
     const code = result.data?.errorCode;
 
@@ -159,7 +160,7 @@ loginForm?.addEventListener('submit', async (e) => {
     return;
   }
 
-  /* ── Login successful ─────────────────────────────────── */
+  /* Success */
   const { token, user } = result.data;
 
   if (rememberMe?.checked) {
