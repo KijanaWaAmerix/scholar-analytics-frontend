@@ -1,15 +1,18 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Service Worker
-   File: sw.js  Version: 1.0
+   File: sw.js  Version: 2.0
    Handles: Offline caching, background sync
 ═══════════════════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'scholar-analytics-v1';
+const CACHE_NAME    = 'scholar-analytics-v2';
 const API_BASE      = 'https://scholar-analytics-api.onrender.com';
 
 
 
-/* All static assets to cache on install */
+/* All static assets to cache on install.
+ * NOTE: JS files are intentionally excluded — they are always
+ * fetched fresh from the network (see FETCH handler below), so
+ * a stale service-worker cache can never serve outdated app logic. */
 const STATIC_ASSETS = [
   '/pages/login.html',
   '/pages/dashboard.html',
@@ -37,22 +40,6 @@ const STATIC_ASSETS = [
   '/css/analytics.css',
   '/css/settings.css',
   '/css/sa.css',
-  '/js/api.js',
-  '/js/main.js',
-  '/js/dashboard.js',
-  '/js/students.js',
-  '/js/marks.js',
-  '/js/results.js',
-  '/js/reports.js',
-  '/js/analytics.js',
-  '/js/settings.js',
-  '/js/classes.js',
-  '/js/subjects.js',
-  '/js/exams.js',
-  '/js/users.js',
-  '/js/sa-dashboard.js',
-  '/js/sa-schools.js',
-  '/js/sa-users.js',
 ];
 
 /* ── INSTALL — cache all static assets ──────────────────── */
@@ -100,7 +87,20 @@ self.addEventListener('fetch', (event) => {
   /* Skip non-GET requests */
   if (request.method !== 'GET') return;
 
-  /* Cache-first strategy for static assets */
+  /*
+   * JS files: ALWAYS network-only, never cache.
+   * This must live in the fetch handler (not just STATIC_ASSETS)
+   * because the cache-first logic below opportunistically caches
+   * ANY successful GET response the first time it's seen — so a
+   * JS file would still get stuck in the cache on first visit
+   * even after being removed from the precache list.
+   */
+  if (url.pathname.startsWith('/js/')) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  /* Cache-first strategy for static assets (HTML/CSS/etc.) */
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
