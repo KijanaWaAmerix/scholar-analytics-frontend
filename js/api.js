@@ -61,6 +61,20 @@ const Auth = {
 /* ══════════════════════════════════════════════════════════
    CORE FETCH WRAPPER
 ══════════════════════════════════════════════════════════ */
+
+/*
+ * Endpoints that should NEVER trigger the "session expired" auto-redirect,
+ * because a 401 from them means "bad credentials / not yet authenticated",
+ * not "your existing session died". Add other public/unauthenticated
+ * auth endpoints here if you hit the same issue (e.g. reset-password).
+ */
+const AUTH_ENDPOINTS_EXEMPT_FROM_401_REDIRECT = [
+  '/auth/login',
+  '/auth/setup-account',
+  '/auth/reset-password',
+  '/auth/forgot-password',
+];
+
 const apiFetch = async (endpoint, options = {}) => {
 
   const token = Auth.getToken();
@@ -106,8 +120,18 @@ const apiFetch = async (endpoint, options = {}) => {
       return;
     }
 
-    /* Token expired */
-    if (response.status === 401) {
+    /*
+     * Token expired / invalid session.
+     * Only auto-redirect when:
+     *   1. We actually had a token to begin with (a real session existed), AND
+     *   2. This wasn't a call to an unauthenticated auth endpoint like /auth/login,
+     *      where a 401 just means "wrong credentials" and should be handled by
+     *      the caller, not treated as a dead session.
+     */
+    const isExemptAuthEndpoint = AUTH_ENDPOINTS_EXEMPT_FROM_401_REDIRECT
+      .some(exempt => endpoint.startsWith(exempt));
+
+    if (response.status === 401 && token && !isExemptAuthEndpoint) {
       Auth.clearSession();
       window.location.href = '../pages/login.html?reason=SESSION_EXPIRED';
       return;
