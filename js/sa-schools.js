@@ -13,7 +13,8 @@ initSidebar(user);
 const state = {
   schools  : [],
   editingId: null,
-  deleteId : null,
+  lockId   : null,
+  extendId : null,
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -41,6 +42,7 @@ const loadSchools = async () => {
 
 /* ══════════════════════════════════════════════════════════
    RENDER STATS
+   (Only wire these up if matching elements exist on the page)
 ══════════════════════════════════════════════════════════ */
 const renderStats = () => {
   const set = (id, val) => {
@@ -52,12 +54,15 @@ const renderStats = () => {
   set('activeSchools', state.schools.filter(s => s.status === 'active').length);
   set('lockedSchools', state.schools.filter(s => s.status === 'locked').length);
   set('trialSchools',  state.schools.filter(s => s.subscription?.plan === 'trial').length);
+
+  const countEl = document.getElementById('schoolsCount');
+  if (countEl) countEl.textContent = `${state.schools.length} school${state.schools.length === 1 ? '' : 's'}`;
 };
 
 /* ══════════════════════════════════════════════════════════
    RENDER TABLE
 ══════════════════════════════════════════════════════════ */
-const renderTable = (filter = {}) => {
+const renderTable = () => {
   const tbody = document.getElementById('schoolsTableBody');
   if (!tbody) return;
 
@@ -73,8 +78,8 @@ const renderTable = (filter = {}) => {
   }
 
   /* Status filter */
-  const status = document.getElementById('statusFilter')?.value;
-  if (status) {
+  const status = document.getElementById('schoolStatusFilter')?.value;
+  if (status && status !== 'all') {
     schools = schools.filter(s => s.status === status);
   }
 
@@ -139,7 +144,7 @@ const renderTable = (filter = {}) => {
               <i class="fas fa-pen"></i>
             </button>
             ${s.status === 'active' || s.status === 'trial'
-              ? `<button onclick="lockSchool('${s._id}')"
+              ? `<button onclick="openLockModal('${s._id}')"
                   style="padding:5px 10px;border-radius:6px;border:1px solid rgba(231,76,60,0.3);
                   background:rgba(231,76,60,0.08);cursor:pointer;font-size:0.75rem;color:#e74c3c;">
                   <i class="fas fa-lock"></i>
@@ -150,7 +155,7 @@ const renderTable = (filter = {}) => {
                   <i class="fas fa-lock-open"></i>
                 </button>`
             }
-            <button onclick="extendSubscription('${s._id}')"
+            <button onclick="openExtendModal('${s._id}')"
               style="padding:5px 10px;border-radius:6px;border:1px solid rgba(46,134,193,0.3);
               background:rgba(46,134,193,0.08);cursor:pointer;font-size:0.75rem;color:#2e86c1;">
               <i class="fas fa-calendar-plus"></i>
@@ -169,7 +174,7 @@ const openAddModal = () => {
   const title = document.getElementById('schoolModalTitle');
   if (title) title.textContent = 'Add New School';
   clearModalFields();
-  openModal('schoolModalOverlay');
+  openModal('addSchoolModalOverlay');
 };
 
 const openEditModal = (id) => {
@@ -180,20 +185,23 @@ const openEditModal = (id) => {
   const title = document.getElementById('schoolModalTitle');
   if (title) title.textContent = 'Edit School';
 
-  setField('modalSchoolName',    school.schoolName);
-  setField('modalAdminEmail',    school.adminEmail);
-  setField('modalAdminName',     school.adminName);
-  setField('modalPlan',          school.subscription?.plan || 'standard');
-  setField('modalExpiryDate',    school.subscription?.expiryDate
+  setField('newSchoolName',   school.schoolName);
+  setField('newSchoolMotto',  school.schoolMotto);
+  setField('newSchoolEmail',  school.schoolEmail);
+  setField('newAdminName',    school.adminName);
+  setField('newAdminEmail',   school.adminEmail);
+  setField('newSchoolPlan',   school.subscription?.plan || 'standard');
+  setField('newSchoolExpiry', school.subscription?.expiryDate
     ? new Date(school.subscription.expiryDate).toISOString().split('T')[0]
     : '');
 
-  openModal('schoolModalOverlay');
+  openModal('addSchoolModalOverlay');
 };
 
 const clearModalFields = () => {
-  ['modalSchoolName','modalAdminEmail','modalAdminName','modalPlan','modalExpiryDate']
+  ['newSchoolName','newSchoolMotto','newSchoolEmail','newAdminName','newAdminEmail','newSchoolExpiry']
     .forEach(id => setField(id, ''));
+  setField('newSchoolPlan', 'standard');
 };
 
 const setField = (id, val) => {
@@ -202,19 +210,22 @@ const setField = (id, val) => {
 };
 
 const saveSchool = async () => {
-  const schoolName  = document.getElementById('modalSchoolName')?.value.trim();
-  const adminEmail  = document.getElementById('modalAdminEmail')?.value.trim();
-  const adminName   = document.getElementById('modalAdminName')?.value.trim();
-  const plan        = document.getElementById('modalPlan')?.value || 'standard';
-  const expiryDate  = document.getElementById('modalExpiryDate')?.value;
+  const schoolName  = document.getElementById('newSchoolName')?.value.trim();
+  const schoolMotto = document.getElementById('newSchoolMotto')?.value.trim();
+  const schoolEmail = document.getElementById('newSchoolEmail')?.value.trim();
+  const adminName   = document.getElementById('newAdminName')?.value.trim();
+  const adminEmail  = document.getElementById('newAdminEmail')?.value.trim();
+  const plan        = document.getElementById('newSchoolPlan')?.value || 'standard';
+  const expiryDate  = document.getElementById('newSchoolExpiry')?.value;
 
   if (!schoolName) { showToast('School name is required.', 'warning'); return; }
-  if (!adminEmail && !state.editingId) { showToast('Admin email is required.', 'warning'); return; }
+  if (!adminName)  { showToast('Admin full name is required.', 'warning'); return; }
+  if (!adminEmail) { showToast('Admin email is required.', 'warning'); return; }
 
-  const btn = document.getElementById('saveSchoolBtn');
+  const btn = document.getElementById('saveNewSchoolBtn');
   if (btn) btn.disabled = true;
 
-  const payload = { schoolName, adminEmail, adminName, plan, expiryDate };
+  const payload = { schoolName, schoolMotto, schoolEmail, adminName, adminEmail, plan, expiryDate };
 
   let result;
   if (state.editingId) {
@@ -234,20 +245,43 @@ const saveSchool = async () => {
     state.editingId ? 'School updated successfully.' : 'School created successfully.',
     'success'
   );
-  closeModal('schoolModalOverlay');
+  closeModal('addSchoolModalOverlay');
   loadSchools();
 };
 
 /* ══════════════════════════════════════════════════════════
    LOCK / UNLOCK
 ══════════════════════════════════════════════════════════ */
-window.lockSchool = async (id) => {
-  const reason = prompt('Enter reason for locking this school:');
-  if (reason === null) return;
+const openLockModal = (id) => {
+  const school = state.schools.find(s => s._id === id);
+  if (!school) return;
+  state.lockId = id;
 
-  const result = await API.patch(`/superadmin/schools/${id}/lock`, { reason });
+  const nameEl = document.getElementById('lockSchoolName');
+  if (nameEl) nameEl.textContent = school.schoolName;
+
+  const reasonInput = document.getElementById('lockReason');
+  if (reasonInput) reasonInput.value = '';
+
+  openModal('lockModalOverlay');
+};
+
+const confirmLock = async () => {
+  if (!state.lockId) return;
+  const reason = document.getElementById('lockReason')?.value.trim();
+
+  const btn = document.getElementById('confirmLockBtn');
+  if (btn) btn.disabled = true;
+
+  const result = await API.patch(`/superadmin/schools/${state.lockId}/lock`, { reason });
+
+  if (btn) btn.disabled = false;
+
   if (!result?.ok) { showToast('Failed to lock school.', 'error'); return; }
+
   showToast('School locked.', 'success');
+  closeModal('lockModalOverlay');
+  state.lockId = null;
   loadSchools();
 };
 
@@ -261,16 +295,39 @@ window.unlockSchool = async (id) => {
 /* ══════════════════════════════════════════════════════════
    EXTEND SUBSCRIPTION
 ══════════════════════════════════════════════════════════ */
-window.extendSubscription = async (id) => {
-  const days = prompt('Extend subscription by how many days?', '365');
-  if (!days || isNaN(days)) return;
+const openExtendModal = (id) => {
+  const school = state.schools.find(s => s._id === id);
+  if (!school) return;
+  state.extendId = id;
 
-  const result = await API.patch(`/superadmin/schools/${id}/extend`, {
-    days: Number(days),
-  });
+  const nameEl = document.getElementById('extendSchoolName');
+  if (nameEl) nameEl.textContent = school.schoolName;
+
+  setField('extendMonths', '12');
+  setField('extendPlan', '');
+
+  openModal('extendModalOverlay');
+};
+
+const confirmExtend = async () => {
+  if (!state.extendId) return;
+
+  const months = Number(document.getElementById('extendMonths')?.value || 12);
+  const plan   = document.getElementById('extendPlan')?.value || undefined;
+  const days   = months * 30;
+
+  const btn = document.getElementById('confirmExtendBtn');
+  if (btn) btn.disabled = true;
+
+  const result = await API.patch(`/superadmin/schools/${state.extendId}/extend`, { days, plan });
+
+  if (btn) btn.disabled = false;
 
   if (!result?.ok) { showToast('Failed to extend subscription.', 'error'); return; }
-  showToast(`Subscription extended by ${days} days.`, 'success');
+
+  showToast(`Subscription extended by ${months} month${months === 1 ? '' : 's'}.`, 'success');
+  closeModal('extendModalOverlay');
+  state.extendId = null;
   loadSchools();
 };
 
@@ -291,15 +348,24 @@ const closeModal = (id) => {
    EVENT LISTENERS
 ══════════════════════════════════════════════════════════ */
 document.getElementById('addSchoolBtn')?.addEventListener('click', openAddModal);
-document.getElementById('saveSchoolBtn')?.addEventListener('click', saveSchool);
+document.getElementById('saveNewSchoolBtn')?.addEventListener('click', saveSchool);
+document.getElementById('closeAddSchool')?.addEventListener('click', () => closeModal('addSchoolModalOverlay'));
+document.getElementById('cancelAddSchool')?.addEventListener('click', () => closeModal('addSchoolModalOverlay'));
 
-document.getElementById('closeSchoolModal')?.addEventListener('click', () => closeModal('schoolModalOverlay'));
-document.getElementById('cancelSchoolModal')?.addEventListener('click', () => closeModal('schoolModalOverlay'));
+document.getElementById('closeLock')?.addEventListener('click', () => closeModal('lockModalOverlay'));
+document.getElementById('cancelLock')?.addEventListener('click', () => closeModal('lockModalOverlay'));
+document.getElementById('confirmLockBtn')?.addEventListener('click', confirmLock);
+
+document.getElementById('closeExtend')?.addEventListener('click', () => closeModal('extendModalOverlay'));
+document.getElementById('cancelExtend')?.addEventListener('click', () => closeModal('extendModalOverlay'));
+document.getElementById('confirmExtendBtn')?.addEventListener('click', confirmExtend);
 
 document.getElementById('schoolSearch')?.addEventListener('input', () => renderTable());
-document.getElementById('statusFilter')?.addEventListener('change', () => renderTable());
+document.getElementById('schoolStatusFilter')?.addEventListener('change', () => renderTable());
 
-window.openEditModal = openEditModal;
+window.openEditModal   = openEditModal;
+window.openLockModal   = openLockModal;
+window.openExtendModal = openExtendModal;
 
 /* ══════════════════════════════════════════════════════════
    INIT
