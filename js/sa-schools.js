@@ -241,12 +241,27 @@ const saveSchool = async () => {
     return;
   }
 
-  showToast(
-    state.editingId ? 'School updated successfully.' : 'School created successfully.',
-    'success'
-  );
   closeModal('addSchoolModalOverlay');
+
+  /* On creation, the backend returns a one-time temp password — show it now,
+     since it's never emailed and can't be recovered afterward. */
+  if (!state.editingId && result.data?.admin?.tempPassword) {
+    showToast('School created successfully.', 'success');
+    showCredentials(result.data.admin.email, result.data.admin.tempPassword);
+  } else {
+    showToast('School updated successfully.', 'success');
+  }
+
   loadSchools();
+};
+
+/* ══════════════════════════════════════════════════════════
+   CREDENTIALS MODAL (temp password display)
+══════════════════════════════════════════════════════════ */
+const showCredentials = (email, password) => {
+  setField('credentialsEmail', email);
+  setField('credentialsPassword', password);
+  openModal('credentialsModalOverlay');
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -314,12 +329,11 @@ const confirmExtend = async () => {
 
   const months = Number(document.getElementById('extendMonths')?.value || 12);
   const plan   = document.getElementById('extendPlan')?.value || undefined;
-  const days   = months * 30;
 
   const btn = document.getElementById('confirmExtendBtn');
   if (btn) btn.disabled = true;
 
-  const result = await API.patch(`/superadmin/schools/${state.extendId}/extend`, { days, plan });
+  const result = await API.patch(`/superadmin/schools/${state.extendId}/extend`, { months, plan });
 
   if (btn) btn.disabled = false;
 
@@ -351,6 +365,17 @@ document.getElementById('addSchoolBtn')?.addEventListener('click', openAddModal)
 document.getElementById('saveNewSchoolBtn')?.addEventListener('click', saveSchool);
 document.getElementById('closeAddSchool')?.addEventListener('click', () => closeModal('addSchoolModalOverlay'));
 document.getElementById('cancelAddSchool')?.addEventListener('click', () => closeModal('addSchoolModalOverlay'));
+
+document.getElementById('closeCredentials')?.addEventListener('click', () => closeModal('credentialsModalOverlay'));
+document.getElementById('closeCredentialsBtn')?.addEventListener('click', () => closeModal('credentialsModalOverlay'));
+document.getElementById('copyCredentialsBtn')?.addEventListener('click', () => {
+  const email    = document.getElementById('credentialsEmail')?.value || '';
+  const password = document.getElementById('credentialsPassword')?.value || '';
+  const text     = `Email: ${email}\nPassword: ${password}`;
+  navigator.clipboard?.writeText(text)
+    .then(() => showToast('Copied to clipboard.', 'success'))
+    .catch(() => showToast('Could not copy — please copy manually.', 'warning'));
+});
 
 document.getElementById('closeLock')?.addEventListener('click', () => closeModal('lockModalOverlay'));
 document.getElementById('cancelLock')?.addEventListener('click', () => closeModal('lockModalOverlay'));

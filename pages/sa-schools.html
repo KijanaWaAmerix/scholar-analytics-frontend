@@ -207,6 +207,38 @@
     </div>
   </div>
 
+  <!-- ADMIN CREDENTIALS MODAL (shown once, right after creating a school / resetting a password) -->
+  <div class="modal-overlay" id="credentialsModalOverlay">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title">Admin Login Details</h3>
+          <p class="modal-subtitle">Save or share this now — it won't be shown again</p>
+        </div>
+        <button class="modal-close" id="closeCredentials"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="form-group">
+            <label>Admin Email</label>
+            <input type="text" id="credentialsEmail" class="input" readonly/>
+          </div>
+          <div class="form-group">
+            <label>Temporary Password</label>
+            <input type="text" id="credentialsPassword" class="input" readonly/>
+          </div>
+          <p style="font-size:var(--text-xs);color:var(--text-soft);">
+            Share these with the school admin. They should log in and change this password as soon as possible.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="copyCredentialsBtn"><i class="fas fa-copy"></i> Copy</button>
+        <button class="btn-primary" id="closeCredentialsBtn">Done</button>
+      </div>
+    </div>
+  </div>
+
   <!-- LOCK MODAL -->
   <div class="modal-overlay" id="lockModalOverlay">
     <div class="modal modal-sm">
