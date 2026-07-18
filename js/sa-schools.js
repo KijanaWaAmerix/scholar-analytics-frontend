@@ -199,7 +199,7 @@ const openEditModal = (id) => {
 };
 
 const clearModalFields = () => {
-  ['newSchoolName','newSchoolMotto','newSchoolEmail','newAdminName','newAdminEmail','newSchoolExpiry']
+  ['newSchoolName','newSchoolMotto','newSchoolEmail','newAdminName','newAdminEmail','newAdminPassword','newSchoolExpiry']
     .forEach(id => setField(id, ''));
   setField('newSchoolPlan', 'standard');
 };
@@ -210,22 +210,35 @@ const setField = (id, val) => {
 };
 
 const saveSchool = async () => {
-  const schoolName  = document.getElementById('newSchoolName')?.value.trim();
-  const schoolMotto = document.getElementById('newSchoolMotto')?.value.trim();
-  const schoolEmail = document.getElementById('newSchoolEmail')?.value.trim();
-  const adminName   = document.getElementById('newAdminName')?.value.trim();
-  const adminEmail  = document.getElementById('newAdminEmail')?.value.trim();
-  const plan        = document.getElementById('newSchoolPlan')?.value || 'standard';
-  const expiryDate  = document.getElementById('newSchoolExpiry')?.value;
+  const schoolName    = document.getElementById('newSchoolName')?.value.trim();
+  const schoolMotto   = document.getElementById('newSchoolMotto')?.value.trim();
+  const schoolEmail   = document.getElementById('newSchoolEmail')?.value.trim();
+  const adminName     = document.getElementById('newAdminName')?.value.trim();
+  const adminEmail    = document.getElementById('newAdminEmail')?.value.trim();
+  const adminPassword = document.getElementById('newAdminPassword')?.value;
+  const plan          = document.getElementById('newSchoolPlan')?.value || 'standard';
+  const expiryDate    = document.getElementById('newSchoolExpiry')?.value;
 
   if (!schoolName) { showToast('School name is required.', 'warning'); return; }
   if (!adminName)  { showToast('Admin full name is required.', 'warning'); return; }
   if (!adminEmail) { showToast('Admin email is required.', 'warning'); return; }
 
+  /* Password only required when creating a new school, not when editing */
+  if (!state.editingId) {
+    if (!adminPassword) {
+      showToast('Please set an admin password.', 'warning');
+      return;
+    }
+    if (adminPassword.length < 8) {
+      showToast('Password must be at least 8 characters.', 'warning');
+      return;
+    }
+  }
+
   const btn = document.getElementById('saveNewSchoolBtn');
   if (btn) btn.disabled = true;
 
-  const payload = { schoolName, schoolMotto, schoolEmail, adminName, adminEmail, plan, expiryDate };
+  const payload = { schoolName, schoolMotto, schoolEmail, adminName, adminEmail, adminPassword, plan, expiryDate };
 
   let result;
   if (state.editingId) {
@@ -242,26 +255,11 @@ const saveSchool = async () => {
   }
 
   closeModal('addSchoolModalOverlay');
-
-  /* On creation, the backend returns a one-time temp password — show it now,
-     since it's never emailed and can't be recovered afterward. */
-  if (!state.editingId && result.data?.admin?.tempPassword) {
-    showToast('School created successfully.', 'success');
-    showCredentials(result.data.admin.email, result.data.admin.tempPassword);
-  } else {
-    showToast('School updated successfully.', 'success');
-  }
-
+  showToast(
+    state.editingId ? 'School updated successfully.' : `School created. Admin can log in with ${adminEmail}.`,
+    'success'
+  );
   loadSchools();
-};
-
-/* ══════════════════════════════════════════════════════════
-   CREDENTIALS MODAL (temp password display)
-══════════════════════════════════════════════════════════ */
-const showCredentials = (email, password) => {
-  setField('credentialsEmail', email);
-  setField('credentialsPassword', password);
-  openModal('credentialsModalOverlay');
 };
 
 /* ══════════════════════════════════════════════════════════
