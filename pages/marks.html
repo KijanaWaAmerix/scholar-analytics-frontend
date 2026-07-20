@@ -157,6 +157,20 @@
           </div>
 
         </div>
+
+        <!-- Excel import — needs only Class + Exam (both selected above).
+             Standalone from the manual-entry flow; imports every subject
+             column found in the sheet in one go. -->
+        <div class="marks-import-row" style="display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border-light);">
+          <button class="btn-secondary" id="importExcelBtn" type="button">
+            <i class="fas fa-file-excel"></i>
+            <span id="importExcelBtnText">Import from Excel</span>
+          </button>
+          <input type="file" id="importExcelInput" accept=".xlsx,.xls" style="display:none;"/>
+          <span style="font-size:0.78rem;color:var(--text-soft);">
+            Uses the Class and Exam selected above. Requires no Subject selection.
+          </span>
+        </div>
       </div>
 
       <!-- EMPTY STATE -->
@@ -307,6 +321,25 @@
   </div>
 </div>
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- IMPORT RESULTS MODAL -->
+<div class="modal-overlay" id="importResultsOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Import Results</h3>
+        <p class="modal-subtitle">Summary of the Excel import</p>
+      </div>
+      <button class="modal-close" id="closeImportResults"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="importResultsBody" style="max-height:60vh;overflow-y:auto;">
+      <!-- filled by JS -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" id="doneImportResults">Done</button>
+    </div>
+  </div>
+</div>
 
 <script src="../js/api.js"></script>
 <script src="../js/marks.js"></script>

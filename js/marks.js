@@ -1,7 +1,9 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Marks Entry
-   File: js/marks.js  Version: 4.0
+   File: js/marks.js  Version: 4.1
    Connected to real MongoDB backend
+   v4.1: added standalone Excel import (auto-creates students,
+   imports every subject column found in the sheet at once)
 ═══════════════════════════════════════════════════════════ */
 
 const user = requireAuth();
@@ -70,6 +72,9 @@ const el = {
   clearAllBtn      : document.getElementById('clearAllBtn'),
   saveStatus       : document.getElementById('saveStatus'),
   saveStatusText   : document.getElementById('saveStatusText'),
+  importExcelBtn   : document.getElementById('importExcelBtn'),
+  importExcelInput : document.getElementById('importExcelInput'),
+  importExcelBtnText: document.getElementById('importExcelBtnText'),
 };
 
 /* Avatar helpers */
@@ -648,6 +653,125 @@ el.clearAllBtn?.addEventListener('click', () => {
   updateSaveStatus('idle');
   showToast('Marks cleared from screen.', 'info');
 });
+
+/* ══════════════════════════════════════════════════════════
+   EXCEL IMPORT
+   Standalone: only needs Class + Exam (already selected above).
+   Does not touch the manual entry state/table above.
+══════════════════════════════════════════════════════════ */
+el.importExcelBtn?.addEventListener('click', () => {
+  const classId = el.selClass?.value;
+  const examId  = el.selExam?.value;
+
+  if (!classId || !examId) {
+    showToast('Please select a Class and an Exam first.', 'warning');
+    ['selClass','selExam'].forEach(id => {
+      const s = document.getElementById(id);
+      if (s && !s.value) {
+        s.style.borderColor = 'var(--danger)';
+        setTimeout(() => s.style.borderColor = '', 1400);
+      }
+    });
+    return;
+  }
+
+  el.importExcelInput?.click();
+});
+
+el.importExcelInput?.addEventListener('change', async () => {
+  const file    = el.importExcelInput.files?.[0];
+  const classId = el.selClass?.value;
+  const examId  = el.selExam?.value;
+
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('classId', classId);
+  formData.append('examId', examId);
+
+  if (el.importExcelBtnText) el.importExcelBtnText.textContent = 'Importing...';
+  if (el.importExcelBtn)     el.importExcelBtn.disabled = true;
+
+  const result = await API.post('/marks/import-excel', formData);
+
+  if (el.importExcelBtnText) el.importExcelBtnText.textContent = 'Import from Excel';
+  if (el.importExcelBtn)     el.importExcelBtn.disabled = false;
+  el.importExcelInput.value = ''; // reset so the same file can be re-picked if needed
+
+  if (!result?.ok) {
+    showToast(result?.data?.message || 'Import failed.', 'error');
+    return;
+  }
+
+  showImportResults(result.data);
+});
+
+const showImportResults = (data) => {
+  const body = document.getElementById('importResultsBody');
+  if (!body) return;
+
+  const s = data.summary || {};
+
+  const row = (label, val, colour) => `
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light);">
+      <span style="color:var(--text-soft);font-size:0.85rem;">${label}</span>
+      <span style="font-weight:700;color:${colour || 'var(--text-dark)'};">${val}</span>
+    </div>`;
+
+  let html = `
+    <div style="margin-bottom:10px;">
+      ${row('Students created', s.studentsCreated || 0, '#e67e22')}
+      ${row('Marks created',    s.created || 0,          '#27ae60')}
+      ${row('Marks updated',    s.updated || 0,           '#2e86c1')}
+      ${row('Blank cells skipped', s.skippedBlank || 0)}
+      ${row('Errors', s.errorCount || 0, s.errorCount ? '#e74c3c' : undefined)}
+    </div>`;
+
+  if (s.createdStudents?.length) {
+    html += `
+      <p style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px;">
+        New students added (finish their profiles in Students page)
+      </p>
+      <ul style="margin:0;padding-left:18px;font-size:0.85rem;color:var(--text-mid);">
+        ${s.createdStudents.map(n => `<li>${n}</li>`).join('')}
+      </ul>`;
+  }
+
+  if (s.unmatchedColumns?.length) {
+    html += `
+      <p style="font-size:0.78rem;font-weight:700;color:#e74c3c;text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px;">
+        Column headers not matched to any subject
+      </p>
+      <ul style="margin:0;padding-left:18px;font-size:0.85rem;color:var(--text-mid);">
+        ${s.unmatchedColumns.map(c => `<li>${c}</li>`).join('')}
+      </ul>`;
+  }
+
+  if (data.errors?.length) {
+    html += `
+      <p style="font-size:0.78rem;font-weight:700;color:#e74c3c;text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px;">
+        Errors
+      </p>
+      <ul style="margin:0;padding-left:18px;font-size:0.8rem;color:var(--text-mid);">
+        ${data.errors.map(e => `<li>${e.student || ''} ${e.subject ? '('+e.subject+')' : ''}: ${e.error}</li>`).join('')}
+      </ul>`;
+  }
+
+  body.innerHTML = html;
+  document.getElementById('importResultsOverlay')?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  showToast(data.message || 'Import complete.', 'success');
+};
+
+const closeImportResults = () => {
+  document.getElementById('importResultsOverlay')?.classList.remove('open');
+  document.body.style.overflow = '';
+};
+
+document.getElementById('closeImportResults')?.addEventListener('click', closeImportResults);
+document.getElementById('doneImportResults')?.addEventListener('click', closeImportResults);
 
 /* ══════════════════════════════════════════════════════════
    PREVENT ACCIDENTAL NAVIGATION

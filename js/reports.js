@@ -1,7 +1,10 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Reports & PDFs
    File: js/reports.js
-   Version: 5.1 — Pixel-perfect CBC report card
+   Version: 6.0 — Now wired to real backend data.
+   Same pixel-perfect CBC report card design as v5.1;
+   MOCK_DATA removed, replaced with /classes, /exams,
+   /results/class (the same ranking already used by Results page).
 ═══════════════════════════════════════════════════════════ */
 
 /* ── Auth ─────────────────────────────────────────────────── */
@@ -11,6 +14,8 @@ initSidebar(user);
 
 /* ══════════════════════════════════════════════════════════
    1. KJSEA GRADING ENGINE
+   (grading scale/comments are pure functions of score/grade —
+   unchanged from before, since they don't depend on data source)
 ══════════════════════════════════════════════════════════ */
 const KJSEA = {
 
@@ -25,22 +30,22 @@ const KJSEA = {
     { grade:'BE2', label:'Below Expectation',        measure:'Below Minimal',  min:1,  max:10,  points:1, css:'be2' },
   ],
 
-  SUBJECTS: [
-    { code:'ENG',   name:'English',                pathway:'social'   },
-    { code:'KIS',   name:'Kiswahili',              pathway:'social'   },
-    { code:'MATH',  name:'Mathematics',            pathway:'stem'     },
-    { code:'INTER', name:'Integrated Science',     pathway:'stem'     },
-    { code:'SST',   name:'Social Studies',         pathway:'social'   },
-    { code:'CRE',   name:'Religious Education',    pathway:'social'   },
-    { code:'PRT',   name:'Pre Technical',          pathway:'stem'     },
-    { code:'AGR',   name:'Agriculture',            pathway:'stem'     },
-    { code:'CAS',   name:'Creative Arts & Sports', pathway:'creative' },
-  ],
+  /* Maps a subject's real learningArea (from Subject model) to one
+     of the 3 KNEC pathway buckets shown in the Pathway Summary. */
+  LEARNING_AREA_TO_PATHWAY: {
+    'Mathematics'  : 'stem',
+    'Sciences'     : 'stem',
+    'Technical'    : 'stem',
+    'Languages'    : 'social',
+    'Humanities'   : 'social',
+    'Life Skills'  : 'social',
+    'Creative Arts': 'creative',
+  },
 
   PATHWAYS: {
-    stem    : { name:'STEM',            subjects:'Mathematics · Integrated Science · Pre Technical · Agriculture', col:'#185FA5', bg:'#E6F1FB', border:'#b8d4f0' },
-    social  : { name:'Social Sciences', subjects:'English · Kiswahili · Social Studies · Religious Education',    col:'#3B6D11', bg:'#EAF3DE', border:'#b5d98a' },
-    creative: { name:'Creative Arts',   subjects:'Creative Arts & Sports',                                        col:'#854F0B', bg:'#FAEEDA', border:'#f0c87a' },
+    stem    : { name:'STEM',            col:'#1d4ed8', bg:'#dbeafe', border:'#3b82f6', pillBg:'#bfdbfe', pillCol:'#1e3a8a' },
+    social  : { name:'Social Sciences', col:'#166534', bg:'#dcfce7', border:'#22c55e', pillBg:'#bbf7d0', pillCol:'#14532d' },
+    creative: { name:'Creative Arts',   col:'#6b21a8', bg:'#f3e8ff', border:'#a855f7', pillBg:'#e9d5ff', pillCol:'#581c87' },
   },
 
   getGrade(score) {
@@ -48,20 +53,26 @@ const KJSEA = {
     return this.SCALE.find(s => Number(score) >= s.min && Number(score) <= s.max) || null;
   },
 
+  /* Groups a learner's subjectResults into stem/social/creative buckets
+     using each subject's learningArea. Subjects with no learningArea
+     set, or one that isn't in the map, are simply left out of every
+     bucket (rather than guessed) — the Subjects page can assign a
+     learningArea to fix that. */
   computePathways(subjectResults) {
     const acc = {
-      stem    : { scores:[], points:0, count:0 },
-      social  : { scores:[], points:0, count:0 },
-      creative: { scores:[], points:0, count:0 },
+      stem    : { scores:[], points:0, count:0, subjectNames:[] },
+      social  : { scores:[], points:0, count:0, subjectNames:[] },
+      creative: { scores:[], points:0, count:0, subjectNames:[] },
     };
 
     subjectResults.forEach(s => {
-      const subj = this.SUBJECTS.find(x => x.code === s.code);
-      if (!subj || s.score === null) return;
-      const p = acc[subj.pathway];
+      const pathwayKey = this.LEARNING_AREA_TO_PATHWAY[s.learningArea];
+      if (!pathwayKey || s.score === null) return;
+      const p = acc[pathwayKey];
       p.scores.push(s.score);
       p.points += s.points;
       p.count++;
+      p.subjectNames.push(s.name);
     });
 
     const out = {};
@@ -73,27 +84,15 @@ const KJSEA = {
       const gradeInfo = this.getGrade(avg);
       out[key] = {
         avg,
-        points : p.points,
+        points  : p.points,
         maxPts,
-        grade  : gradeInfo?.label   || '--',
-        measure: gradeInfo?.measure || '--',
-        css    : gradeInfo?.css     || '',
+        grade   : gradeInfo?.label   || '--',
+        measure : gradeInfo?.measure || '--',
+        css     : gradeInfo?.css     || '',
+        subjects: p.subjectNames.join(' · ') || 'No subjects assigned to this pathway yet',
       };
     });
     return out;
-  },
-
-  getMeanGrade(totalPoints, count) {
-    if (!count) return null;
-    const avg = totalPoints / count;
-    if (avg >= 7.5) return 'EE1';
-    if (avg >= 6.5) return 'EE2';
-    if (avg >= 5.5) return 'ME1';
-    if (avg >= 4.5) return 'ME2';
-    if (avg >= 3.5) return 'AE1';
-    if (avg >= 2.5) return 'AE2';
-    if (avg >= 1.5) return 'BE1';
-    return 'BE2';
   },
 
   getTeacherComment(grade) {
@@ -142,74 +141,25 @@ const KJSEA = {
 };
 
 /* ══════════════════════════════════════════════════════════
-   2. MOCK DATA
-══════════════════════════════════════════════════════════ */
-const MOCK_DATA = {
-  'Grade 9 East': [
-    { id:'g9e1', fullName:'Aisha Kamau',     upiNumber:'8N73K2P1Q4', assessmentNo:'B0012345K', gender:'Female', dateOfBirth:'2011-03-15',
-      scores:{ ENG:89, KIS:92, MATH:95, INTER:91, SST:88, CRE:90, PRT:87, AGR:93, CAS:94 },
-      initials:{ ENG:'W.N.', KIS:'B.O.', MATH:'J.M.', INTER:'A.K.', SST:'C.L.', CRE:'S.W.', PRT:'P.R.', AGR:'P.R.', CAS:'D.M.' } },
-    { id:'g9e2', fullName:'Brian Ochieng',   upiNumber:'2T41R5N7X8', assessmentNo:'B0012346K', gender:'Male',   dateOfBirth:'2011-07-22',
-      scores:{ ENG:72, KIS:75, MATH:68, INTER:74, SST:70, CRE:73, PRT:69, AGR:76, CAS:77 },
-      initials:{ ENG:'W.N.', KIS:'B.O.', MATH:'J.M.', INTER:'A.K.', SST:'C.L.', CRE:'S.W.', PRT:'P.R.', AGR:'P.R.', CAS:'D.M.' } },
-    { id:'g9e3', fullName:'Cynthia Wanjiku', upiNumber:'9V63T3N1Z2', assessmentNo:'B0012347K', gender:'Female', dateOfBirth:'2011-11-08',
-      scores:{ ENG:80, KIS:83, MATH:86, INTER:82, SST:79, CRE:81, PRT:84, AGR:78, CAS:85 },
-      initials:{ ENG:'W.N.', KIS:'B.O.', MATH:'J.M.', INTER:'A.K.', SST:'C.L.', CRE:'S.W.', PRT:'P.R.', AGR:'P.R.', CAS:'D.M.' } },
-    { id:'g9e4', fullName:'David Kipchoge',  upiNumber:'4R28P7L9S2', assessmentNo:'B0012348K', gender:'Male',   dateOfBirth:'2011-05-20',
-      scores:{ ENG:45, KIS:50, MATH:38, INTER:42, SST:48, CRE:44, PRT:40, AGR:46, CAS:43 },
-      initials:{ ENG:'W.N.', KIS:'B.O.', MATH:'J.M.', INTER:'A.K.', SST:'C.L.', CRE:'S.W.', PRT:'P.R.', AGR:'P.R.', CAS:'D.M.' } },
-    { id:'g9e5', fullName:'Eunice Adhiambo', upiNumber:'5Q17N8M3T6', assessmentNo:'B0012349K', gender:'Female', dateOfBirth:'2011-09-12',
-      scores:{ ENG:62, KIS:58, MATH:65, INTER:60, SST:64, CRE:59, PRT:67, AGR:61, CAS:63 },
-      initials:{ ENG:'W.N.', KIS:'B.O.', MATH:'J.M.', INTER:'A.K.', SST:'C.L.', CRE:'S.W.', PRT:'P.R.', AGR:'P.R.', CAS:'D.M.' } },
-  ],
-  'Grade 8 East': [
-    { id:'g8e1', fullName:'Irene Chebet',    upiNumber:'9V63T3N1Z2', assessmentNo:'B0023448K', gender:'Female', dateOfBirth:'2012-09-25',
-      scores:{ ENG:86, KIS:88, MATH:88, INTER:83, SST:87, CRE:82, PRT:79, AGR:84, CAS:86 },
-      initials:{ ENG:'C.T.', KIS:'C.T.', MATH:'C.T.', INTER:'C.T.', SST:'C.T.', CRE:'C.T.', PRT:'C.T.', AGR:'C.T.', CAS:'C.T.' } },
-    { id:'g8e2', fullName:'Frank Otieno',    upiNumber:'3K91P7N4W2', assessmentNo:'B0023449K', gender:'Male',   dateOfBirth:'2012-04-14',
-      scores:{ ENG:70, KIS:68, MATH:76, INTER:72, SST:69, CRE:71, PRT:74, AGR:67, CAS:73 },
-      initials:{ ENG:'C.T.', KIS:'C.T.', MATH:'C.T.', INTER:'C.T.', SST:'C.T.', CRE:'C.T.', PRT:'C.T.', AGR:'C.T.', CAS:'C.T.' } },
-    { id:'g8e3', fullName:'Grace Wambui',    upiNumber:'7X85V1Q8B4', assessmentNo:'B0023450K', gender:'Female', dateOfBirth:'2012-12-03',
-      scores:{ ENG:92, KIS:90, MATH:95, INTER:91, SST:89, CRE:93, PRT:88, AGR:90, CAS:94 },
-      initials:{ ENG:'C.T.', KIS:'C.T.', MATH:'C.T.', INTER:'C.T.', SST:'C.T.', CRE:'C.T.', PRT:'C.T.', AGR:'C.T.', CAS:'C.T.' } },
-    { id:'g8e4', fullName:'Hassan Abdi',     upiNumber:'1U52S4M8Y9', assessmentNo:'B0023451K', gender:'Male',   dateOfBirth:'2012-06-18',
-      scores:{ ENG:55, KIS:60, MATH:48, INTER:52, SST:58, CRE:50, PRT:45, AGR:55, CAS:53 },
-      initials:{ ENG:'C.T.', KIS:'C.T.', MATH:'C.T.', INTER:'C.T.', SST:'C.T.', CRE:'C.T.', PRT:'C.T.', AGR:'C.T.', CAS:'C.T.' } },
-  ],
-  'Grade 7 East': [
-    { id:'g7e1', fullName:'Janet Mwangi',    upiNumber:'6Y96W9R7C5', assessmentNo:'B0034561K', gender:'Female', dateOfBirth:'2013-02-28',
-      scores:{ ENG:78, KIS:82, MATH:91, INTER:75, SST:88, CRE:79, PRT:84, AGR:77, CAS:92 },
-      initials:{ ENG:'C.T.', KIS:'C.T.', MATH:'C.T.', INTER:'C.T.', SST:'C.T.', CRE:'C.T.', PRT:'C.T.', AGR:'C.T.', CAS:'C.T.' } },
-    { id:'g7e2', fullName:'Kevin Mutua',     upiNumber:'8M74L6K3P1', assessmentNo:'B0034562K', gender:'Male',   dateOfBirth:'2013-08-15',
-      scores:{ ENG:65, KIS:70, MATH:60, INTER:68, SST:72, CRE:64, PRT:58, AGR:62, CAS:67 },
-      initials:{ ENG:'C.T.', KIS:'C.T.', MATH:'C.T.', INTER:'C.T.', SST:'C.T.', CRE:'C.T.', PRT:'C.T.', AGR:'C.T.', CAS:'C.T.' } },
-    { id:'g7e3', fullName:'Lydia Chelangat', upiNumber:'2N85K7M4Q9', assessmentNo:'B0034563K', gender:'Female', dateOfBirth:'2013-11-22',
-      scores:{ ENG:94, KIS:91, MATH:96, INTER:92, SST:90, CRE:93, PRT:89, AGR:91, CAS:95 },
-      initials:{ ENG:'C.T.', KIS:'C.T.', MATH:'C.T.', INTER:'C.T.', SST:'C.T.', CRE:'C.T.', PRT:'C.T.', AGR:'C.T.', CAS:'C.T.' } },
-  ],
-  'Grade 7 West': [
-    { id:'g7w1', fullName:'Michael Baraka',  upiNumber:'3P96L8N5Q2', assessmentNo:'B0034571K', gender:'Male',   dateOfBirth:'2013-04-10',
-      scores:{ ENG:75, KIS:78, MATH:82, INTER:76, SST:74, CRE:77, PRT:80, AGR:73, CAS:79 },
-      initials:{ ENG:'C.T.', KIS:'C.T.', MATH:'C.T.', INTER:'C.T.', SST:'C.T.', CRE:'C.T.', PRT:'C.T.', AGR:'C.T.', CAS:'C.T.' } },
-  ],
-  'Grade 8 West': [],
-  'Grade 9 West': [],
-};
-
-/* ══════════════════════════════════════════════════════════
-   3. STATE
+   2. STATE
 ══════════════════════════════════════════════════════════ */
 const state = {
   activeTab    : 'individual',
-  results      : [],
+  classes      : [],
+  exams        : [],
+  subjects     : [],   // real per-class subject list from the last /results/class call
+  results      : [],   // ranked learners for the currently selected class+exam
   paperSize    : 'A4',
   recentReports: [],
   context      : {},
   bulkCards    : [],
+  loadedClassId: null, // guards against stale results if class/exam changes after fetch
+  loadedExamId : null,
 };
 const CURRENT_YEAR = new Date().getFullYear().toString();
+
 /* ══════════════════════════════════════════════════════════
-   4. DOM REFS
+   3. DOM REFS
 ══════════════════════════════════════════════════════════ */
 const el = {
   tabIndividual      : document.getElementById('tabIndividual'),
@@ -245,75 +195,133 @@ const el = {
 };
 
 /* ══════════════════════════════════════════════════════════
-   5. COMPUTE RESULTS
+   4. LOAD CLASSES
 ══════════════════════════════════════════════════════════ */
-const computeResults = (learners) => {
-  const processed = learners.map(learner => {
-    const subjectResults = KJSEA.SUBJECTS.map(s => {
-      const score     = learner.scores?.[s.code] ?? null;
-      const gradeInfo = KJSEA.getGrade(score);
-      return {
-        code    : s.code,
-        name    : s.name,
-        pathway : s.pathway,
-        score,
-        grade   : gradeInfo?.grade   || '--',
-        label   : gradeInfo?.label   || '--',
-        measure : gradeInfo?.measure || '--',
-        points  : gradeInfo ? gradeInfo.points : 0,
-        css     : gradeInfo?.css     || '',
-        initials: learner.initials?.[s.code] || 'C.T.',
-      };
-    });
+const loadClasses = async () => {
+  const result = await API.get('/classes');
+  if (!result?.ok) return;
 
-    const valid       = subjectResults.filter(s => s.score !== null);
-    const totalScore  = valid.reduce((a,s) => a + s.score, 0);
-    const totalPoints = valid.reduce((a,s) => a + s.points, 0);
-    const avgScore    = valid.length
-      ? parseFloat((totalScore / valid.length).toFixed(1))
-      : 0;
+  state.classes = result.data.classes || [];
 
-    const meanGradeKey = KJSEA.getMeanGrade(totalPoints, valid.length);
-    const meanInfo     = KJSEA.SCALE.find(s => s.grade === meanGradeKey);
-    const pathways     = KJSEA.computePathways(subjectResults);
-
-    return {
-      ...learner,
-      subjectResults,
-      totalScore,
-      totalPoints,
-      avgScore,
-      meanGrade  : meanGradeKey      || '--',
-      meanLabel  : meanInfo?.label   || '--',
-      meanMeasure: meanInfo?.measure || '--',
-      meanCss    : meanInfo?.css     || '',
-      pathways,
-      position   : 0,
-    };
-  });
-
-  /* Rank by points then total score */
-  processed.sort((a,b) =>
-    b.totalPoints !== a.totalPoints
-      ? b.totalPoints - a.totalPoints
-      : b.totalScore  - a.totalScore
-  );
-
-  let pos = 1;
-  processed.forEach((r,i) => {
-    if (i > 0 && r.totalPoints === processed[i-1].totalPoints) {
-      r.position = processed[i-1].position;
-    } else {
-      r.position = pos;
-    }
-    pos++;
-  });
-
-  return processed;
+  if (el.rptClass) {
+    el.rptClass.innerHTML = '<option value="">-- Select Class --</option>' +
+      state.classes.map(c =>
+        `<option value="${c._id}">${c.name}</option>`
+      ).join('');
+  }
 };
 
 /* ══════════════════════════════════════════════════════════
-   6. TABS
+   5. LOAD EXAMS WHEN CLASS + TERM SELECTED
+══════════════════════════════════════════════════════════ */
+const loadExams = async () => {
+  const classId = el.rptClass?.value;
+  const term    = el.rptTerm?.value;
+
+  if (!classId || !term) return;
+
+  if (el.rptExam) el.rptExam.innerHTML = '<option value="">Loading...</option>';
+
+  const result = await API.get(`/exams?class=${classId}&term=${term}`);
+
+  if (!result?.ok || !result.data.exams?.length) {
+    if (el.rptExam) el.rptExam.innerHTML = '<option value="">No exams found</option>';
+    return;
+  }
+
+  state.exams = result.data.exams;
+
+  if (el.rptExam) {
+    el.rptExam.innerHTML = '<option value="">-- Select Exam --</option>' +
+      state.exams.map(e =>
+        `<option value="${e._id}">${e.name}</option>`
+      ).join('');
+  }
+};
+
+el.rptClass?.addEventListener('change', () => {
+  loadExams();
+  if (el.rptExam)    el.rptExam.innerHTML    = '<option value="">-- Select Exam --</option>';
+  if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>';
+  resetPreview();
+});
+
+el.rptTerm?.addEventListener('change', () => {
+  loadExams();
+  if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>';
+  resetPreview();
+});
+
+/* ══════════════════════════════════════════════════════════
+   6. WHEN CLASS + EXAM BOTH SELECTED — FETCH REAL RESULTS
+   This populates the Learner dropdown (individual tab) and
+   is reused directly when the user clicks "Preview Report",
+   so results are only fetched once per class+exam selection.
+══════════════════════════════════════════════════════════ */
+el.rptExam?.addEventListener('change', fetchClassResults);
+
+async function fetchClassResults() {
+  const classId = el.rptClass?.value;
+  const examId  = el.rptExam?.value;
+
+  if (!classId || !examId) return;
+
+  if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">Loading...</option>';
+
+  const result = await API.get(`/results/class?classId=${classId}&examId=${examId}`);
+
+  if (!result?.ok) {
+    showToast(result?.data?.message || 'Failed to load results for this class/exam.', 'error');
+    if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>';
+    return;
+  }
+
+  const data = result.data;
+
+  state.subjects      = data.subjects || [];
+  state.results       = computeResults(data.results || []);
+  state.loadedClassId = classId;
+  state.loadedExamId  = examId;
+  state.classInfo      = data.class;
+  state.examInfo       = data.exam;
+
+  if (!state.results.length) {
+    if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">No results yet — enter marks first</option>';
+    showToast('No results found for this class/exam yet. Enter or import marks first.', 'warning');
+    return;
+  }
+
+  if (el.rptLearner) {
+    el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>' +
+      state.results.map(r =>
+        `<option value="${r.studentId}">${r.fullName}</option>`
+      ).join('');
+  }
+}
+
+const resetPreview = () => {
+  if (el.previewPlaceholder)  el.previewPlaceholder.style.display  = 'flex';
+  if (el.previewFrameWrapper) el.previewFrameWrapper.style.display = 'none';
+  state.bulkCards = [];
+};
+
+/* ══════════════════════════════════════════════════════════
+   7. TRANSFORM API RESULTS INTO REPORT-CARD-READY SHAPE
+   The API (getClassResults) already ranks correctly — this
+   just adds the pathway breakdown the report card needs.
+══════════════════════════════════════════════════════════ */
+const computeResults = (apiResults) => {
+  return apiResults.map(r => {
+    const pathways = KJSEA.computePathways(r.subjectResults);
+    return {
+      ...r,
+      pathways,
+    };
+  });
+};
+
+/* ══════════════════════════════════════════════════════════
+   8. TABS
 ══════════════════════════════════════════════════════════ */
 el.tabIndividual?.addEventListener('click', () => switchTab('individual'));
 el.tabClass?.addEventListener('click',      () => switchTab('class'));
@@ -335,30 +343,11 @@ const switchTab = (tab) => {
       ? 'Preview All Report Cards'
       : 'Preview Report';
 
-  if (el.previewPlaceholder)  el.previewPlaceholder.style.display  = 'flex';
-  if (el.previewFrameWrapper) el.previewFrameWrapper.style.display = 'none';
-
-  state.bulkCards = [];
+  resetPreview();
 };
 
 /* ══════════════════════════════════════════════════════════
-   7. POPULATE LEARNER DROPDOWN
-══════════════════════════════════════════════════════════ */
-el.rptClass?.addEventListener('change', () => {
-  const cls      = el.rptClass.value;
-  const learners = MOCK_DATA[cls] || [];
-
-  if (el.rptLearner) {
-    el.rptLearner.innerHTML =
-      '<option value="">-- Select Learner --</option>' +
-      learners.map(l =>
-        `<option value="${l.id}">${l.fullName}</option>`
-      ).join('');
-  }
-});
-
-/* ══════════════════════════════════════════════════════════
-   8. PAPER SIZE TOGGLE
+   9. PAPER SIZE TOGGLE
 ══════════════════════════════════════════════════════════ */
 document.querySelectorAll('.rpt-toggle').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -369,7 +358,7 @@ document.querySelectorAll('.rpt-toggle').forEach(btn => {
 });
 
 /* ══════════════════════════════════════════════════════════
-   9. GENERATE PREVIEW
+   10. GENERATE PREVIEW
 ══════════════════════════════════════════════════════════ */
 el.generatePreviewBtn?.addEventListener('click', async () => {
   const cls  = el.rptClass?.value;
@@ -391,13 +380,24 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
     return;
   }
 
-  const learners = MOCK_DATA[cls] || [];
-  if (!learners.length) {
-    showToast('No learners found for this class.', 'error');
+  /* Results should already be loaded from the class+exam change handler,
+     but fetch fresh if for some reason they aren't (e.g. page reload
+     preserved the dropdown value without re-firing the change event). */
+  if (state.loadedClassId !== cls || state.loadedExamId !== exam) {
+    await fetchClassResults();
+  }
+
+  if (!state.results.length) {
+    showToast('No results found for this class/exam. Enter or import marks first.', 'error');
     return;
   }
 
- state.results = computeResults(learners);
+  const className = state.classes.find(c => c._id === cls)?.name
+    || state.classInfo?.name
+    || 'Class';
+  const examName = state.exams.find(e => e._id === exam)?.name
+    || state.examInfo?.name
+    || 'Exam';
 
   const settings = {
     schoolName  : el.rptSchoolName?.value  || 'Scholar Analytics Demo School',
@@ -406,8 +406,8 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
     principal   : el.rptPrincipal?.value   || 'The Principal',
     closingDate : el.rptClosingDate?.value || 'To Be Announced',
     nextTerm    : el.rptNextTerm?.value    || 'To Be Announced',
-    cls, term, exam,
-    year        : CURRENT_YEAR,  // ← was '2024'
+    cls: className, term, exam: examName,
+    year        : CURRENT_YEAR,
   };
 
   state.context = settings;
@@ -415,7 +415,7 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
   let html = '';
 
   if (state.activeTab === 'individual') {
-    const learner = state.results.find(r => r.id === el.rptLearner?.value);
+    const learner = state.results.find(r => r.studentId === el.rptLearner?.value);
     if (!learner) { showToast('Learner not found.', 'error'); return; }
     html = buildReportCard(learner, settings);
 
@@ -433,9 +433,9 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
 
   if (el.previewLabel) {
     const labels = {
-      individual: state.results.find(r => r.id === el.rptLearner?.value)?.fullName || 'Preview',
-      class      : `${cls} — ${exam}`,
-      bulk       : `All ${state.results.length} Learners — ${cls}`,
+      individual: state.results.find(r => r.studentId === el.rptLearner?.value)?.fullName || 'Preview',
+      class      : `${className} — ${examName}`,
+      bulk       : `All ${state.results.length} Learners — ${className}`,
     };
     el.previewLabel.innerHTML =
       `<i class="fas fa-file-pdf"></i> ${labels[state.activeTab]}`;
@@ -461,58 +461,52 @@ const flashMissing = (cls, term, exam) => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   10. BUILD INDIVIDUAL REPORT CARD
-       Pixel-perfect match to the uploaded design
+   11. BUILD INDIVIDUAL REPORT CARD
+       Same pixel design as before — only the data source and
+       dynamic subject count/pathway breakdown changed.
 ══════════════════════════════════════════════════════════ */
 const buildReportCard = (r, s) => {
 
-  // TD style helper — borders on every cell for PDF compatibility
   const td = (extra = '') =>
     `padding:5px 8px;background:#ffffff;border-right:1.5px solid #94a3b8;border-bottom:1.5px solid #94a3b8;${extra}`;
 
-  // Map short initials codes to full teacher names
-  const initialsMap = {
-    'W.N.': 'Wanjiku N.',
-    'B.O.': 'Otieno B.',
-    'J.M.': 'Mwangi J.',
-    'A.K.': 'Kipchoge A.',
-    'C.L.': 'Limo C.',
-    'S.W.': 'Wambui S.',
-    'P.R.': 'Ruto P.',
-    'D.M.': 'Mburu D.',
-    'C.T.': 'Kemboi D.',
-  };
-  const getFormattedInitials = (code) => initialsMap[code] || code;
+  const maxTotal  = r.subjectCount * 100;
+  const maxPoints = r.subjectCount * 8;
 
-  const subjectRows = r.subjectResults.map((sub, i) => `
+  const subjectRows = r.subjectResults.map((sub, i) => {
+    const gradeInfo = KJSEA.getGrade(sub.score);
+    const label     = gradeInfo?.label || (sub.absent ? 'Absent' : sub.notEntered ? 'Not Entered' : '--');
+    const gradeCode = sub.grade || (sub.absent ? 'ABS' : '--');
+    return `
     <tr>
       <td style="${td('text-align:center;color:#94a3b8;font-size:10px;font-weight:600;width:4%;')}">${i+1}</td>
       <td style="${td('text-align:left;font-weight:600;font-size:11px;color:#1a2a3a;width:20%;')}">${sub.name}</td>
       <td style="${td('text-align:center;font-weight:700;font-size:11px;color:#0d3349;width:8%;')}">${sub.score !== null ? sub.score + '%' : '—'}</td>
       <td style="${td('text-align:center;width:18%;line-height:1.2;')}">
-        <div style="font-size:8.5px;font-weight:600;color:#1a2a3a;margin-bottom:1px;">${sub.label.replace('Expectation','<br>Expectation')}</div>
-        <span style="display:inline-block;background:#d0e8f7;color:#0d3349;border-radius:3px;padding:1px 4px;font-size:8px;font-weight:700;">${sub.grade}</span>
+        <div style="font-size:8.5px;font-weight:600;color:#1a2a3a;margin-bottom:1px;">${label.replace('Expectation','<br>Expectation')}</div>
+        <span style="display:inline-block;background:#d0e8f7;color:#0d3349;border-radius:3px;padding:1px 4px;font-size:8px;font-weight:700;">${gradeCode}</span>
       </td>
       <td style="${td('text-align:center;width:8%;font-weight:700;color:#0d3349;font-size:11px;')}">
         ${sub.points}<span style="font-size:8px;color:#94a3b8;font-weight:400;">/8</span>
       </td>
-      <td style="${td('text-align:left;font-size:9.5px;font-style:italic;color:#64748b;width:32%;')}">${KJSEA.getSubjectRemark(sub.score)}</td>
-      <td style="${td('text-align:center;font-size:10px;font-weight:700;color:#0d3349;width:8%;border-right:none;')}">${getFormattedInitials(sub.initials)}</td>
-    </tr>`).join('');
+      <td style="${td('text-align:left;font-size:9.5px;font-style:italic;color:#64748b;width:32%;')}">${sub.absent ? 'Absent — not assessed' : KJSEA.getSubjectRemark(sub.score)}</td>
+      <td style="${td('text-align:center;font-size:10px;font-weight:700;color:#0d3349;width:8%;border-right:none;')}">${sub.teacherName || '—'}</td>
+    </tr>`;
+  }).join('');
 
   const pathwayConfig = [
-    { key:'stem',     label:'STEM',            subjects:'Mathematics · Integrated Science ·\nPre Technical · Agriculture',  bg:'#dbeafe', border:'#3b82f6', col:'#1d4ed8', pillBg:'#bfdbfe', pillCol:'#1e3a8a' },
-    { key:'social',   label:'Social Sciences', subjects:'English · Kiswahili ·\nSocial Studies · Religious Education',      bg:'#dcfce7', border:'#22c55e', col:'#166534', pillBg:'#bbf7d0', pillCol:'#14532d' },
-    { key:'creative', label:'Creative Arts',   subjects:'Creative Arts & Sports',                                             bg:'#f3e8ff', border:'#a855f7', col:'#6b21a8', pillBg:'#e9d5ff', pillCol:'#581c87' },
+    { key:'stem',     ...KJSEA.PATHWAYS.stem     },
+    { key:'social',   ...KJSEA.PATHWAYS.social   },
+    { key:'creative', ...KJSEA.PATHWAYS.creative },
   ];
 
-  const pathwayCells = pathwayConfig.map(({ key, label, subjects, bg, border, col, pillBg, pillCol }, i) => {
+  const pathwayCells = pathwayConfig.map(({ key, name, bg, border, col, pillBg, pillCol }, i) => {
     const pw   = r.pathways[key];
     const last = i === pathwayConfig.length - 1;
     return `
       <div style="flex:1;padding:8px 8px;text-align:center;background:${bg};border-top:2px solid ${border};border-bottom:2px solid ${border};border-left:2px solid ${border};${last ? 'border-right:2px solid ' + border + ';' : ''}">
-        <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:${col};margin-bottom:2px;">${label}</div>
-        <div style="font-size:7px;color:${col};opacity:0.75;margin-bottom:5px;line-height:1.4;white-space:pre-line;">${subjects}</div>
+        <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:${col};margin-bottom:2px;">${name}</div>
+        <div style="font-size:7px;color:${col};opacity:0.75;margin-bottom:5px;line-height:1.4;">${pw.subjects}</div>
         <div style="font-size:1.4rem;font-weight:700;color:${col};line-height:1;margin-bottom:1px;">${pw.avg}%</div>
         <div style="font-size:9px;font-weight:600;color:${col};margin-bottom:4px;">${pw.points}/${pw.maxPts} pts</div>
         <span style="display:inline-block;background:${pillBg};color:${pillCol};border-radius:3px;padding:1px 7px;font-size:7.5px;font-weight:700;">${pw.grade}</span>
@@ -545,7 +539,7 @@ const buildReportCard = (r, s) => {
       { label:'Assessment No.', val: r.assessmentNo||'—' },
       { label:'Grade',          val: s.cls               },
       { label:'Gender',         val: r.gender||'—'       },
-      { label:'Admission No.',  val: r.upiNumber         },
+      { label:'Admission No.',  val: r.upiNumber||'—'    },
       { label:'Academic Year',  val: s.year              },
     ].map((c,i,a) => `
       <div style="padding:6px 8px;background:#ffffff;${i < a.length-1 ? 'border-right:1.5px solid #94a3b8;' : ''}">
@@ -580,7 +574,7 @@ const buildReportCard = (r, s) => {
         <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:18%;">Grade</th>
         <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:8%;">Points</th>
         <th style="padding:5px 8px;text-align:left;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:32%;">Teacher Comment</th>
-        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-bottom:1.5px solid rgba(255,255,255,0.20);width:8%;">Initials</th>
+        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-bottom:1.5px solid rgba(255,255,255,0.20);width:8%;">Teacher</th>
       </tr>
     </thead>
     <tbody>
@@ -589,14 +583,14 @@ const buildReportCard = (r, s) => {
       <tr>
         <td style="padding:5px 8px;background:#0d3349;border-right:1.5px solid rgba(255,255,255,0.18);"></td>
         <td style="padding:5px 8px;background:#0d3349;border-right:1.5px solid rgba(255,255,255,0.18);font-weight:700;font-size:10.5px;color:#ffffff;text-transform:uppercase;letter-spacing:0.3px;">Total</td>
-        <td style="padding:5px 8px;background:#0d3349;border-right:1.5px solid rgba(255,255,255,0.18);text-align:center;font-weight:700;font-size:11px;color:#ffffff;">${r.totalScore}/900</td>
+        <td style="padding:5px 8px;background:#0d3349;border-right:1.5px solid rgba(255,255,255,0.18);text-align:center;font-weight:700;font-size:11px;color:#ffffff;">${r.totalScore}/${maxTotal}</td>
         <td style="padding:5px 8px;background:#0d3349;border-right:1.5px solid rgba(255,255,255,0.18);text-align:center;line-height:1.2;">
-          <div style="font-size:8px;color:rgba(255,255,255,0.60);margin-bottom:2px;">${r.meanLabel}</div>
-          <span style="display:inline-block;background:#1d9e75;color:#fff;border-radius:3px;padding:1px 5px;font-size:7.5px;font-weight:700;">${r.meanGrade}</span>
+          <div style="font-size:8px;color:rgba(255,255,255,0.60);margin-bottom:2px;">${r.meanGradeInfo?.label || '--'}</div>
+          <span style="display:inline-block;background:#1d9e75;color:#fff;border-radius:3px;padding:1px 5px;font-size:7.5px;font-weight:700;">${r.meanGrade || '--'}</span>
         </td>
         <td style="padding:5px 8px;background:#0d3349;border-right:1.5px solid rgba(255,255,255,0.18);text-align:center;">
           <span style="font-weight:700;color:#4ecb8d;font-size:11px;">${r.totalPoints}</span>
-          <span style="font-size:8px;color:rgba(255,255,255,0.40);">/72</span>
+          <span style="font-size:8px;color:rgba(255,255,255,0.40);">/${maxPoints}</span>
         </td>
         <td colspan="2" style="padding:5px 8px;background:#0d3349;font-style:italic;font-size:9px;color:rgba(255,255,255,0.55);">
           ${KJSEA.getTeacherComment(r.meanGrade).split('.')[0]}.
@@ -675,8 +669,11 @@ const buildReportCard = (r, s) => {
 
 </div>`;
 };
+
 /* ══════════════════════════════════════════════════════════
-   11. BUILD CLASS RESULT SHEET
+   12. BUILD CLASS RESULT SHEET
+       Subject columns are now the real per-class subject list
+       (state.subjects) instead of a fixed hardcoded 9.
 ══════════════════════════════════════════════════════════ */
 const buildClassSheet = (results, s) => {
   const avg      = (results.reduce((a,r)=>a+r.avgScore,0)/results.length).toFixed(1);
@@ -687,29 +684,29 @@ const buildClassSheet = (results, s) => {
 
   const dist = {};
   KJSEA.SCALE.forEach(g => dist[g.grade]=0);
-  results.forEach(r => { if(dist[r.meanGrade]!==undefined) dist[r.meanGrade]++; });
+  results.forEach(r => { if(r.meanGrade && dist[r.meanGrade]!==undefined) dist[r.meanGrade]++; });
 
-  const subjHeaders = KJSEA.SUBJECTS.map(s=>
-    `<th style="padding:7px 6px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);" title="${s.name}">${s.code}</th>`
+  const subjHeaders = state.subjects.map(subj=>
+    `<th style="padding:7px 6px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);" title="${subj.name}">${subj.code}</th>`
   ).join('');
 
   const tableRows = results.map((r,i)=>{
     const rowBg     = i%2===0?'#ffffff':'#f8fafc';
     const rankCol   = r.position===1?'#d4a017':r.position===2?'#888':r.position===3?'#cd7f32':'#94a3b8';
-    const subjCells = r.subjectResults.map(s=>
-      `<td style="padding:7px 6px;text-align:center;border-right:0.5px solid #e2e8f0;font-size:10.5px;">${s.score??'—'}</td>`
+    const subjCells = r.subjectResults.map(sub=>
+      `<td style="padding:7px 6px;text-align:center;border-right:0.5px solid #e2e8f0;font-size:10.5px;">${sub.absent ? 'ABS' : (sub.score ?? '—')}</td>`
     ).join('');
     return `
       <tr style="background:${rowBg};border-bottom:0.5px solid #e2e8f0;">
         <td style="padding:7px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-weight:700;color:${rankCol};font-size:11px;">${KJSEA.ordinal(r.position)}</td>
         <td style="padding:7px 10px;text-align:left;border-right:0.5px solid #e2e8f0;font-weight:600;font-size:11.5px;">${r.fullName}</td>
-        <td style="padding:7px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-family:monospace;font-size:10px;">${r.upiNumber}</td>
+        <td style="padding:7px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-family:monospace;font-size:10px;">${r.upiNumber || '—'}</td>
         ${subjCells}
         <td style="padding:7px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-weight:700;font-size:12px;color:#0d3349;">${r.totalScore}</td>
         <td style="padding:7px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-size:11px;">${r.avgScore}%</td>
-        <td style="padding:7px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-weight:800;font-size:12px;color:#0d3349;">${r.totalPoints}/72</td>
+        <td style="padding:7px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-weight:800;font-size:12px;color:#0d3349;">${r.totalPoints}/${r.subjectCount*8}</td>
         <td style="padding:7px 8px;text-align:center;">
-          <span style="display:inline-block;background:#e1f5ee;color:#0f6e56;border-radius:4px;padding:2px 7px;font-size:9px;font-weight:700;">${r.meanGrade}</span>
+          <span style="display:inline-block;background:#e1f5ee;color:#0f6e56;border-radius:4px;padding:2px 7px;font-size:9px;font-weight:700;">${r.meanGrade || '--'}</span>
         </td>
       </tr>`;
   }).join('');
@@ -759,7 +756,7 @@ const buildClassSheet = (results, s) => {
     ${[
       { val:avg+'%',       lbl:'Class Average'     },
       { val:highest+'%',   lbl:'Highest Score'     },
-      { val:topPts+'/72',  lbl:'Top KJSEA Points'  },
+      { val:topPts+'/'+(results[0]?.subjectCount*8 || 0),  lbl:'Top KJSEA Points'  },
       { val:passRate+'%',  lbl:'Pass Rate'          },
     ].map((c,i,a)=>`
       <div style="padding:12px 14px;text-align:center;${i<a.length-1?'border-right:1px solid #e2e8f0;':''}">
@@ -783,7 +780,7 @@ const buildClassSheet = (results, s) => {
           ${subjHeaders}
           <th style="padding:8px 8px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);">Total</th>
           <th style="padding:8px 8px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);">Avg%</th>
-          <th style="padding:8px 8px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);">Pts/72</th>
+          <th style="padding:8px 8px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);">Points</th>
           <th style="padding:8px 8px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;">Grade</th>
         </tr>
       </thead>
@@ -822,7 +819,7 @@ const buildClassSheet = (results, s) => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   12. BULK PREVIEW — All cards stacked
+   13. BULK PREVIEW — All cards stacked
 ══════════════════════════════════════════════════════════ */
 const buildBulkPreview = (results, settings) => {
   state.bulkCards = [];
@@ -844,7 +841,7 @@ const buildBulkPreview = (results, settings) => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   13. PRINT
+   14. PRINT
 ══════════════════════════════════════════════════════════ */
 el.printBtn?.addEventListener('click', () => {
   if (!el.previewPaper?.innerHTML.trim()) {
@@ -863,7 +860,7 @@ el.printBtn?.addEventListener('click', () => {
 });
 
 /* ══════════════════════════════════════════════════════════
-   14. PDF DOWNLOAD
+   15. PDF DOWNLOAD
 ══════════════════════════════════════════════════════════ */
 el.downloadPdfBtn?.addEventListener('click', () => {
   state.activeTab === 'bulk' ? downloadBulkPDF() : downloadSinglePDF();
@@ -927,7 +924,7 @@ async function downloadSinglePDF() {
     let   fn   = '';
 
     if (state.activeTab === 'individual') {
-      const lrn  = state.results.find(r=>r.id===el.rptLearner?.value);
+      const lrn  = state.results.find(r=>r.studentId===el.rptLearner?.value);
       const name = lrn?.fullName?.replace(/\s+/g,'_')?.replace(/[^a-zA-Z0-9_]/g,'') || 'Learner';
       fn = `Report_Card_${name}_T${ctx.term}_${ctx.exam}_${date}.pdf`;
     } else {
@@ -1027,12 +1024,12 @@ async function downloadBulkPDF() {
 }
 
 /* ══════════════════════════════════════════════════════════
-   15. RECENT REPORTS
+   16. RECENT REPORTS
 ══════════════════════════════════════════════════════════ */
 const addToRecent = (ctx) => {
   const type = state.activeTab;
   const name = type === 'individual'
-    ? state.results.find(r => r.id === el.rptLearner?.value)?.fullName || '--'
+    ? state.results.find(r => r.studentId === el.rptLearner?.value)?.fullName || '--'
     : ctx.cls;
 
   state.recentReports.unshift({
@@ -1086,7 +1083,8 @@ window.redownloadLast = () => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   16. INIT
+   17. INIT
 ══════════════════════════════════════════════════════════ */
 switchTab('individual');
 renderRecentReports();
+loadClasses();
