@@ -98,11 +98,24 @@
 
       <!-- Selector -->
       <div class="results-selector-card">
+
+        <!-- Scope toggle: rank one stream, or every stream in the grade combined -->
+        <div class="rpt-toggle-group" style="margin-bottom:14px;">
+          <button class="rpt-toggle active" id="scopeClassBtn" data-scope="class">This Class</button>
+          <button class="rpt-toggle" id="scopeGradeBtn" data-scope="grade">Whole Grade</button>
+        </div>
+
         <div class="results-selector-grid">
-          <div class="rpt-field">
+          <div class="rpt-field" id="classFieldWrap">
             <label><i class="fas fa-school"></i> Class</label>
             <select id="selClass" class="marks-select">
               <option value="">-- Select Class --</option>
+            </select>
+          </div>
+          <div class="rpt-field" id="gradeFieldWrap" style="display:none;">
+            <label><i class="fas fa-layer-group"></i> Grade</label>
+            <select id="selGrade" class="marks-select">
+              <option value="">-- Select Grade --</option>
             </select>
           </div>
           <div class="rpt-field">
@@ -114,10 +127,19 @@
               <option value="3">Term 3</option>
             </select>
           </div>
-          <div class="rpt-field">
+          <div class="rpt-field" id="examFieldWrap">
             <label><i class="fas fa-pen-to-square"></i> Exam</label>
             <select id="selExam" class="marks-select">
               <option value="">-- Select Exam --</option>
+            </select>
+          </div>
+          <div class="rpt-field" id="examNameFieldWrap" style="display:none;">
+            <label><i class="fas fa-pen-to-square"></i> Exam</label>
+            <select id="selExamName" class="marks-select">
+              <option value="">-- Select Exam --</option>
+              <option value="Opener">Opener</option>
+              <option value="Midterm">Midterm</option>
+              <option value="Endterm">Endterm</option>
             </select>
           </div>
           <div class="rpt-field" style="align-self:flex-end;">
@@ -136,7 +158,7 @@
             <i class="fas fa-ranking-star"></i>
           </div>
           <h3>Ready to View Results</h3>
-          <p>Select Class, Term and Exam then click <strong>Load Results</strong></p>
+          <p>Select your parameters then click <strong>Load Results</strong></p>
         </div>
       </div>
 

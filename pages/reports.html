@@ -151,10 +151,22 @@
               <h3>Report Parameters</h3>
             </div>
             <div class="rpt-ctrl-body">
-              <div class="rpt-field">
+              <div class="rpt-toggle-group" style="margin-bottom:4px;">
+                <button class="rpt-toggle active" id="scopeClassBtn" data-scope="class">This Class</button>
+                <button class="rpt-toggle" id="scopeGradeBtn" data-scope="grade">Whole Grade</button>
+              </div>
+
+              <div class="rpt-field" id="classFieldWrap">
                 <label><i class="fas fa-school"></i> Class</label>
                 <select id="rptClass" class="rpt-select">
                   <option value="">-- Select Class --</option>
+                </select>
+              </div>
+
+              <div class="rpt-field" id="gradeFieldWrap" style="display:none;">
+                <label><i class="fas fa-layer-group"></i> Grade</label>
+                <select id="rptGrade" class="rpt-select">
+                  <option value="">-- Select Grade --</option>
                 </select>
               </div>
 
@@ -168,10 +180,20 @@
                 </select>
               </div>
 
-              <div class="rpt-field">
+              <div class="rpt-field" id="examFieldWrap">
                 <label><i class="fas fa-pen-to-square"></i> Exam</label>
                 <select id="rptExam" class="rpt-select">
                   <option value="">-- Select Exam --</option>
+                </select>
+              </div>
+
+              <div class="rpt-field" id="examNameFieldWrap" style="display:none;">
+                <label><i class="fas fa-pen-to-square"></i> Exam</label>
+                <select id="rptExamName" class="rpt-select">
+                  <option value="">-- Select Exam --</option>
+                  <option value="Opener">Opener</option>
+                  <option value="Midterm">Midterm</option>
+                  <option value="Endterm">Endterm</option>
                 </select>
               </div>
 

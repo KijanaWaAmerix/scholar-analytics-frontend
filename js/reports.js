@@ -145,16 +145,16 @@ const KJSEA = {
 ══════════════════════════════════════════════════════════ */
 const state = {
   activeTab    : 'individual',
+  scope        : 'class', // 'class' | 'grade'
   classes      : [],
   exams        : [],
-  subjects     : [],   // real per-class subject list from the last /results/class call
-  results      : [],   // ranked learners for the currently selected class+exam
+  subjects     : [],   // real per-class subject list from the last results call
+  results      : [],   // ranked learners for the currently selected class+exam (or grade+exam)
   paperSize    : 'A4',
   recentReports: [],
   context      : {},
   bulkCards    : [],
-  loadedClassId: null, // guards against stale results if class/exam changes after fetch
-  loadedExamId : null,
+  loadedKey    : null, // guards against stale results if selection changes after fetch
 };
 const CURRENT_YEAR = new Date().getFullYear().toString();
 
@@ -165,9 +165,17 @@ const el = {
   tabIndividual      : document.getElementById('tabIndividual'),
   tabClass           : document.getElementById('tabClass'),
   tabBulk            : document.getElementById('tabBulk'),
+  scopeClassBtn      : document.getElementById('scopeClassBtn'),
+  scopeGradeBtn      : document.getElementById('scopeGradeBtn'),
+  classFieldWrap     : document.getElementById('classFieldWrap'),
+  gradeFieldWrap     : document.getElementById('gradeFieldWrap'),
+  examFieldWrap      : document.getElementById('examFieldWrap'),
+  examNameFieldWrap  : document.getElementById('examNameFieldWrap'),
   rptClass           : document.getElementById('rptClass'),
+  rptGrade           : document.getElementById('rptGrade'),
   rptTerm            : document.getElementById('rptTerm'),
   rptExam            : document.getElementById('rptExam'),
+  rptExamName        : document.getElementById('rptExamName'),
   rptLearner         : document.getElementById('rptLearner'),
   rptLearnerField    : document.getElementById('rptLearnerField'),
   bulkInfoBanner     : document.getElementById('bulkInfoBanner'),
@@ -209,7 +217,33 @@ const loadClasses = async () => {
         `<option value="${c._id}">${c.name}</option>`
       ).join('');
   }
+
+  const grades = [...new Set(state.classes.map(c => c.grade).filter(Boolean))];
+  if (el.rptGrade) {
+    el.rptGrade.innerHTML = '<option value="">-- Select Grade --</option>' +
+      grades.map(g => `<option value="${g}">${g}</option>`).join('');
+  }
 };
+
+/* ══════════════════════════════════════════════════════════
+   SCOPE TOGGLE — This Class vs Whole Grade
+══════════════════════════════════════════════════════════ */
+const setScope = (scope) => {
+  state.scope = scope;
+  el.scopeClassBtn?.classList.toggle('active', scope === 'class');
+  el.scopeGradeBtn?.classList.toggle('active', scope === 'grade');
+
+  if (el.classFieldWrap)    el.classFieldWrap.style.display    = scope === 'class' ? 'flex' : 'none';
+  if (el.gradeFieldWrap)    el.gradeFieldWrap.style.display    = scope === 'grade' ? 'flex' : 'none';
+  if (el.examFieldWrap)     el.examFieldWrap.style.display     = scope === 'class' ? 'flex' : 'none';
+  if (el.examNameFieldWrap) el.examNameFieldWrap.style.display = scope === 'grade' ? 'flex' : 'none';
+
+  if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>';
+  resetPreview();
+};
+
+el.scopeClassBtn?.addEventListener('click', () => setScope('class'));
+el.scopeGradeBtn?.addEventListener('click', () => setScope('grade'));
 
 /* ══════════════════════════════════════════════════════════
    5. LOAD EXAMS WHEN CLASS + TERM SELECTED
@@ -247,54 +281,79 @@ el.rptClass?.addEventListener('change', () => {
 });
 
 el.rptTerm?.addEventListener('change', () => {
-  loadExams();
+  if (state.scope === 'class') loadExams();
+  if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>';
+  resetPreview();
+});
+
+el.rptGrade?.addEventListener('change', () => {
   if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>';
   resetPreview();
 });
 
 /* ══════════════════════════════════════════════════════════
-   6. WHEN CLASS + EXAM BOTH SELECTED — FETCH REAL RESULTS
+   6. WHEN SELECTION IS COMPLETE — FETCH REAL RESULTS
    This populates the Learner dropdown (individual tab) and
    is reused directly when the user clicks "Preview Report",
-   so results are only fetched once per class+exam selection.
+   so results are only fetched once per selection.
 ══════════════════════════════════════════════════════════ */
-el.rptExam?.addEventListener('change', fetchClassResults);
+el.rptExam?.addEventListener('change', fetchResults);
+el.rptExamName?.addEventListener('change', fetchResults);
 
-async function fetchClassResults() {
-  const classId = el.rptClass?.value;
-  const examId  = el.rptExam?.value;
+async function fetchResults() {
+  let apiUrl;
+  let key;
 
-  if (!classId || !examId) return;
+  if (state.scope === 'class') {
+    const classId = el.rptClass?.value;
+    const examId  = el.rptExam?.value;
+    if (!classId || !examId) return;
+    apiUrl = `/results/class?classId=${classId}&examId=${examId}`;
+    key    = `class:${classId}:${examId}`;
+
+  } else {
+    const grade    = el.rptGrade?.value;
+    const term     = el.rptTerm?.value;
+    const examName = el.rptExamName?.value;
+    if (!grade || !term || !examName) return;
+    apiUrl = `/results/grade?grade=${encodeURIComponent(grade)}&term=${term}&examName=${encodeURIComponent(examName)}`;
+    key    = `grade:${grade}:${term}:${examName}`;
+  }
 
   if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">Loading...</option>';
 
-  const result = await API.get(`/results/class?classId=${classId}&examId=${examId}`);
+  const result = await API.get(apiUrl);
 
   if (!result?.ok) {
-    showToast(result?.data?.message || 'Failed to load results for this class/exam.', 'error');
+    showToast(result?.data?.message || 'Failed to load results.', 'error');
     if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>';
     return;
   }
 
   const data = result.data;
 
-  state.subjects      = data.subjects || [];
-  state.results       = computeResults(data.results || []);
-  state.loadedClassId = classId;
-  state.loadedExamId  = examId;
-  state.classInfo      = data.class;
-  state.examInfo       = data.exam;
+  state.subjects  = data.subjects || [];
+  state.results   = computeResults(data.results || []);
+  state.loadedKey = key;
+
+  if (state.scope === 'class') {
+    state.classInfo = data.class;
+    state.examInfo  = data.exam;
+  } else {
+    state.classInfo = { name: `${data.grade} (${(data.streams || []).join(' + ')})` };
+    state.examInfo  = data.exam;
+  }
 
   if (!state.results.length) {
     if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">No results yet — enter marks first</option>';
-    showToast('No results found for this class/exam yet. Enter or import marks first.', 'warning');
+    showToast('No results found yet. Enter or import marks first.', 'warning');
     return;
   }
 
   if (el.rptLearner) {
     el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>' +
       state.results.map(r =>
-        `<option value="${r.studentId}">${r.fullName}</option>`
+        `<option value="${r.studentId}">${r.fullName}${r.streamName ? ' — ' + r.streamName : ''}</option>`
       ).join('');
   }
 }
@@ -361,14 +420,34 @@ document.querySelectorAll('.rpt-toggle').forEach(btn => {
    10. GENERATE PREVIEW
 ══════════════════════════════════════════════════════════ */
 el.generatePreviewBtn?.addEventListener('click', async () => {
-  const cls  = el.rptClass?.value;
   const term = el.rptTerm?.value;
-  const exam = el.rptExam?.value;
 
-  if (!cls || !term || !exam) {
-    showToast('Please select Class, Term and Exam.', 'warning');
-    flashMissing(cls, term, exam);
+  if (!term) {
+    showToast('Please select a Term.', 'warning');
+    flashMissing(null, term, null);
     return;
+  }
+
+  let scopeValid, cls, exam;
+
+  if (state.scope === 'class') {
+    cls  = el.rptClass?.value;
+    exam = el.rptExam?.value;
+    scopeValid = !!(cls && exam);
+    if (!scopeValid) {
+      showToast('Please select Class and Exam.', 'warning');
+      flashMissing(cls, term, exam);
+      return;
+    }
+  } else {
+    cls  = el.rptGrade?.value;
+    exam = el.rptExamName?.value;
+    scopeValid = !!(cls && exam);
+    if (!scopeValid) {
+      showToast('Please select Grade and Exam.', 'warning');
+      flashMissing(cls, term, exam);
+      return;
+    }
   }
 
   if (state.activeTab === 'individual' && !el.rptLearner?.value) {
@@ -380,24 +459,28 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
     return;
   }
 
-  /* Results should already be loaded from the class+exam change handler,
-     but fetch fresh if for some reason they aren't (e.g. page reload
-     preserved the dropdown value without re-firing the change event). */
-  if (state.loadedClassId !== cls || state.loadedExamId !== exam) {
-    await fetchClassResults();
+  /* Results should already be loaded from the selection-change handler,
+     but fetch fresh if for some reason they aren't. */
+  const expectedKey = state.scope === 'class'
+    ? `class:${cls}:${exam}`
+    : `grade:${cls}:${term}:${exam}`;
+
+  if (state.loadedKey !== expectedKey) {
+    await fetchResults();
   }
 
   if (!state.results.length) {
-    showToast('No results found for this class/exam. Enter or import marks first.', 'error');
+    showToast('No results found. Enter or import marks first.', 'error');
     return;
   }
 
-  const className = state.classes.find(c => c._id === cls)?.name
-    || state.classInfo?.name
-    || 'Class';
-  const examName = state.exams.find(e => e._id === exam)?.name
-    || state.examInfo?.name
-    || 'Exam';
+  const className = state.scope === 'class'
+    ? (state.classes.find(c => c._id === cls)?.name || state.classInfo?.name || 'Class')
+    : (state.classInfo?.name || cls);
+
+  const examName = state.scope === 'class'
+    ? (state.exams.find(e => e._id === exam)?.name || state.examInfo?.name || 'Exam')
+    : exam;
 
   const settings = {
     schoolName  : el.rptSchoolName?.value  || 'Scholar Analytics Demo School',
@@ -451,7 +534,9 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
 });
 
 const flashMissing = (cls, term, exam) => {
-  [{ v:cls, id:'rptClass'}, {v:term, id:'rptTerm'}, {v:exam, id:'rptExam'}]
+  const clsId  = state.scope === 'class' ? 'rptClass' : 'rptGrade';
+  const examId = state.scope === 'class' ? 'rptExam'  : 'rptExamName';
+  [{ v:cls, id:clsId }, {v:term, id:'rptTerm'}, {v:exam, id:examId}]
     .forEach(({v, id}) => {
       if (!v) {
         const e = document.getElementById(id);

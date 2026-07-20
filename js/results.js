@@ -1,7 +1,11 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Results Page
-   File: js/results.js  Version: 3.1
-   Connected to real MongoDB backend
+   File: js/results.js  Version: 4.0
+   v4.0: added This Class / Whole Grade scope toggle.
+   Subject column matching switched from subjectId to subject
+   code, since combined grade results span multiple streams —
+   each stream has its own separate Subject documents even for
+   "the same" subject, but codes stay consistent across streams.
 ═══════════════════════════════════════════════════════════ */
 
 const user = requireAuth();
@@ -34,6 +38,7 @@ const GRADE_BG = {
    STATE
 ══════════════════════════════════════════════════════════ */
 const state = {
+  scope   : 'class', // 'class' | 'grade'
   classes : [],
   exams   : [],
   results : [],
@@ -50,7 +55,36 @@ const getInitials = n => n?.trim().split(' ').filter(Boolean).slice(0,2).map(w=>
 const getAvColour = n => AV[(n?.charCodeAt(0)||0) % AV.length];
 
 /* ══════════════════════════════════════════════════════════
-   LOAD CLASSES
+   SCOPE TOGGLE — This Class vs Whole Grade
+══════════════════════════════════════════════════════════ */
+const scopeClassBtn      = document.getElementById('scopeClassBtn');
+const scopeGradeBtn      = document.getElementById('scopeGradeBtn');
+const classFieldWrap     = document.getElementById('classFieldWrap');
+const gradeFieldWrap     = document.getElementById('gradeFieldWrap');
+const examFieldWrap      = document.getElementById('examFieldWrap');
+const examNameFieldWrap  = document.getElementById('examNameFieldWrap');
+const selGrade           = document.getElementById('selGrade');
+const selExamName        = document.getElementById('selExamName');
+
+const setScope = (scope) => {
+  state.scope = scope;
+  scopeClassBtn?.classList.toggle('active', scope === 'class');
+  scopeGradeBtn?.classList.toggle('active', scope === 'grade');
+
+  if (classFieldWrap)    classFieldWrap.style.display    = scope === 'class' ? 'flex' : 'none';
+  if (gradeFieldWrap)    gradeFieldWrap.style.display     = scope === 'grade' ? 'flex' : 'none';
+  if (examFieldWrap)     examFieldWrap.style.display      = scope === 'class' ? 'flex' : 'none';
+  if (examNameFieldWrap) examNameFieldWrap.style.display  = scope === 'grade' ? 'flex' : 'none';
+
+  document.getElementById('resultsPlaceholder').style.display = 'flex';
+  document.getElementById('resultsContent').style.display     = 'none';
+};
+
+scopeClassBtn?.addEventListener('click', () => setScope('class'));
+scopeGradeBtn?.addEventListener('click', () => setScope('grade'));
+
+/* ══════════════════════════════════════════════════════════
+   LOAD CLASSES (also derives the distinct Grade list)
 ══════════════════════════════════════════════════════════ */
 const loadClasses = async () => {
   const result = await API.get('/classes');
@@ -65,10 +99,17 @@ const loadClasses = async () => {
         `<option value="${c._id}">${c.name}</option>`
       ).join('');
   }
+
+  /* Distinct grades, derived client-side from each class's `grade` field */
+  const grades = [...new Set(state.classes.map(c => c.grade).filter(Boolean))];
+  if (selGrade) {
+    selGrade.innerHTML = '<option value="">-- Select Grade --</option>' +
+      grades.map(g => `<option value="${g}">${g}</option>`).join('');
+  }
 };
 
 /* ══════════════════════════════════════════════════════════
-   LOAD EXAMS WHEN CLASS + TERM SELECTED
+   LOAD EXAMS WHEN CLASS + TERM SELECTED (This Class mode)
 ══════════════════════════════════════════════════════════ */
 const loadExams = async () => {
   const classId = document.getElementById('selClass')?.value;
@@ -101,28 +142,50 @@ document.getElementById('selClass')?.addEventListener('change', () => {
   document.getElementById('selExam').innerHTML = '<option value="">-- Select Exam --</option>';
 });
 
-document.getElementById('selTerm')?.addEventListener('change', loadExams);
+document.getElementById('selTerm')?.addEventListener('change', () => {
+  if (state.scope === 'class') loadExams();
+});
 
 /* ══════════════════════════════════════════════════════════
-   LOAD RESULTS FROM API
+   LOAD RESULTS FROM API — branches by scope
 ══════════════════════════════════════════════════════════ */
 document.getElementById('loadResultsBtn')?.addEventListener('click', loadResults);
 
 async function loadResults() {
-  const classId = document.getElementById('selClass')?.value;
-  const term    = document.getElementById('selTerm')?.value;
-  const examId  = document.getElementById('selExam')?.value;
+  const term = document.getElementById('selTerm')?.value;
 
-  if (!classId || !term || !examId) {
-    showToast('Please select Class, Term and Exam.', 'warning');
-    ['selClass','selTerm','selExam'].forEach(id => {
-      const s = document.getElementById(id);
-      if (s && !s.value) {
-        s.style.borderColor = 'var(--danger)';
-        setTimeout(() => s.style.borderColor = '', 1400);
-      }
-    });
+  if (!term) {
+    showToast('Please select a Term.', 'warning');
+    flashField('selTerm');
     return;
+  }
+
+  let apiUrl;
+  let missingMsg;
+
+  if (state.scope === 'class') {
+    const classId = document.getElementById('selClass')?.value;
+    const examId  = document.getElementById('selExam')?.value;
+
+    if (!classId || !examId) {
+      showToast('Please select Class and Exam.', 'warning');
+      flashField('selClass'); flashField('selExam');
+      return;
+    }
+
+    apiUrl = `/results/class?classId=${classId}&examId=${examId}`;
+
+  } else {
+    const grade    = selGrade?.value;
+    const examName = selExamName?.value;
+
+    if (!grade || !examName) {
+      showToast('Please select Grade and Exam.', 'warning');
+      flashField('selGrade'); flashField('selExamName');
+      return;
+    }
+
+    apiUrl = `/results/grade?grade=${encodeURIComponent(grade)}&term=${term}&examName=${encodeURIComponent(examName)}`;
   }
 
   /* Show loading */
@@ -132,7 +195,7 @@ async function loadResults() {
   const tbody = document.getElementById('resultsTableBody');
   if (tbody) tbody.innerHTML = Skeleton.table(8, 14);
 
-  const result = await API.get(`/results/class?classId=${classId}&examId=${examId}`);
+  const result = await API.get(apiUrl);
 
   if (!result?.ok) {
     showToast(result?.data?.message || 'Failed to load results.', 'error');
@@ -147,23 +210,38 @@ async function loadResults() {
   state.subjects        = data.subjects         || [];
   state.stats           = data.stats            || {};
   state.subjectAverages = data.subjectAverages  || [];
-  state.classInfo       = data.class;
-  state.examInfo        = data.exam;
+
+  /* Class-scope response has data.class/data.exam;
+     Grade-scope response has data.grade/data.streams/data.exam (name-only) */
+  if (state.scope === 'class') {
+    state.classInfo = data.class;
+    state.examInfo  = data.exam;
+  } else {
+    state.classInfo = { name: `${data.grade} (${(data.streams || []).join(' + ')})` };
+    state.examInfo  = data.exam;
+  }
 
   /* Update subtitle */
   const subtitle = document.getElementById('resultsSubtitle');
   if (subtitle) {
     subtitle.textContent =
-      `${data.class?.name} | Term ${data.exam?.term} ${data.exam?.name} | ${data.exam?.academicYear}`;
+      `${state.classInfo?.name} | Term ${state.examInfo?.term} ${state.examInfo?.name} | ${state.examInfo?.academicYear}`;
   }
 
-  /* Render all sections */
   renderStats(data.stats);
   renderSubjectAverages(data.subjectAverages);
   renderTable(data.results, data.subjects);
 
   showToast(`Results loaded — ${data.results.length} learners.`, 'success');
 }
+
+const flashField = (id) => {
+  const el = document.getElementById(id);
+  if (el && !el.value) {
+    el.style.borderColor = 'var(--danger)';
+    setTimeout(() => el.style.borderColor = '', 1400);
+  }
+};
 
 /* ══════════════════════════════════════════════════════════
    RENDER STATS
@@ -212,6 +290,9 @@ const renderSubjectAverages = (averages) => {
 
 /* ══════════════════════════════════════════════════════════
    RENDER RESULTS TABLE
+   Subject columns matched by CODE (not subjectId) — required
+   for Whole Grade scope where each stream has its own Subject
+   documents; works the same way for single-class scope too.
 ══════════════════════════════════════════════════════════ */
 const renderTable = (results, subjects) => {
   const thead = document.getElementById('resultsTableHead');
@@ -220,12 +301,15 @@ const renderTable = (results, subjects) => {
 
   if (!thead || !tbody) return;
 
+  const showStream = state.scope === 'grade';
+
   /* ── Build header ───────────────────────────────────── */
   thead.innerHTML = `
     <tr>
       <th class="col-rank" rowspan="2">#</th>
       <th class="col-name" rowspan="2">Learner Name</th>
       <th class="col-upi"  rowspan="2">UPI No.</th>
+      ${showStream ? '<th class="col-upi" rowspan="2">Stream</th>' : ''}
       <th colspan="${subjects.length}" style="border-bottom:1px solid rgba(255,255,255,0.10);">
         Subject Scores
       </th>
@@ -244,7 +328,7 @@ const renderTable = (results, subjects) => {
   /* ── Build body ─────────────────────────────────────── */
   if (!results.length) {
     tbody.innerHTML = `
-      <tr><td colspan="${subjects.length + 8}"
+      <tr><td colspan="${subjects.length + (showStream ? 9 : 8)}"
         style="text-align:center;padding:48px;color:var(--text-soft);">
         <i class="fas fa-inbox" style="font-size:32px;display:block;margin-bottom:12px;opacity:0.2;"></i>
         No results found. Make sure marks have been entered for this exam.
@@ -269,7 +353,7 @@ const renderTable = (results, subjects) => {
   tbody.innerHTML = results.map((r, i) => {
 
     const subjectCells = subjects.map(subj => {
-      const sr = r.subjectResults?.find(s => s.subjectId?.toString() === subj._id?.toString());
+      const sr = r.subjectResults?.find(s => s.code === subj.code);
 
       if (!sr || sr.notEntered) {
         return `<td><span class="res-score" style="color:var(--text-light);background:transparent;">—</span></td>`;
@@ -310,10 +394,11 @@ const renderTable = (results, subjects) => {
         <td class="col-upi">
           <span class="upi-code">${r.upiNumber || '—'}</span>
         </td>
+        ${showStream ? `<td class="col-upi"><span class="upi-code">${r.streamName || '—'}</span></td>` : ''}
         ${subjectCells}
         <td><span class="res-total">${r.totalScore}</span></td>
         <td><span class="res-avg">${r.avgScore}%</span></td>
-        <td><span class="res-pts">${r.totalPoints}<span style="font-size:9px;color:#94a3b8;">/72</span></span></td>
+        <td><span class="res-pts">${r.totalPoints}<span style="font-size:9px;color:#94a3b8;">/${r.subjectCount*8}</span></span></td>
         <td>
           <span class="res-mean-badge"
             style="background:${meanBg};color:${meanColor};">
@@ -332,9 +417,7 @@ const renderTable = (results, subjects) => {
   /* ── Build footer — class averages ──────────────────── */
   if (tfoot && results.length) {
     const subjAvgCells = subjects.map(subj => {
-      const sa = state.subjectAverages.find(
-        a => a.subjectId?.toString() === subj._id?.toString()
-      );
+      const sa = state.subjectAverages.find(a => a.code === subj.code);
       const avg    = sa?.avg || 0;
       const css    = avg >= 75 ? 'ee2' : avg >= 58 ? 'me1' : avg >= 41 ? 'me2' : 'ae1';
       return `<td><span class="res-score ${css}">${avg}%</span></td>`;
@@ -342,7 +425,7 @@ const renderTable = (results, subjects) => {
 
     tfoot.innerHTML = `
       <tr>
-        <td colspan="3" style="text-align:left;font-size:var(--text-xs);font-weight:700;color:var(--text-soft);text-transform:uppercase;">
+        <td colspan="${showStream ? 4 : 3}" style="text-align:left;font-size:var(--text-xs);font-weight:700;color:var(--text-soft);text-transform:uppercase;">
           Class Average
         </td>
         ${subjAvgCells}
@@ -370,7 +453,7 @@ window.viewStudent = (studentId) => {
   if (nameEl) nameEl.textContent = r.fullName;
   if (metaEl) {
     metaEl.textContent =
-      `${state.classInfo?.name} | Term ${state.examInfo?.term} ${state.examInfo?.name} | Rank: ${r.position}`;
+      `${state.classInfo?.name}${r.streamName ? ' — ' + r.streamName : ''} | Term ${state.examInfo?.term} ${state.examInfo?.name} | Rank: ${r.position}`;
   }
 
   /* Build subject breakdown */
@@ -391,7 +474,7 @@ window.viewStudent = (studentId) => {
           <p style="font-size:var(--text-xs);color:var(--text-soft);text-transform:uppercase;letter-spacing:0.5px;">Average</p>
         </div>
         <div style="background:var(--bg-light);border-radius:var(--radius-sm);padding:14px;text-align:center;">
-          <p style="font-family:var(--font-display);font-size:1.5rem;font-weight:700;color:#7d3c98;">${r.totalPoints}<span style="font-size:0.8rem;color:var(--text-soft);">/72</span></p>
+          <p style="font-family:var(--font-display);font-size:1.5rem;font-weight:700;color:#7d3c98;">${r.totalPoints}<span style="font-size:0.8rem;color:var(--text-soft);">/${r.subjectCount*8}</span></p>
           <p style="font-size:var(--text-xs);color:var(--text-soft);text-transform:uppercase;letter-spacing:0.5px;">KJSEA Points</p>
         </div>
         <div style="background:${meanBg};border-radius:var(--radius-sm);padding:14px;text-align:center;border:1px solid ${meanColor}22;">
@@ -462,15 +545,14 @@ document.getElementById('exportResultsBtn')?.addEventListener('click', () => {
 
   const headers = [
     'Position','Full Name','UPI Number','Gender',
+    ...(state.scope === 'grade' ? ['Stream'] : []),
     ...state.subjects.map(s => s.code),
     'Total Score','Average%','Total Points','Mean Grade',
   ];
 
   const rows = state.results.map(r => {
     const subjectScores = state.subjects.map(subj => {
-      const sr = r.subjectResults?.find(
-        s => s.subjectId?.toString() === subj._id?.toString()
-      );
+      const sr = r.subjectResults?.find(s => s.code === subj.code);
       if (!sr || sr.notEntered) return '—';
       if (sr.absent) return 'ABS';
       return sr.score;
@@ -478,7 +560,9 @@ document.getElementById('exportResultsBtn')?.addEventListener('click', () => {
 
     return [
       r.position, r.fullName, r.upiNumber||'',
-      r.gender||'', ...subjectScores,
+      r.gender||'',
+      ...(state.scope === 'grade' ? [r.streamName||''] : []),
+      ...subjectScores,
       r.totalScore, r.avgScore+'%',
       r.totalPoints, r.meanGrade||'—',
     ];
