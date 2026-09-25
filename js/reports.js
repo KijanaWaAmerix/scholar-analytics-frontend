@@ -758,140 +758,339 @@ const buildReportCard = (r, s) => {
 /* ══════════════════════════════════════════════════════════
    12. BUILD CLASS RESULT SHEET
        Subject columns are now the real per-class subject list
-       (state.subjects) instead of a fixed hardcoded 9.
-══════════════════════════════════════════════════════════ */
-const buildClassSheet = (results, s) => {
+      const buildClassSheet = (results, s) => {
   const avg      = (results.reduce((a,r)=>a+r.avgScore,0)/results.length).toFixed(1);
   const highest  = Math.max(...results.map(r=>r.avgScore));
   const topPts   = Math.max(...results.map(r=>r.totalPoints));
   const passed   = results.filter(r=>r.avgScore>=41).length;
   const passRate = ((passed/results.length)*100).toFixed(1);
+  const meanPts  = (results.reduce((a,r)=>a+r.avgPoints,0)/results.length).toFixed(2);
 
+  /* Grade distribution */
   const dist = {};
-  KJSEA.SCALE.forEach(g => dist[g.grade]=0);
-  results.forEach(r => { if(r.meanGrade && dist[r.meanGrade]!==undefined) dist[r.meanGrade]++; });
+  KJSEA.SCALE.forEach(g => dist[g.grade] = 0);
+  let xCount = 0;
+  results.forEach(r => {
+    if (r.subjectCount === 0) { xCount++; return; }
+    if (r.meanGrade && dist[r.meanGrade] !== undefined) dist[r.meanGrade]++;
+  });
 
-  const subjHeaders = state.subjects.map(subj=>
-    `<th style="padding:7px 6px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);" title="${subj.name}">${subj.code}</th>`
+  /* Subject averages + top 3 + grade dist per subject */
+  const subjectStats = state.subjects.map(subj => {
+    const scores = results
+      .map(r => r.subjectResults?.find(s => s.subjectId?.toString() === subj._id?.toString()))
+      .filter(s => s && !s.absent && !s.notEntered && s.score !== null)
+      .map(s => ({ fullName: results.find(r => r.subjectResults?.includes(s))?.fullName || '', score: s.score, grade: s.grade, points: s.points }));
+
+    const allScores  = scores.map(s => s.score);
+    const avg        = allScores.length ? parseFloat((allScores.reduce((a,b)=>a+b,0)/allScores.length).toFixed(1)) : 0;
+    const avgPts     = allScores.length
+      ? parseFloat((scores.map(s => s.points||0).reduce((a,b)=>a+b,0)/allScores.length).toFixed(2)) : 0;
+
+    const subDist = {};
+    KJSEA.SCALE.forEach(g => subDist[g.grade] = 0);
+    scores.forEach(s => { if (s.grade && subDist[s.grade] !== undefined) subDist[s.grade]++; });
+
+    const top3 = [...scores].sort((a,b)=>b.score-a.score).slice(0,3);
+
+    return { ...subj, avg, avgPts, subDist, top3, count: allScores.length };
+  }).sort((a,b) => b.avg - a.avg).map((s,i) => ({ ...s, rank: i+1 }));
+
+  /* Gender analytics */
+  const males   = results.filter(r => r.gender === 'male'   && r.subjectCount > 0);
+  const females = results.filter(r => r.gender === 'female' && r.subjectCount > 0);
+  const maleAvg   = males.length   ? parseFloat((males.reduce((a,r)=>a+r.avgScore,0)/males.length).toFixed(1))   : 0;
+  const femaleAvg = females.length ? parseFloat((females.reduce((a,r)=>a+r.avgScore,0)/females.length).toFixed(1)) : 0;
+  const betterGender = femaleAvg >= maleAvg ? 'Female' : 'Male';
+  const genderGap    = Math.abs(maleAvg - femaleAvg).toFixed(2);
+
+  /* Most improved (VAP) */
+  const mostImproved = results
+    .filter(r => r.vap !== null && r.vap !== undefined && r.vap > 0)
+    .sort((a,b) => b.vap - a.vap)
+    .slice(0, 5);
+
+  /* ── TABLE ROWS ── */
+  const subjHeaders = state.subjects.map(subj =>
+    `<th style="padding:6px 4px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);border-right:1px solid rgba(255,255,255,0.08);" title="${subj.name}">${subj.code}</th>`
   ).join('');
-
-  const tableRows = results.map((r,i)=>{
-    const rowBg     = i%2===0?'#ffffff':'#f8fafc';
-    const rankCol   = r.position===1?'#d4a017':r.position===2?'#888':r.position===3?'#cd7f32':'#94a3b8';
-    const subjCells = r.subjectResults.map(sub=>
-      `<td style="padding:7px 6px;text-align:center;border-right:0.5px solid #e2e8f0;font-size:10.5px;">${sub.absent ? 'ABS' : (sub.score ?? '—')}</td>`
-    ).join('');
-    return `
-      <tr style="background:${rowBg};border-bottom:0.5px solid #e2e8f0;">
-        <td style="padding:7px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-weight:700;color:${rankCol};font-size:11px;">${KJSEA.ordinal(r.position)}</td>
-        <td style="padding:7px 10px;text-align:left;border-right:0.5px solid #e2e8f0;font-weight:600;font-size:11.5px;">${r.fullName}</td>
-        <td style="padding:7px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-family:monospace;font-size:10px;">${r.upiNumber || '—'}</td>
-        ${subjCells}
-        <td style="padding:7px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-weight:700;font-size:12px;color:#0d3349;">${r.totalScore}</td>
-        <td style="padding:7px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-size:11px;">${r.avgScore}%</td>
-        <td style="padding:7px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-weight:800;font-size:12px;color:#0d3349;">${r.totalPoints}/${r.subjectCount*8}</td>
-        <td style="padding:7px 8px;text-align:center;">
-          <span style="display:inline-block;background:#e1f5ee;color:#0f6e56;border-radius:4px;padding:2px 7px;font-size:9px;font-weight:700;">${r.meanGrade || '--'}</span>
-        </td>
-      </tr>`;
-  }).join('');
 
   const gradeColours = {EE1:'#d5f5e3',EE2:'#d5f5e3',ME1:'#d6eaf8',ME2:'#d6eaf8',AE1:'#fef9e7',AE2:'#fdebd0',BE1:'#fce4e4',BE2:'#f9d6d6'};
   const gradeText    = {EE1:'#1e8449',EE2:'#27ae60',ME1:'#1a6fa8',ME2:'#2980b9',AE1:'#d68910',AE2:'#ca6f1e',BE1:'#c0392b',BE2:'#922b21'};
 
-  const distCells = KJSEA.SCALE.map(g=>`
+  const tableRows = results.map((r,i) => {
+    const rowBg    = i%2===0 ? '#ffffff' : '#f8fafc';
+    const rankCol  = r.position===1?'#d4a017':r.position===2?'#888':r.position===3?'#cd7f32':'#94a3b8';
+    const vapCol   = !r.vap ? '#94a3b8' : r.vap > 0 ? '#27ae60' : '#e74c3c';
+    const vapText  = r.vap !== null && r.vap !== undefined ? (r.vap > 0 ? `+${r.vap}` : `${r.vap}`) : '—';
+    const subjCells= state.subjects.map(subj => {
+      const sr = r.subjectResults?.find(s => s.subjectId?.toString() === subj._id?.toString());
+      const val= (!sr||sr.notEntered) ? '—' : sr.absent ? 'ABS' : sr.score;
+      const col= sr?.grade ? gradeText[sr.grade] : '#333';
+      return `<td style="padding:6px 4px;text-align:center;border-right:0.5px solid #e2e8f0;font-size:10px;font-weight:600;color:${col};">${val}</td>`;
+    }).join('');
+
+    return `
+      <tr style="background:${rowBg};border-bottom:0.5px solid #e2e8f0;">
+        <td style="padding:6px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-weight:700;color:${rankCol};font-size:11px;">${KJSEA.ordinal(r.position)}</td>
+        <td style="padding:6px 10px;text-align:left;border-right:0.5px solid #e2e8f0;font-weight:600;font-size:11px;">${r.fullName}</td>
+        <td style="padding:6px 6px;text-align:center;border-right:0.5px solid #e2e8f0;font-size:9.5px;color:#64748b;">${r.gender?.charAt(0).toUpperCase()||'—'}</td>
+        ${subjCells}
+        <td style="padding:6px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-weight:700;font-size:11px;color:#0d3349;">${r.totalScore}</td>
+        <td style="padding:6px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-size:11px;font-weight:700;">${r.avgScore}%</td>
+        <td style="padding:6px 8px;text-align:center;border-right:0.5px solid #e2e8f0;font-weight:700;font-size:11px;color:#7d3c98;">${r.totalPoints}</td>
+        <td style="padding:6px 8px;text-align:center;border-right:0.5px solid #e2e8f0;">
+          <span style="display:inline-block;background:${gradeColours[r.meanGrade]||'#f0f4f8'};color:${gradeText[r.meanGrade]||'#666'};border-radius:4px;padding:2px 6px;font-size:9px;font-weight:700;">${r.meanGrade||'—'}</span>
+        </td>
+        <td style="padding:6px 8px;text-align:center;font-weight:700;font-size:11px;color:${vapCol};">${vapText}</td>
+      </tr>`;
+  }).join('');
+
+  /* ── SUBJECT AVERAGES TABLE ROW ── */
+  const subjectAvgRow = state.subjects.map(subj => {
+    const ss  = subjectStats.find(s => s._id?.toString() === subj._id?.toString());
+    const avg = ss?.avg || 0;
+    const col = avg >= 75 ? '#1e8449' : avg >= 58 ? '#1a6fa8' : avg >= 41 ? '#d68910' : '#c0392b';
+    return `<td style="padding:6px 4px;text-align:center;border-right:0.5px solid rgba(255,255,255,0.15);font-size:10px;font-weight:700;color:${col};">${avg}%</td>`;
+  }).join('');
+
+  /* ── SUBJECT PERFORMANCE SUMMARY TABLE ── */
+  const subjectSummaryRows = subjectStats.map(s => {
+    const barCol = s.avg >= 75 ? '#27ae60' : s.avg >= 58 ? '#2e86c1' : s.avg >= 41 ? '#e67e22' : '#e74c3c';
+    const distCells = KJSEA.SCALE.map(g =>
+      `<td style="padding:5px 6px;text-align:center;font-size:10px;font-weight:${(s.subDist[g.grade]||0)>0?'700':'400'};color:${(s.subDist[g.grade]||0)>0?gradeText[g.grade]:'#94a3b8'};">${s.subDist[g.grade]||0}</td>`
+    ).join('');
+    return `
+      <tr>
+        <td style="padding:6px 10px;font-weight:700;color:${barCol};text-align:center;">${s.rank}</td>
+        <td style="padding:6px 10px;font-weight:600;">${s.name}</td>
+        <td style="padding:6px 10px;font-weight:700;color:${barCol};text-align:center;">${s.avg}%</td>
+        <td style="padding:6px 10px;font-weight:700;color:#7d3c98;text-align:center;">${s.avgPts}</td>
+        ${distCells}
+      </tr>`;
+  }).join('');
+
+  /* ── TOP 3 PER SUBJECT ── */
+  const top3Cards = subjectStats.map(s => `
+    <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;min-width:180px;">
+      <div style="background:#0d3349;padding:7px 12px;">
+        <p style="font-size:0.78rem;font-weight:700;color:white;margin:0;">${s.name}</p>
+        <p style="font-size:0.65rem;color:rgba(255,255,255,0.50);margin:0;">Avg: ${s.avg}%</p>
+      </div>
+      <div style="padding:8px;">
+        ${s.top3.map((st,i) => `
+          <div style="display:flex;align-items:center;gap:6px;padding:5px 0;${i<s.top3.length-1?'border-bottom:1px solid #f0f4f8':''}">
+            <span style="font-size:0.9rem;">${i===0?'🥇':i===1?'🥈':'🥉'}</span>
+            <span style="font-size:0.75rem;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${st.fullName}</span>
+            <span style="font-size:0.72rem;font-weight:700;background:${gradeColours[st.grade]||'#f0f4f8'};color:${gradeText[st.grade]||'#666'};padding:1px 5px;border-radius:3px;">${st.score}</span>
+          </div>
+        `).join('')}
+        ${!s.top3.length ? '<p style="font-size:0.72rem;color:#94a3b8;padding:4px 0;">No data</p>' : ''}
+      </div>
+    </div>
+  `).join('');
+
+  /* ── GRADE DIST CELLS ── */
+  const distCells = KJSEA.SCALE.map(g => `
     <div style="text-align:center;padding:10px 6px;border-right:1px solid #e2e8f0;background:${gradeColours[g.grade]};">
       <div style="font-size:0.65rem;font-weight:800;color:${gradeText[g.grade]};margin-bottom:3px;">${g.grade}</div>
       <div style="font-size:1.05rem;font-weight:700;color:${gradeText[g.grade]};">${dist[g.grade]}</div>
-      <div style="font-size:0.55rem;color:#718096;">${g.label.split(' ').slice(-1)[0]}</div>
     </div>`
-  ).join('');
+  ).join('') + (xCount > 0 ? `
+    <div style="text-align:center;padding:10px 6px;background:#f0f4f8;">
+      <div style="font-size:0.65rem;font-weight:800;color:#94a3b8;margin-bottom:3px;">X</div>
+      <div style="font-size:1.05rem;font-weight:700;color:#94a3b8;">${xCount}</div>
+    </div>` : '');
 
+  /* ── GENDER SUBJECT TABLE ── */
+  const genderSubjectRows = state.subjects.map(subj => {
+    const maleScores   = males.map(r => r.subjectResults?.find(s => s.subjectId?.toString() === subj._id?.toString())).filter(s=>s&&!s.absent&&!s.notEntered&&s.score!==null).map(s=>s.score);
+    const femaleScores = females.map(r => r.subjectResults?.find(s => s.subjectId?.toString() === subj._id?.toString())).filter(s=>s&&!s.absent&&!s.notEntered&&s.score!==null).map(s=>s.score);
+    const mA = maleScores.length   ? parseFloat((maleScores.reduce((a,b)=>a+b,0)/maleScores.length).toFixed(1))   : 0;
+    const fA = femaleScores.length ? parseFloat((femaleScores.reduce((a,b)=>a+b,0)/femaleScores.length).toFixed(1)) : 0;
+    const gap    = Math.abs(mA-fA).toFixed(1);
+    const leader = mA > fA ? '♂ Male' : mA < fA ? '♀ Female' : 'Tie';
+    const lCol   = mA > fA ? '#2980b9' : mA < fA ? '#c0392b' : '#94a3b8';
+    return `
+      <tr>
+        <td style="padding:6px 10px;font-weight:600;">${subj.name}</td>
+        <td style="padding:6px 10px;text-align:center;font-weight:700;color:#2980b9;">${mA}%</td>
+        <td style="padding:6px 10px;text-align:center;font-weight:700;color:#c0392b;">${fA}%</td>
+        <td style="padding:6px 10px;text-align:center;font-weight:700;">${gap}</td>
+        <td style="padding:6px 10px;text-align:center;font-weight:700;color:${lCol};">${leader}</td>
+      </tr>`;
+  }).join('');
+
+  /* ── MOST IMPROVED ── */
+  const improvedRows = mostImproved.length ? mostImproved.map((r,i) => `
+    <tr>
+      <td style="padding:6px 10px;font-weight:700;text-align:center;">${i+1}</td>
+      <td style="padding:6px 10px;font-weight:600;">${r.fullName}</td>
+      <td style="padding:6px 10px;text-align:center;">${r.prevPoints || '—'}</td>
+      <td style="padding:6px 10px;text-align:center;font-weight:700;color:#1a6fa8;">${r.avgPoints}</td>
+      <td style="padding:6px 10px;text-align:center;font-weight:700;color:#27ae60;">+${r.vap}</td>
+    </tr>`
+  ).join('') : '<tr><td colspan="5" style="text-align:center;padding:16px;color:#94a3b8;">No previous exam data for VAP comparison.</td></tr>';
+
+  /* ════════════════════════════════════════════
+     FULL HTML OUTPUT
+  ════════════════════════════════════════════ */
   return `
-<div style="max-width:900px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:#2c3e50;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,0.10);">
+<div style="max-width:960px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:#2c3e50;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,0.10);">
 
-  <!-- Header -->
-  <div style="background:#0d3349;padding:16px 22px;display:flex;align-items:center;gap:14px;position:relative;overflow:hidden;">
-    <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.025) 1px,transparent 1px);background-size:20px 20px;"></div>
-    <div style="width:50px;height:50px;background:rgba(255,255,255,0.10);border:1.5px solid rgba(255,255,255,0.18);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;position:relative;z-index:1;">🎓</div>
-    <div style="position:relative;z-index:1;flex:1;">
+  <!-- ══ HEADER ══ -->
+  <div style="background:#0d3349;padding:16px 22px;display:flex;align-items:center;gap:14px;">
+    <div style="width:50px;height:50px;background:rgba(255,255,255,0.10);border:1.5px solid rgba(255,255,255,0.18);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">🎓</div>
+    <div style="flex:1;">
       <div style="font-size:1rem;font-weight:700;color:#fff;margin-bottom:2px;">${s.schoolName.toUpperCase()}</div>
-      <div style="font-size:0.70rem;color:rgba(255,255,255,0.55);margin-bottom:1px;">Junior Secondary School</div>
-      <div style="font-size:0.68rem;color:#4ecb8d;font-style:italic;">${s.schoolMotto}</div>
+      <div style="font-size:0.70rem;color:rgba(255,255,255,0.55);">Junior Secondary School &nbsp;|&nbsp; <em>${s.schoolMotto}</em></div>
     </div>
-    <div style="text-align:right;position:relative;z-index:1;">
-      <span style="display:inline-block;border:1px solid rgba(255,255,255,0.25);border-radius:6px;padding:3px 10px;font-size:0.65rem;font-weight:700;color:#fff;letter-spacing:0.5px;margin-bottom:5px;">Class Result Sheet</span>
-      <div style="font-size:1.20rem;font-weight:800;color:#fff;">${s.year}</div>
+    <div style="text-align:right;">
+      <span style="border:1px solid rgba(255,255,255,0.25);border-radius:6px;padding:4px 12px;font-size:0.72rem;font-weight:700;color:#fff;letter-spacing:0.5px;">ASSESSMENT RESULTS</span>
+      <div style="font-size:0.70rem;color:rgba(255,255,255,0.50);margin-top:4px;">Grade: ${s.cls} &nbsp;|&nbsp; Term: ${s.term} &nbsp;|&nbsp; Exam: ${s.exam}</div>
     </div>
   </div>
 
-  <!-- Pills bar -->
-  <div style="background:#134a6a;display:flex;align-items:center;justify-content:center;gap:20px;padding:8px 20px;">
-    <span style="color:rgba(255,255,255,0.85);font-size:0.75rem;font-weight:600;">📅 Term ${s.term}</span>
-    <span style="color:rgba(255,255,255,0.25);">|</span>
-    <span style="color:rgba(255,255,255,0.85);font-size:0.75rem;font-weight:600;">📄 ${s.exam} Examination</span>
-    <span style="color:rgba(255,255,255,0.25);">|</span>
-    <span style="color:rgba(255,255,255,0.85);font-size:0.75rem;font-weight:600;">🏫 ${s.cls}</span>
-    <span style="color:rgba(255,255,255,0.25);">|</span>
-    <span style="color:rgba(255,255,255,0.85);font-size:0.75rem;font-weight:600;">👥 ${results.length} Learners</span>
-  </div>
-
-  <!-- Stats strip -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);background:#f8fafc;border-bottom:2px solid #0d3349;">
+  <!-- ══ STATS STRIP ══ -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);background:#f8fafc;border-bottom:2px solid #0d3349;">
     ${[
-      { val:avg+'%',       lbl:'Class Average'     },
-      { val:highest+'%',   lbl:'Highest Score'     },
-      { val:topPts+'/'+(results[0]?.subjectCount*8 || 0),  lbl:'Top KJSEA Points'  },
-      { val:passRate+'%',  lbl:'Pass Rate'          },
-    ].map((c,i,a)=>`
+      { val: results.length,       lbl: 'Total Learners'    },
+      { val: avg + '%',            lbl: 'Average Marks'     },
+      { val: passed,               lbl: 'Passed (≥41%)'    },
+      { val: passRate + '%',       lbl: 'Pass Rate'         },
+      { val: meanPts,              lbl: 'Mean Points'       },
+    ].map((c,i,a) => `
       <div style="padding:12px 14px;text-align:center;${i<a.length-1?'border-right:1px solid #e2e8f0;':''}">
-        <div style="font-size:1.15rem;font-weight:700;color:#0d3349;margin-bottom:2px;">${c.val}</div>
+        <div style="font-size:1.2rem;font-weight:700;color:#0d3349;margin-bottom:2px;">${c.val}</div>
         <div style="font-size:0.60rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">${c.lbl}</div>
       </div>`
     ).join('')}
   </div>
 
-  <!-- Section title -->
+  <!-- ══ RANKINGS TABLE ══ -->
   <div style="background:#0d3349;padding:6px 16px;font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:0.8px;">Class Rankings</div>
-
-  <!-- Table -->
   <div style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;">
       <thead>
         <tr style="background:#134a6a;">
-          <th style="padding:8px 8px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);">Rank</th>
-          <th style="padding:8px 10px;text-align:left;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);">Learner Name</th>
-          <th style="padding:8px 8px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);">UPI</th>
+          <th style="padding:7px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);border-right:1px solid rgba(255,255,255,0.08);">Rank</th>
+          <th style="padding:7px 10px;text-align:left;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);border-right:1px solid rgba(255,255,255,0.08);">Learner Name</th>
+          <th style="padding:7px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);border-right:1px solid rgba(255,255,255,0.08);">Gender</th>
           ${subjHeaders}
-          <th style="padding:8px 8px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);">Total</th>
-          <th style="padding:8px 8px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);">Avg%</th>
-          <th style="padding:8px 8px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.08);">Points</th>
-          <th style="padding:8px 8px;text-align:center;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;">Grade</th>
+          <th style="padding:7px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);border-right:1px solid rgba(255,255,255,0.08);">Total</th>
+          <th style="padding:7px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);border-right:1px solid rgba(255,255,255,0.08);">Avg%</th>
+          <th style="padding:7px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);border-right:1px solid rgba(255,255,255,0.08);">Points</th>
+          <th style="padding:7px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);border-right:1px solid rgba(255,255,255,0.08);">Grade</th>
+          <th style="padding:7px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);">VAP</th>
         </tr>
       </thead>
-      <tbody>${tableRows}</tbody>
+      <tbody>
+        ${tableRows}
+        <!-- Class Average Row -->
+        <tr style="background:#0d3349;">
+          <td colspan="3" style="padding:7px 10px;color:rgba(255,255,255,0.70);font-size:0.70rem;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;">Class Average</td>
+          ${subjectAvgRow}
+          <td colspan="5" style="padding:7px 10px;color:rgba(255,255,255,0.50);font-size:0.68rem;">Avg: ${avg}% &nbsp;|&nbsp; Mean Pts: ${meanPts} &nbsp;|&nbsp; Pass Rate: ${passRate}%</td>
+        </tr>
+      </tbody>
     </table>
   </div>
 
-  <!-- Grade distribution -->
-  <div style="background:#0d3349;padding:6px 16px;font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:0.8px;">Grade Distribution</div>
-  <div style="display:grid;grid-template-columns:repeat(8,1fr);">${distCells}</div>
+  <!-- ══ OVERALL GRADE DISTRIBUTION ══ -->
+  <div style="background:#0d3349;padding:6px 16px;font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:0.8px;margin-top:2px;">Overall Grade Distribution</div>
+  <div style="display:grid;grid-template-columns:repeat(${xCount>0?9:8},1fr);">${distCells}</div>
 
-  <!-- Signatures -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #e2e8f0;">
-    <div style="padding:12px 16px;border-right:1px solid #e2e8f0;">
-      <div style="font-size:0.62rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Class Teacher: ${s.teacher||''}</div>
-      <div style="border-bottom:1px solid #cbd5e0;margin:8px 0 4px;"></div>
-      <div style="font-size:0.60rem;color:#94a3b8;">Signature &amp; Date: .....................</div>
+  <!-- ══ SUBJECT-WISE PERFORMANCE SUMMARY ══ -->
+  <div style="background:#0d3349;padding:6px 16px;font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:0.8px;margin-top:2px;">Subject-wise Performance Summary</div>
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="background:#134a6a;">
+          <th style="padding:7px 10px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);border-right:1px solid rgba(255,255,255,0.08);">Rank</th>
+          <th style="padding:7px 10px;text-align:left;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);border-right:1px solid rgba(255,255,255,0.08);">Learning Area</th>
+          <th style="padding:7px 10px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);border-right:1px solid rgba(255,255,255,0.08);">Avg Mark</th>
+          <th style="padding:7px 10px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.70);border-right:1px solid rgba(255,255,255,0.08);">Avg Pts</th>
+          ${KJSEA.SCALE.map(g=>`<th style="padding:7px 6px;text-align:center;font-size:0.56rem;font-weight:700;color:${gradeText[g.grade]};border-right:1px solid rgba(255,255,255,0.08);">${g.grade}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>${subjectSummaryRows}</tbody>
+    </table>
+  </div>
+
+  <!-- ══ TOP 3 PER SUBJECT ══ -->
+  <div style="background:#0d3349;padding:6px 16px;font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:0.8px;margin-top:2px;">Top 3 Learners Per Subject</div>
+  <div style="padding:14px;display:flex;flex-wrap:wrap;gap:10px;background:#f8fafc;">
+    ${top3Cards}
+  </div>
+
+  <!-- ══ GENDER PERFORMANCE ══ -->
+  <div style="background:#0d3349;padding:6px 16px;font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:0.8px;margin-top:2px;">Gender Performance Analytics</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+    <div style="padding:14px;border-right:1px solid #e2e8f0;">
+      <div style="display:flex;gap:16px;margin-bottom:12px;">
+        <div style="flex:1;background:#dbeafe;border-radius:8px;padding:12px;text-align:center;">
+          <p style="font-size:1.2rem;font-weight:700;color:#2980b9;margin:0;">♂ ${males.length}</p>
+          <p style="font-size:0.65rem;color:#64748b;margin:0;">Male &nbsp;|&nbsp; Avg: ${maleAvg}%</p>
+        </div>
+        <div style="flex:1;background:#fce7f3;border-radius:8px;padding:12px;text-align:center;">
+          <p style="font-size:1.2rem;font-weight:700;color:#c0392b;margin:0;">♀ ${females.length}</p>
+          <p style="font-size:0.65rem;color:#64748b;margin:0;">Female &nbsp;|&nbsp; Avg: ${femaleAvg}%</p>
+        </div>
+      </div>
+      <div style="background:white;border:1px solid #e2e8f0;border-radius:6px;padding:10px;font-size:0.78rem;">
+        <strong>Better Performing Gender: ${betterGender}</strong><br/>
+        <span style="color:#64748b;">Performance Gap: ${genderGap} Marks</span>
+      </div>
     </div>
-    <div style="padding:12px 16px;">
-      <div style="font-size:0.62rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Principal: ${s.principal||''}</div>
-      <div style="border-bottom:1px solid #cbd5e0;margin:8px 0 4px;"></div>
-      <div style="font-size:0.60rem;color:#94a3b8;">Signature, Stamp &amp; Date: .....................</div>
+    <div style="padding:14px;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:0.75rem;">
+        <thead>
+          <tr style="background:#134a6a;">
+            <th style="padding:6px 8px;text-align:left;color:rgba(255,255,255,0.75);border-right:1px solid rgba(255,255,255,0.10);">Subject</th>
+            <th style="padding:6px 8px;text-align:center;color:#2980b9;border-right:1px solid rgba(255,255,255,0.10);">♂ Male</th>
+            <th style="padding:6px 8px;text-align:center;color:#c0392b;border-right:1px solid rgba(255,255,255,0.10);">♀ Female</th>
+            <th style="padding:6px 8px;text-align:center;color:rgba(255,255,255,0.75);border-right:1px solid rgba(255,255,255,0.10);">Gap</th>
+            <th style="padding:6px 8px;text-align:center;color:rgba(255,255,255,0.75);">Leader</th>
+          </tr>
+        </thead>
+        <tbody>${genderSubjectRows}</tbody>
+      </table>
     </div>
   </div>
 
-  <!-- Footer -->
+  <!-- ══ MOST IMPROVED ══ -->
+  ${mostImproved.length ? `
+  <div style="background:#0d3349;padding:6px 16px;font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:0.8px;margin-top:2px;">Most Improved Learners (VAP)</div>
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.80rem;">
+      <thead>
+        <tr style="background:#134a6a;">
+          <th style="padding:7px 10px;text-align:center;color:rgba(255,255,255,0.70);">Rank</th>
+          <th style="padding:7px 10px;text-align:left;color:rgba(255,255,255,0.70);">Learner Name</th>
+          <th style="padding:7px 10px;text-align:center;color:rgba(255,255,255,0.70);">Prev Points</th>
+          <th style="padding:7px 10px;text-align:center;color:rgba(255,255,255,0.70);">Current Points</th>
+          <th style="padding:7px 10px;text-align:center;color:rgba(255,255,255,0.70);">VAP (+/-)</th>
+        </tr>
+      </thead>
+      <tbody>${improvedRows}</tbody>
+    </table>
+  </div>` : ''}
+
+  <!-- ══ SIGNATURES ══ -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-top:2px solid #0d3349;margin-top:2px;">
+    <div style="padding:14px 18px;border-right:1px solid #e2e8f0;">
+      <div style="font-size:0.65rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Class Teacher: ${s.teacher||''}</div>
+      <div style="border-bottom:1px solid #cbd5e0;margin:10px 0 6px;"></div>
+      <div style="font-size:0.62rem;color:#94a3b8;">Signature &amp; Date: .....................</div>
+    </div>
+    <div style="padding:14px 18px;">
+      <div style="font-size:0.65rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Principal: ${s.principal||''}</div>
+      <div style="border-bottom:1px solid #cbd5e0;margin:10px 0 6px;"></div>
+      <div style="font-size:0.62rem;color:#94a3b8;">Signature, Stamp &amp; Date: .....................</div>
+    </div>
+  </div>
+
+  <!-- ══ FOOTER ══ -->
   <div style="background:#0d3349;display:flex;align-items:center;justify-content:space-between;padding:8px 16px;">
     <div style="display:flex;align-items:center;gap:6px;font-size:0.70rem;color:rgba(255,255,255,0.50);">
       <span style="color:#4ecb8d;font-size:14px;">🎓</span>
@@ -902,7 +1101,6 @@ const buildClassSheet = (results, s) => {
 
 </div>`;
 };
-
 /* ══════════════════════════════════════════════════════════
    13. BULK PREVIEW — All cards stacked
 ══════════════════════════════════════════════════════════ */
