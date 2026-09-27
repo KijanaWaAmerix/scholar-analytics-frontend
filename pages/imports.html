@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scholar Analytics — Import Marks</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/dashboard.css"/>
+  <link rel="stylesheet" href="../css/mobile.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    .import-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .import-drop-zone {
+      border: 2px dashed var(--border-input);
+      border-radius: var(--radius-md);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all var(--ease-base);
+      background: var(--bg-light);
+    }
+
+    .import-drop-zone:hover,
+    .import-drop-zone.dragover {
+      border-color: var(--primary-light);
+      background: var(--primary-pale);
+    }
+
+    .import-drop-icon {
+      font-size: 48px;
+      color: #27ae60;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .import-drop-title {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 8px;
+    }
+
+    .import-drop-sub {
+      font-size: var(--text-sm);
+      color: var(--text-soft);
+      line-height: 1.6;
+    }
+
+    .import-column-map {
+      background: var(--bg-white);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-mid);
+      overflow: hidden;
+    }
+
+    .import-column-map-header {
+      background: linear-gradient(135deg, #0a2540, #1a4a6b);
+      padding: 12px 18px;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      color: rgba(255,255,255,0.80);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .import-column-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 16px;
+      border-bottom: 1px solid var(--border-light);
+      font-size: var(--text-sm);
+    }
+
+    .import-column-row:last-child { border-bottom: none; }
+
+    .import-col-excel {
+      font-weight: 700;
+      color: var(--primary);
+      min-width: 100px;
+      font-family: monospace;
+    }
+
+    .import-col-arrow { color: var(--text-light); font-size: 12px; }
+
+    .import-col-db {
+      color: var(--text-mid);
+      font-size: var(--text-xs);
+    }
+
+    .import-col-status {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .import-col-status.matched  { color: #27ae60; }
+    .import-col-status.unmatched { color: #e74c3c; }
+
+    .import-preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    .import-preview-table th {
+      background: #0a2540;
+      color: rgba(255,255,255,0.75);
+      padding: 7px 10px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .import-preview-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border-light);
+      white-space: nowrap;
+    }
+
+    .import-preview-table tbody tr:nth-child(even) { background: #f8fafc; }
+
+    .import-progress {
+      height: 8px;
+      background: var(--border-light);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin: 8px 0;
+    }
+
+    .import-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #27ae60, #2ecc71);
+      border-radius: var(--radius-full);
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    .import-result-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-light);
+      font-size: var(--text-sm);
+    }
+
+    .import-result-item:last-child { border-bottom: none; }
+
+    .import-result-icon { font-size: 14px; width: 20px; text-align: center; }
+
+    @media (max-width: 900px) {
+      .import-layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon"><i class="fas fa-graduation-cap"></i></div>
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">Scholar</span>
+        <span class="sidebar-brand-sub">Analytics</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sidebar-user">
+      <div class="sidebar-user-avatar" id="sidebarAvatar"></div>
+      <div class="sidebar-user-info">
+        <p class="sidebar-user-name" id="sidebarUserName">Loading...</p>
+        <p class="sidebar-user-role" id="sidebarUserRole">--</p>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-section-label">Main Menu</p>
+      <a href="dashboard.html"  class="nav-item"><i class="fas fa-house"></i><span>Dashboard</span></a>
+      <a href="students.html"   class="nav-item"><i class="fas fa-user-graduate"></i><span>Students</span></a>
+      <a href="classes.html"    class="nav-item"><i class="fas fa-school"></i><span>Classes</span></a>
+      <a href="subjects.html"   class="nav-item"><i class="fas fa-book-open"></i><span>Subjects</span></a>
+      <a href="exams.html"      class="nav-item"><i class="fas fa-calendar-check"></i><span>Exams</span></a>
+      <p class="nav-section-label">Academic</p>
+      <a href="marks.html"      class="nav-item"><i class="fas fa-pen-to-square"></i><span>Marks Entry</span></a>
+      <a href="results.html"    class="nav-item"><i class="fas fa-chart-bar"></i><span>Results</span></a>
+      <a href="import.html"     class="nav-item active"><i class="fas fa-file-import"></i><span>Import Marks</span></a>
+      <a href="reports.html"    class="nav-item"><i class="fas fa-file-pdf"></i><span>Reports & PDFs</span></a>
+      <p class="nav-section-label">Insights</p>
+      <a href="analytics.html"  class="nav-item"><i class="fas fa-chart-line"></i><span>Analytics</span></a>
+      <div class="admin-only" id="adminMenu">
+        <p class="nav-section-label">Administration</p>
+        <a href="users.html"    class="nav-item"><i class="fas fa-users-gear"></i><span>Manage Users</span></a>
+        <a href="settings.html" class="nav-item"><i class="fas fa-sliders"></i><span>Settings</span></a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <i class="fas fa-arrow-right-from-bracket"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div class="topbar-title">
+          <h1>Import Marks</h1>
+          <p><i class="fas fa-house"></i> Home &rsaquo; Import Marks</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="term-badge"><i class="fas fa-calendar"></i><span id="currentTerm">Term 1 &bull; 2024</span></div>
+        <div class="user-menu" id="userMenuWrapper">
+          <button class="user-menu-trigger" id="userMenuBtn">
+            <div class="topbar-avatar" id="topbarAvatar"></div>
+            <span id="topbarUserName">Loading...</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><p id="dropdownName">--</p><p id="dropdownEmail">--</p></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><i class="fas fa-gear"></i> Settings</a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-logout" id="dropdownLogout">
+              <i class="fas fa-arrow-right-from-bracket"></i> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2 class="page-header-title">Import Marks from Excel</h2>
+          <p class="page-header-sub">Upload your broad sheet → auto-rank → generate report cards</p>
+        </div>
+      </div>
+
+      <!-- Step 1 — Select Class + Exam -->
+      <div class="table-card">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fas fa-sliders"></i> Step 1 — Select Class &amp; Exam</h3>
+        </div>
+        <div class="card-body" style="padding:20px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+            <div class="rpt-field">
+              <label><i class="fas fa-school"></i> Class</label>
+              <select id="importClass" class="marks-select">
+                <option value="">-- Select Class --</option>
+              </select>
+            </div>
+            <div class="rpt-field">
+              <label><i class="fas fa-calendar"></i> Term</label>
+              <select id="importTerm" class="marks-select">
+                <option value="">-- Select Term --</option>
+                <option value="1">Term 1</option>
+                <option value="2">Term 2</option>
+                <option value="3">Term 3</option>
+              </select>
+            </div>
+            <div class="rpt-field">
+              <label><i class="fas fa-pen-to-square"></i> Exam</label>
+              <select id="importExam" class="marks-select">
+                <option value="">-- Select Exam --</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 — Upload -->
+      <div class="table-card">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fas fa-upload"></i> Step 2 — Upload Excel Broad Sheet</h3>
+        </div>
+        <div class="card-body" style="padding:20px;">
+          <div class="import-layout">
+
+            <!-- Drop zone -->
+            <div>
+              <div class="import-drop-zone" id="dropZone" onclick="document.getElementById('excelFileInput').click()">
+                <i class="fas fa-file-excel import-drop-icon"></i>
+                <p class="import-drop-title">Click to upload or drag &amp; drop</p>
+                <p class="import-drop-sub">
+                  Supports .xlsx, .xls files<br/>
+                  Expected format: Student names in column A,<br/>
+                  subject scores in columns B onward
+                </p>
+              </div>
+              <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none;"/>
+
+              <div style="margin-top:14px;font-size:var(--text-xs);color:var(--text-soft);">
+                <strong>Expected column headers in your sheet:</strong><br/>
+                NAMES OF STUDENTS, ENG, MAT, KISW, INTER, SST, CRE, CAS, AGN, PRE-TECH
+              </div>
+            </div>
+
+            <!-- Column mapping preview -->
+            <div id="columnMapWrap" style="display:none;">
+              <div class="import-column-map">
+                <div class="import-column-map-header">Column Mapping — Excel → Database</div>
+                <div id="columnMapBody"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 — Preview -->
+      <div class="table-card" id="previewCard" style="display:none;">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title"><i class="fas fa-table"></i> Step 3 — Preview Data</h3>
+            <p class="card-subtitle" id="previewSubtitle">--</p>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <button class="btn-secondary btn-sm" id="clearImportBtn">
+              <i class="fas fa-xmark"></i> Clear
+            </button>
+            <button class="btn-primary" id="runImportBtn">
+              <i class="fas fa-file-import"></i> Import Marks &amp; Auto-Rank
+            </button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;max-height:400px;overflow-y:auto;">
+          <table class="import-preview-table" id="previewTable">
+            <thead id="previewHead"></thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Step 4 — Import Progress -->
+      <div class="table-card" id="progressCard" style="display:none;">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fas fa-spinner fa-spin"></i> Importing...</h3>
+        </div>
+        <div class="card-body" style="padding:20px;">
+          <div class="import-progress">
+            <div class="import-progress-fill" id="importProgressFill"></div>
+          </div>
+          <p id="importProgressText" style="font-size:var(--text-sm);color:var(--text-soft);margin-top:6px;">
+            Starting import...
+          </p>
+        </div>
+      </div>
+
+      <!-- Step 5 — Results -->
+      <div class="table-card" id="resultsCard" style="display:none;">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title"><i class="fas fa-circle-check" style="color:#27ae60;"></i> Import Complete</h3>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <a href="results.html" class="btn-secondary btn-sm">
+              <i class="fas fa-ranking-star"></i> View Rankings
+            </a>
+            <a href="reports.html" class="btn-primary btn-sm">
+              <i class="fas fa-file-pdf"></i> Print Report Cards
+            </a>
+          </div>
+        </div>
+        <div class="card-body" style="padding:20px;">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;">
+            <div style="background:#d5f5e3;border-radius:var(--radius-sm);padding:16px;text-align:center;border:1px solid #a9dfbf;">
+              <p style="font-family:var(--font-display);font-size:1.8rem;font-weight:700;color:#1e8449;" id="importedCount">0</p>
+              <p style="font-size:var(--text-xs);color:#27ae60;font-weight:700;text-transform:uppercase;">Marks Imported</p>
+            </div>
+            <div style="background:#fce4e4;border-radius:var(--radius-sm);padding:16px;text-align:center;border:1px solid #f1948a;">
+              <p style="font-family:var(--font-display);font-size:1.8rem;font-weight:700;color:#c0392b;" id="skippedCount">0</p>
+              <p style="font-size:var(--text-xs);color:#e74c3c;font-weight:700;text-transform:uppercase;">Students Skipped</p>
+            </div>
+            <div style="background:#d6eaf8;border-radius:var(--radius-sm);padding:16px;text-align:center;border:1px solid #85c1e9;">
+              <p style="font-family:var(--font-display);font-size:1.8rem;font-weight:700;color:#1a6fa8;" id="totalRowsCount">0</p>
+              <p style="font-size:var(--text-xs);color:#2980b9;font-weight:700;text-transform:uppercase;">Total Rows Read</p>
+            </div>
+          </div>
+          <div id="importResultsList"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<script src="../js/api.js"></script>
+<script src="../js/import.js"></script>
+</body>
+</html>
