@@ -4,10 +4,9 @@
 ═══════════════════════════════════════════════════════════ */
 
 /* ── Auth ─────────────────────────────────────────────────── */
-const user = requireAuth();
-if (!user) throw new Error('Not authenticated');
-initSidebar(user);
-
+const currentUser = requireAuth();
+if (!currentUser) throw new Error('Not authenticated');
+initSidebar(currentUser);
 /* ══════════════════════════════════════════════════════════
    MOCK DATA
 ══════════════════════════════════════════════════════════ */
@@ -108,7 +107,7 @@ const initWelcome = () => {
     hour < 17 ? 'Good afternoon' :
     'Good evening';
 
-  const firstName = user?.fullName?.split(' ')[0] || 'there';
+  const firstName =currentUser ?.fullName?.split(' ')[0] || 'there';
 
   const title = document.getElementById('welcomeTitle');
   const sub   = document.getElementById('welcomeSub');
