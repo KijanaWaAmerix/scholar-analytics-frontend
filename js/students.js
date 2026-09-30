@@ -488,7 +488,7 @@ document.getElementById('confirmDeleteBtn')?.addEventListener('click', async () 
    EXCEL IMPORT
 ══════════════════════════════════════════════════════════ */
 el.importBtn?.addEventListener('click', () => {
-  openModal('importModal');
+  openModal('importModalOverlay');
 });
 
 document.getElementById('importFileInput')?.addEventListener('change', async (e) => {
