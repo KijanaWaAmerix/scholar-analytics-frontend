@@ -27,22 +27,22 @@ const state = {
    DOM REFS
 ══════════════════════════════════════════════════════════ */
 const el = {
-  searchInput     : document.getElementById('studentSearch'),
+  searchInput     : document.getElementById('searchInput'),
   filterClass     : document.getElementById('filterClass'),
   filterGender    : document.getElementById('filterGender'),
   filterStatus    : document.getElementById('filterStatus'),
-  resetBtn        : document.getElementById('resetFiltersBtn'),
+  resetBtn        : document.getElementById('resetFilters'),
   addBtn          : document.getElementById('addStudentBtn'),
   importBtn       : document.getElementById('importExcelBtn'),
-  exportBtn       : document.getElementById('exportCsvBtn'),
+  exportBtn       : document.getElementById('exportBtn'),
   tableBody       : document.getElementById('studentsTableBody'),
   tableCount      : document.getElementById('tableCount'),
-  pagination      : document.getElementById('paginationEl'),
-  totalStat       : document.getElementById('statTotal'),
-  maleStat        : document.getElementById('statMale'),
-  femaleStat      : document.getElementById('statFemale'),
-  activeStat      : document.getElementById('statActive'),
-  inactiveStat    : document.getElementById('statInactive'),
+  pagination      : document.getElementById('pagination'),
+  totalStat       : document.getElementById('totalStudents'),
+  maleStat        : document.getElementById('totalMale'),
+  femaleStat      : document.getElementById('totalFemale'),
+  activeStat      : document.getElementById('totalActive'),
+  inactiveStat    : document.getElementById('totalInactive'),
 };
 
 /* Avatar helpers */
