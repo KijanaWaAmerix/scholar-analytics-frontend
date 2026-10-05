@@ -1,11 +1,10 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Results Page
-   File: js/results.js  Version: 4.0
-   v4.0: added This Class / Whole Grade scope toggle.
-   Subject column matching switched from subjectId to subject
-   code, since combined grade results span multiple streams —
-   each stream has its own separate Subject documents even for
-   "the same" subject, but codes stay consistent across streams.
+   File: js/results.js  Version: 5.0
+   v5.0: subjects shown in fixed order (ENG, MATH, KISW, INTER,
+         SST, CRE, CAS, AGN, PRETECH) and the performance level
+         is shown beside every subject score.
+   v4.0: This Class / Whole Grade scope toggle.
 ═══════════════════════════════════════════════════════════ */
 
 const user = requireAuth();
@@ -33,6 +32,27 @@ const GRADE_BG = {
   AE1:'#fef9e7', AE2:'#fdebd0',
   BE1:'#fce4e4', BE2:'#f9d6d6',
 };
+
+/* ══════════════════════════════════════════════════════════
+   SUBJECT ORDER
+   Add any extra codes used in your database to these lists.
+══════════════════════════════════════════════════════════ */
+const SUBJECT_ORDER = [
+  ['ENG'],
+  ['MATH','MAT'],
+  ['KISW','KIS'],
+  ['INTER','INT'],
+  ['SST'],
+  ['CRE'],
+  ['CAS'],
+  ['AGN','AGR','AGRI'],
+  ['PRETECH','PRT'],
+];
+const subjIdx = c => {
+  const i = SUBJECT_ORDER.findIndex(g => g.includes((c || '').toUpperCase()));
+  return i === -1 ? 99 : i;
+};
+const sortSubjects = arr => [...arr].sort((a, b) => subjIdx(a.code) - subjIdx(b.code));
 
 /* ══════════════════════════════════════════════════════════
    STATE
@@ -161,7 +181,6 @@ async function loadResults() {
   }
 
   let apiUrl;
-  let missingMsg;
 
   if (state.scope === 'class') {
     const classId = document.getElementById('selClass')?.value;
@@ -207,9 +226,9 @@ async function loadResults() {
   const data = result.data;
 
   state.results         = data.results         || [];
-  state.subjects        = data.subjects         || [];
+  state.subjects        = sortSubjects(data.subjects || []);
   state.stats           = data.stats            || {};
-  state.subjectAverages = data.subjectAverages  || [];
+  state.subjectAverages = sortSubjects(data.subjectAverages || []);
 
   /* Class-scope response has data.class/data.exam;
      Grade-scope response has data.grade/data.streams/data.exam (name-only) */
@@ -228,11 +247,11 @@ async function loadResults() {
       `${state.classInfo?.name} | Term ${state.examInfo?.term} ${state.examInfo?.name} | ${state.examInfo?.academicYear}`;
   }
 
-  renderStats(data.stats);
-  renderSubjectAverages(data.subjectAverages);
-  renderTable(data.results, data.subjects);
+  renderStats(state.stats);
+  renderSubjectAverages(state.subjectAverages);
+  renderTable(state.results, state.subjects);
 
-  showToast(`Results loaded — ${data.results.length} learners.`, 'success');
+  showToast(`Results loaded — ${state.results.length} learners.`, 'success');
 }
 
 const flashField = (id) => {
@@ -364,7 +383,7 @@ const renderTable = (results, subjects) => {
       }
 
       const css = GRADE_CSS[sr.grade] || '';
-      return `<td><span class="res-score ${css}">${sr.score}</span></td>`;
+      return `<td><span class="res-score ${css}">${sr.score} <small style="font-size:0.7em;font-weight:700;">${sr.grade || ''}</small></span></td>`;
     }).join('');
 
     const meanBg    = GRADE_BG[r.meanGrade]     || '#f0f4f8';
@@ -456,11 +475,12 @@ window.viewStudent = (studentId) => {
       `${state.classInfo?.name}${r.streamName ? ' — ' + r.streamName : ''} | Term ${state.examInfo?.term} ${state.examInfo?.name} | Rank: ${r.position}`;
   }
 
-  /* Build subject breakdown */
+  /* Build subject breakdown (sorted in the fixed subject order) */
   const body = document.getElementById('detailModalBody');
   if (body) {
     const meanBg    = GRADE_BG[r.meanGrade]     || '#f0f4f8';
     const meanColor = GRADE_COLOURS[r.meanGrade] || '#666';
+    const orderedResults = sortSubjects(r.subjectResults || []);
 
     body.innerHTML = `
       <!-- Summary row -->
@@ -485,7 +505,7 @@ window.viewStudent = (studentId) => {
 
       <!-- Subject breakdown -->
       <div style="border:1px solid var(--border-light);border-radius:var(--radius-sm);overflow:hidden;">
-        ${(r.subjectResults || []).map((sr, i) => {
+        ${orderedResults.map((sr, i) => {
           const rowBg  = i % 2 === 0 ? '#ffffff' : '#f8fafc';
           const css    = GRADE_CSS[sr.grade] || '';
           const colour = GRADE_COLOURS[sr.grade] || '#94a3b8';
@@ -535,7 +555,7 @@ document.getElementById('closeDetailModal')?.addEventListener('click', closeDeta
 document.getElementById('closeDetailBtn')?.addEventListener('click',   closeDetail);
 
 /* ══════════════════════════════════════════════════════════
-   EXPORT CSV
+   EXPORT CSV  (score and level shown together, e.g. "72 ME1")
 ══════════════════════════════════════════════════════════ */
 document.getElementById('exportResultsBtn')?.addEventListener('click', () => {
   if (!state.results.length) {
@@ -555,7 +575,7 @@ document.getElementById('exportResultsBtn')?.addEventListener('click', () => {
       const sr = r.subjectResults?.find(s => s.code === subj.code);
       if (!sr || sr.notEntered) return '—';
       if (sr.absent) return 'ABS';
-      return sr.score;
+      return `${sr.score} ${sr.grade || ''}`.trim();
     });
 
     return [
