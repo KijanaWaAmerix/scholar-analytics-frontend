@@ -426,10 +426,16 @@ async function saveStudent() {
 
   const btn = document.getElementById('saveStudentBtn');
   if (btn) btn.disabled = true;
-
-  const payload = {
-    fullName, gender, dateOfBirth, upiNumber,
-    assessmentNo, classId, parentName, parentContact, isActive,
+const payload = {
+  fullName,
+  gender,
+  dateOfBirth,
+  upiNumber    : upiNumber?.trim()    || undefined,
+  assessmentNo : assessmentNo?.trim() || undefined,
+  classId,
+  parentName,
+  parentContact,
+  isActive,
   };
 
   let result;
