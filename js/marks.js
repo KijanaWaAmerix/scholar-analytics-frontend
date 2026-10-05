@@ -624,38 +624,44 @@ async function saveMarks() {
   });
   finishSave(`${toSave.length} marks saved to database!`);
 }
-
 async function saveAllSubjects() {
   const m = state.multi;
   state.saving = true;
   setSaveBusy(true);
   updateSaveStatus('saving');
 
-  const jobs = m.subjects.map(s => {
+  const failed = [];
+  let savedCount = 0;
+
+  for (const s of m.subjects) {
     const marks = m.students
       .filter(st => m.marks[st._id][s._id] !== '' && m.marks[st._id][s._id] !== undefined)
       .map(st => {
         const v = m.marks[st._id][s._id];
         return { studentId: st._id, score: v === 'A' ? null : Number(v), absent: v === 'A' };
       });
-    return marks.length
-      ? API.post('/marks/bulk', { examId: m.examId, subjectId: s._id, classId: m.classId, marks })
-      : null;
-  }).filter(Boolean);
 
-  if (!jobs.length) {
-    state.saving = false; setSaveBusy(false);
+    if (!marks.length) continue;
+
+    const result = await API.post('/marks/bulk', {
+      examId: m.examId, subjectId: s._id, classId: m.classId, marks,
+    });
+
+    if (result?.ok) savedCount++;
+    else failed.push(`${shortLabel(s)}: ${result?.data?.message || 'status ' + result?.status}`);
+  }
+
+  state.saving = false;
+  setSaveBusy(false);
+
+  if (!savedCount && !failed.length) {
     showToast('No marks to save.', 'warning');
     updateSaveStatus('unsaved');
     return;
   }
-
-  const results = await Promise.all(jobs);
-  state.saving = false;
-  setSaveBusy(false);
-
-  if (results.some(r => !r?.ok)) {
-    showToast('Some subjects failed to save. Try again.', 'error');
+  if (failed.length) {
+    console.error('Save failures:', failed);
+    alert('These subjects did not save:\n\n' + failed.join('\n'));
     updateSaveStatus('unsaved');
     return;
   }
@@ -671,7 +677,6 @@ document.addEventListener('keydown', e => {
     saveMarks();
   }
 });
-
 /* ══════════════════════════════════════════════════════════
    CLEAR ALL
 ══════════════════════════════════════════════════════════ */
