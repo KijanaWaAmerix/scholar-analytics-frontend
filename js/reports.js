@@ -758,7 +758,8 @@ const buildReportCard = (r, s) => {
 /* ══════════════════════════════════════════════════════════
    12. BUILD CLASS RESULT SHEET
        Subject columns are now the real per-class subject list
-      const buildClassSheet = (results, s) => {
+══════════════════════════════════════════════════════════ */
+const buildClassSheet = (results, s) => {
   const avg      = (results.reduce((a,r)=>a+r.avgScore,0)/results.length).toFixed(1);
   const highest  = Math.max(...results.map(r=>r.avgScore));
   const topPts   = Math.max(...results.map(r=>r.totalPoints));
@@ -1100,6 +1101,7 @@ const buildReportCard = (r, s) => {
   </div>
 
 </div>`;
+};
 
 /* ══════════════════════════════════════════════════════════
    13. BULK PREVIEW — All cards stacked
@@ -1370,4 +1372,5 @@ window.redownloadLast = () => {
 ══════════════════════════════════════════════════════════ */
 switchTab('individual');
 renderRecentReports();
+
 loadClasses();
