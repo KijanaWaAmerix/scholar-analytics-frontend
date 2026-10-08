@@ -1,8 +1,13 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Marks Entry
-   File: js/marks.js  Version: 5.0
-   v5.0: "ALL SUBJECTS" sheet (ENG, MATH, KISW, INTER, SST, CRE,
-         CAS, AGN, PRETECH) + element IDs aligned with marks.html
+   File: js/marks.js  Version: 6.0
+   v6.0: enter marks for ONE class (e.g. Grade 7 East / Grade 7 West)
+         or for a WHOLE GRADE at once (all streams on one sheet,
+         with the stream shown under each name). Each learner's
+         marks are saved to their own class automatically.
+         Classes, exams and subjects all come from the backend —
+         nothing is hard-coded to East/West or to exam names.
+   v5.0: "ALL SUBJECTS" sheet + element IDs aligned with marks.html
 ═══════════════════════════════════════════════════════════ */
 
 const user = requireAuth();
@@ -55,15 +60,21 @@ const shortLabel = s => SUBJECT_ORDER[orderIndex(s.code)]?.label || s.code;
 
 /* ══════════════════════════════════════════════════════════
    STATE
+   subjects : canonical list for the selected class/grade, matched
+              across streams by subject CODE:
+              [{ key, code, name, ids: { classId: subjectId } }]
+   targets  : per class being entered:
+              { classId: { className, examId, subjectId? } }
 ══════════════════════════════════════════════════════════ */
 const state = {
-  classes: [], exams: [], subjects: [],
+  classes: [], subjects: [],
+  gradeExams: {},            // whole-grade mode: "year|name" -> { name, year, perClass:{classId:exam} }
   students: [], marks: {},
-  examId: '', subjectId: '', classId: '',
+  targets: {},
   focusedRow: -1,
   hasUnsaved: false,
   saving: false,
-  multi: null, // set when "ALL SUBJECTS" is loaded
+  multi: null,               // set when "ALL SUBJECTS" is loaded
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -95,6 +106,40 @@ const AV = ['av-blue','av-green','av-orange','av-purple','av-teal','av-red'];
 const getInitials = n => n?.trim().split(' ').filter(Boolean).slice(0,2).map(w => w[0].toUpperCase()).join('') || '?';
 const getAvColour = n => AV[(n?.charCodeAt(0) || 0) % AV.length];
 
+const esc = (t) => String(t ?? '')
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+/* ══════════════════════════════════════════════════════════
+   CLASS / GRADE HELPERS
+   Class dropdown value = a class id, or "grade:7" for a whole grade.
+══════════════════════════════════════════════════════════ */
+const streamLabel  = c => c.stream || c.name;
+const isGradeValue = v => String(v || '').startsWith('grade:');
+
+const gradeGroups = () => {
+  const map = {};
+  state.classes.forEach(c => {
+    if (c.grade === undefined || c.grade === null) return;
+    (map[c.grade] = map[c.grade] || []).push(c);
+  });
+  return Object.entries(map).sort((a, b) => Number(a[0]) - Number(b[0]));
+};
+
+const targetsOf = (value) => {
+  if (!value) return [];
+  if (isGradeValue(value)) {
+    const g = value.slice(6);
+    return state.classes.filter(c => String(c.grade) === g);
+  }
+  const one = state.classes.find(c => c._id === value);
+  return one ? [one] : [];
+};
+
+const multiStream = () => Object.keys(state.targets).length > 1;
+const streamTag = (st) => multiStream()
+  ? `<div style="font-size:0.68rem;color:var(--text-soft);">${esc(st._stream || '')}</div>` : '';
+
 /* ══════════════════════════════════════════════════════════
    LOAD CLASSES / EXAMS / SUBJECTS
 ══════════════════════════════════════════════════════════ */
@@ -102,50 +147,116 @@ const loadClasses = async () => {
   const result = await API.get('/classes');
   if (!result?.ok) return;
   state.classes = result.data.classes || [];
+
+  const whole = gradeGroups()
+    .filter(([, list]) => list.length > 1)
+    .map(([g, list]) =>
+      `<option value="grade:${esc(g)}">Grade ${esc(g)} — Whole Grade (${esc(list.map(streamLabel).join(' + '))})</option>`
+    ).join('');
+  const single = state.classes.map(c => `<option value="${c._id}">${esc(c.name)}</option>`).join('');
+
   el.selClass.innerHTML = '<option value="">-- Select Class --</option>' +
-    state.classes.map(c => `<option value="${c._id}">${c.name}</option>`).join('');
+    (whole  ? `<optgroup label="Whole grade (all streams together)">${whole}</optgroup>` : '') +
+    (single ? `<optgroup label="Single class">${single}</optgroup>` : '');
 };
 
 const loadExams = async () => {
-  const classId = el.selClass.value;
-  const term    = el.selTerm.value;
-  if (!classId || !term) return;
+  const value = el.selClass.value;
+  const term  = el.selTerm.value;
+  if (!value || !term) return;
+
+  const targets = targetsOf(value);
+  if (!targets.length) return;
 
   el.selExam.innerHTML = '<option value="">Loading...</option>';
-  const result = await API.get(`/exams?class=${classId}&term=${term}`);
 
-  if (!result?.ok || !result.data.exams?.length) {
+  /* ── single class: exam options are exam ids ── */
+  if (!isGradeValue(value)) {
+    const result = await API.get(`/exams?class=${value}&term=${term}`);
+    if (!result?.ok || !result.data.exams?.length) {
+      el.selExam.innerHTML = '<option value="">No exams found for this term</option>';
+      return;
+    }
+    el.selExam.innerHTML = '<option value="">-- Select Exam --</option>' +
+      result.data.exams.map(e =>
+        `<option value="${e._id}">${esc(e.name)}${!e.isOpen ? ' (Closed)' : ''}</option>`
+      ).join('');
+    return;
+  }
+
+  /* ── whole grade: one option per exam name (year|name) that exists in EVERY class ── */
+  const results = await Promise.all(targets.map(c => API.get(`/exams?class=${c._id}&term=${term}`)));
+
+  const map = {};
+  results.forEach((r, i) => {
+    (r?.ok ? (r.data.exams || []) : []).forEach(e => {
+      const key = `${e.academicYear}|${e.name}`;
+      map[key] = map[key] || { name: e.name, year: e.academicYear, perClass: {} };
+      map[key].perClass[targets[i]._id] = e;
+    });
+  });
+  state.gradeExams = map;
+
+  const keys = Object.keys(map).sort();
+  if (!keys.length) {
     el.selExam.innerHTML = '<option value="">No exams found for this term</option>';
     return;
   }
-  state.exams = result.data.exams;
-  el.selExam.innerHTML = '<option value="">-- Select Exam --</option>' +
-    state.exams.map(e => `<option value="${e._id}">${e.name}${!e.isOpen ? ' (Closed)' : ''}</option>`).join('');
+
+  const manyYears = new Set(keys.map(k => map[k].year)).size > 1;
+
+  el.selExam.innerHTML = '<option value="">-- Select Exam --</option>' + keys.map(k => {
+    const x = map[k];
+    const label   = esc(x.name) + (manyYears ? ` (${esc(x.year)})` : '');
+    const missing = targets.filter(c => !x.perClass[c._id]);
+    if (missing.length) {
+      return `<option value="${esc(k)}" disabled>${label} — missing in ${esc(missing.map(streamLabel).join(', '))}</option>`;
+    }
+    const closed = targets.some(c => !x.perClass[c._id].isOpen);
+    return `<option value="${esc(k)}">${label}${closed ? ' (Closed)' : ''}</option>`;
+  }).join('');
 };
 
 const loadSubjects = async () => {
-  const classId = el.selClass.value;
-  if (!classId) return;
+  const value = el.selClass.value;
+  if (!value) return;
+
+  const targets = targetsOf(value);
+  if (!targets.length) return;
 
   el.selSubject.innerHTML = '<option value="">Loading...</option>';
-  const result = await API.get(`/subjects?class=${classId}`);
+  const results = await Promise.all(targets.map(c => API.get(`/subjects?class=${c._id}`)));
 
-  if (!result?.ok || !result.data.subjects?.length) {
+  /* Match subjects across streams by code */
+  const byKey = {};
+  results.forEach((r, i) => {
+    (r?.ok ? (r.data.subjects || []) : []).filter(s => s.isActive).forEach(s => {
+      const key  = String(s.code || s._id).toUpperCase();
+      const item = byKey[key] = byKey[key] || { key, code: s.code || key, name: s.name, ids: {} };
+      item.ids[targets[i]._id] = s._id;
+    });
+  });
+
+  state.subjects = Object.values(byKey).sort((a, b) =>
+    orderIndex(a.code) - orderIndex(b.code) || a.name.localeCompare(b.name));
+
+  if (!state.subjects.length) {
     el.selSubject.innerHTML = '<option value="">No subjects found</option>';
     return;
   }
 
-  state.subjects = result.data.subjects
-    .filter(s => s.isActive)
-    .sort((a, b) => orderIndex(a.code) - orderIndex(b.code));
-
   el.selSubject.innerHTML =
     '<option value="">-- Select Subject --</option>' +
     '<option value="ALL">ALL SUBJECTS (ENG → PRETECH)</option>' +
-    state.subjects.map(s => `<option value="${s._id}">${shortLabel(s)} – ${s.name}</option>`).join('');
+    state.subjects.map(s => {
+      const missing = targets.length > 1 ? targets.filter(c => !s.ids[c._id]) : [];
+      const note = missing.length ? ` — not set up in ${missing.map(streamLabel).join(', ')}` : '';
+      return `<option value="${esc(s.key)}">${esc(shortLabel(s))} – ${esc(s.name)}${esc(note)}</option>`;
+    }).join('');
 };
 
 el.selClass.addEventListener('change', () => {
+  state.subjects = [];
   el.selExam.innerHTML    = '<option value="">-- Select Exam --</option>';
   el.selSubject.innerHTML = '<option value="">-- Select Subject --</option>';
   loadExams();
@@ -169,10 +280,13 @@ const updateSaveStatus = (status) => {
   if (span) span.textContent = msg[status] || status;
 };
 
+/* Subjects that apply to a learner's class (ALL SUBJECTS sheet) */
+const applicable = (st) => state.multi.subjects.filter(s => s.ids[st._classId]);
+
 const allValues = () => {
   if (state.multi) {
     const m = state.multi;
-    return m.students.flatMap(st => m.subjects.map(s => m.marks[st._id][s._id]));
+    return m.students.flatMap(st => applicable(st).map(s => m.marks[st._id][s.key]));
   }
   return state.students.map(s => state.marks[s._id]);
 };
@@ -213,16 +327,18 @@ const hideSheet = () => {
   if (el.sheetWrapper) el.sheetWrapper.style.display = 'none';
 };
 
+const selectedClassLabel = () => el.selClass.selectedOptions[0]?.textContent?.trim() || 'Class';
+
 /* ══════════════════════════════════════════════════════════
    LOAD MARK SHEET
 ══════════════════════════════════════════════════════════ */
 el.loadMarksBtn.addEventListener('click', async () => {
-  const classId   = el.selClass.value;
-  const term      = el.selTerm.value;
-  const examId    = el.selExam.value;
-  const subjectId = el.selSubject.value;
+  const classValue = el.selClass.value;
+  const term       = el.selTerm.value;
+  const examValue  = el.selExam.value;
+  const subjectKey = el.selSubject.value;
 
-  if (!classId || !term || !examId || !subjectId) {
+  if (!classValue || !term || !examValue || !subjectKey) {
     showToast('Please select all four fields.', 'warning');
     ['selClass','selTerm','selExam','selSubject'].forEach(id => {
       const s = $(id);
@@ -236,9 +352,41 @@ el.loadMarksBtn.addEventListener('click', async () => {
 
   if (state.hasUnsaved && !confirm('You have unsaved marks. Load new sheet anyway?')) return;
 
-  if (subjectId === 'ALL') return loadAllSubjects(classId, examId);
+  const gradeMode = isGradeValue(classValue);
+  const targets   = targetsOf(classValue);
+
+  /* Work out which exam belongs to each class */
+  const plan = targets.map(c => ({
+    cls   : c,
+    examId: gradeMode ? state.gradeExams[examValue]?.perClass?.[c._id]?._id : examValue,
+  }));
+
+  if (!plan.length || plan.some(p => !p.examId)) {
+    showToast('This exam does not exist in every selected class. Create it on the Exams page first.', 'error');
+    return;
+  }
+
+  state.targets = {};
+  plan.forEach(p => { state.targets[p.cls._id] = { className: p.cls.name, examId: p.examId }; });
+
+  if (subjectKey === 'ALL') return loadAllSubjects(plan);
 
   /* ---- single subject ---- */
+  const subj = state.subjects.find(s => s.key === subjectKey);
+  if (!subj) { showToast('Subject not found.', 'error'); return; }
+
+  const usable  = plan.filter(p => subj.ids[p.cls._id]);
+  const skipped = plan.filter(p => !subj.ids[p.cls._id]);
+
+  if (!usable.length) {
+    showToast(`${subj.name} is not set up in the selected class(es).`, 'error');
+    return;
+  }
+  if (skipped.length) {
+    showToast(`${subj.name} is not set up in ${skipped.map(p => p.cls.name).join(', ')} — those learners are skipped.`, 'warning');
+    skipped.forEach(p => delete state.targets[p.cls._id]);
+  }
+
   state.multi = null;
   if (ORIGINAL_THEAD) el.table.querySelector('thead').innerHTML = ORIGINAL_THEAD;
 
@@ -246,33 +394,45 @@ el.loadMarksBtn.addEventListener('click', async () => {
   el.sheetWrapper.style.display = 'block';
   el.tableBody.innerHTML = Skeleton.table(8, 8);
 
-  const result = await API.get(`/marks/sheet?classId=${classId}&examId=${examId}&subjectId=${subjectId}`);
+  const results = await Promise.all(usable.map(p =>
+    API.get(`/marks/sheet?classId=${p.cls._id}&examId=${p.examId}&subjectId=${subj.ids[p.cls._id]}`)));
 
-  if (!result?.ok) {
-    showToast(result?.data?.message || 'Failed to load mark sheet.', 'error');
+  const students = [];
+  const marks    = {};
+  const closed   = [];
+  const failed   = [];
+  let   examInfo = null;
+
+  results.forEach((r, i) => {
+    const p = usable[i];
+    if (!r?.ok) { failed.push(`${p.cls.name}: ${r?.data?.message || 'could not load'}`); delete state.targets[p.cls._id]; return; }
+
+    state.targets[p.cls._id].subjectId = subj.ids[p.cls._id];
+    examInfo = examInfo || r.data.exam;
+    if (!r.data.exam.isOpen) closed.push(p.cls.name);
+
+    r.data.sheet.forEach(s => {
+      students.push({ ...s, _classId: p.cls._id, _stream: streamLabel(p.cls) });
+      marks[s._id] = s.mark ? (s.mark.absent ? 'A' : s.mark.score) : '';
+    });
+  });
+
+  if (!students.length) {
+    showToast(failed[0] || 'No learners found.', 'error');
     hideSheet();
     return;
   }
+  if (failed.length) showToast('Some classes failed to load: ' + failed.join('; '), 'warning');
+  if (closed.length) showToast(`Exam is closed in ${closed.join(', ')}. Open it in the Exams page first.`, 'warning');
 
-  const { sheet, exam, subject, class: cls } = result.data;
-
-  if (!exam.isOpen) {
-    showToast(`"${exam.name}" is closed for marks entry. Open it in Exams page first.`, 'warning');
-  }
-
-  state.examId = examId; state.subjectId = subjectId; state.classId = classId;
-  state.students = sheet; state.marks = {}; state.focusedRow = -1;
+  state.students = students; state.marks = marks; state.focusedRow = -1;
   setUnsaved(false);
 
-  sheet.forEach(s => {
-    state.marks[s._id] = s.mark ? (s.mark.absent ? 'A' : s.mark.score) : '';
-  });
-
-  showSheet(cls.name, subject.name, `${exam.name} (Term ${exam.term})`);
+  showSheet(selectedClassLabel(), subj.name, `${examInfo.name} (Term ${examInfo.term})`);
   renderTable();
   updateProgress();
   updateSaveStatus('idle');
-  showToast(`Loaded ${sheet.length} learners.`, 'success');
+  showToast(`Loaded ${students.length} learners.`, 'success');
 
   setTimeout(() => document.querySelector('.marks-score-input:not(:disabled)')?.focus(), 100);
 });
@@ -299,10 +459,13 @@ const renderTable = () => {
         <td>
           <div class="marks-student-cell">
             <div class="marks-student-avatar ${getAvColour(student.fullName)}">${getInitials(student.fullName)}</div>
-            <div><div class="marks-student-name">${student.fullName}</div></div>
+            <div>
+              <div class="marks-student-name">${esc(student.fullName)}</div>
+              ${streamTag(student)}
+            </div>
           </div>
         </td>
-        <td><span class="marks-upi-code">${student.upiNumber || '—'}</span></td>
+        <td><span class="marks-upi-code">${esc(student.upiNumber || '—')}</span></td>
         <td class="marks-score-cell">
           <input type="number"
             class="marks-score-input ${g ? g.css : ''} ${isAbsent ? 'absent-mode' : ''}"
@@ -431,48 +594,63 @@ window.toggleAbsent = (id) => {
 
 /* ══════════════════════════════════════════════════════════
    ALL-SUBJECTS SHEET  (name + ENG … PRETECH across)
+   Works for one class or a whole grade.
 ══════════════════════════════════════════════════════════ */
-const loadAllSubjects = async (classId, examId) => {
+const loadAllSubjects = async (plan) => {
   const subs = state.subjects;
-  if (!subs.length) { showToast('No subjects found for this class.', 'warning'); return; }
+  if (!subs.length) { showToast('No subjects found for this selection.', 'warning'); return; }
 
   el.emptyState.style.display = 'none';
   el.sheetWrapper.style.display = 'block';
   el.table.querySelector('thead').innerHTML =
-    `<tr><th>#</th><th>Learner Name</th>${subs.map(s => `<th>${shortLabel(s)}</th>`).join('')}</tr>`;
+    `<tr><th>#</th><th>Learner Name</th>${subs.map(s => `<th>${esc(shortLabel(s))}</th>`).join('')}</tr>`;
   el.tableBody.innerHTML = Skeleton.table(8, subs.length + 2);
 
-  const results = await Promise.all(subs.map(s =>
-    API.get(`/marks/sheet?classId=${classId}&examId=${examId}&subjectId=${s._id}`)));
+  /* one request per class × subject that exists in that class */
+  const jobs = [];
+  plan.forEach(p => subs.forEach(s => { if (s.ids[p.cls._id]) jobs.push({ p, s }); }));
 
-  const first = results.find(r => r?.ok);
-  if (!first) {
+  const results = await Promise.all(jobs.map(j =>
+    API.get(`/marks/sheet?classId=${j.p.cls._id}&examId=${j.p.examId}&subjectId=${j.s.ids[j.p.cls._id]}`)));
+
+  const students = [];
+  const marks    = {};
+  const seen     = new Set();
+  const closed   = new Set();
+  const failed   = [];
+  let   examInfo = null;
+
+  results.forEach((r, i) => {
+    const { p, s } = jobs[i];
+    if (!r?.ok) { failed.push(`${p.cls.name} ${shortLabel(s)}`); return; }
+
+    examInfo = examInfo || r.data.exam;
+    if (!r.data.exam.isOpen) closed.add(p.cls.name);
+
+    r.data.sheet.forEach(st => {
+      if (!seen.has(st._id)) {
+        seen.add(st._id);
+        students.push({ ...st, _classId: p.cls._id, _stream: streamLabel(p.cls) });
+        marks[st._id] = {};
+        subs.forEach(x => { marks[st._id][x.key] = ''; });
+      }
+      marks[st._id][s.key] = st.mark ? (st.mark.absent ? 'A' : st.mark.score) : '';
+    });
+  });
+
+  if (!students.length) {
     showToast('Failed to load mark sheet.', 'error');
     hideSheet();
     return;
   }
+  if (failed.length) showToast('Could not load: ' + failed.join(', '), 'warning');
+  if (closed.size)   showToast(`Exam is closed in ${[...closed].join(', ')}.`, 'warning');
 
-  const students = first.data.sheet;
-  const marks = {};
-  students.forEach(st => marks[st._id] = {});
-  subs.forEach(s => students.forEach(st => marks[st._id][s._id] = ''));
-
-  results.forEach((r, i) => {
-    if (!r?.ok) return;
-    r.data.sheet.forEach(st => {
-      if (!marks[st._id]) return;
-      marks[st._id][subs[i]._id] = st.mark ? (st.mark.absent ? 'A' : st.mark.score) : '';
-    });
-  });
-
-  const exam = first.data.exam;
-  if (!exam.isOpen) showToast(`"${exam.name}" is closed for marks entry.`, 'warning');
-
-  state.multi = { classId, examId, subjects: subs, students, marks };
+  state.multi    = { subjects: subs, students, marks };
   state.students = students;
   setUnsaved(false);
 
-  showSheet(first.data.class.name, 'ALL SUBJECTS', `${exam.name} (Term ${exam.term})`);
+  showSheet(selectedClassLabel(), 'ALL SUBJECTS', `${examInfo.name} (Term ${examInfo.term})`);
   renderMultiTable();
   updateProgress();
   updateSaveStatus('idle');
@@ -485,7 +663,7 @@ const renderMultiTable = () => {
 
   el.table.querySelector('thead').innerHTML = `<tr>
     <th class="col-num">#</th><th class="col-name">Learner Name</th>
-    ${m.subjects.map(s => `<th style="text-align:center;">${shortLabel(s)}</th>`).join('')}
+    ${m.subjects.map(s => `<th style="text-align:center;">${esc(shortLabel(s))}</th>`).join('')}
   </tr>`;
 
   el.tableBody.innerHTML = m.students.map((st, r) => `
@@ -494,18 +672,24 @@ const renderMultiTable = () => {
       <td>
         <div class="marks-student-cell">
           <div class="marks-student-avatar ${getAvColour(st.fullName)}">${getInitials(st.fullName)}</div>
-          <div class="marks-student-name">${st.fullName}</div>
+          <div>
+            <div class="marks-student-name">${esc(st.fullName)}</div>
+            ${streamTag(st)}
+          </div>
         </div>
       </td>
       ${m.subjects.map((s, c) => {
-        const v = m.marks[st._id][s._id];
+        if (!s.ids[st._classId]) {
+          return `<td style="text-align:center;color:var(--text-light);" title="Not set up in this class">—</td>`;
+        }
+        const v = m.marks[st._id][s.key];
         const g = getGrade(v);
         return `<td style="text-align:center;">
           <input type="text" inputmode="numeric" autocomplete="off" placeholder="–"
             class="marks-score-input multi-input ${g ? g.css : ''}"
             style="width:64px;text-align:center;"
-            data-student="${st._id}" data-subject="${s._id}" data-r="${r}" data-c="${c}"
-            value="${v ?? ''}"/></td>`;
+            data-student="${st._id}" data-subject="${esc(s.key)}" data-r="${r}" data-c="${c}"
+            value="${esc(v ?? '')}"/></td>`;
       }).join('')}
     </tr>`).join('');
 
@@ -554,8 +738,8 @@ el.quickFillBtn?.addEventListener('click', () => {
 
   if (state.multi) {
     const m = state.multi;
-    m.students.forEach(st => m.subjects.forEach(s => {
-      if (m.marks[st._id][s._id] === '') m.marks[st._id][s._id] = n;
+    m.students.forEach(st => applicable(st).forEach(s => {
+      if (m.marks[st._id][s.key] === '') m.marks[st._id][s.key] = n;
     }));
     renderMultiTable();
   } else if (state.students.length) {
@@ -569,7 +753,7 @@ el.quickFillBtn?.addEventListener('click', () => {
 });
 
 /* ══════════════════════════════════════════════════════════
-   SAVE
+   SAVE  (each learner's marks go to their own class)
 ══════════════════════════════════════════════════════════ */
 const setSaveBusy = (busy) => {
   if (el.saveBtnText)    el.saveBtnText.style.display    = busy ? 'none' : 'inline';
@@ -590,40 +774,59 @@ async function saveMarks() {
   if (!state.students.length) return;
   if (state.multi) return saveAllSubjects();
 
-  const toSave = state.students.filter(s => {
+  /* group learners with a mark by class */
+  const byClass = {};
+  state.students.forEach(s => {
     const m = state.marks[s._id];
-    return m !== '' && m !== undefined;
+    if (m === '' || m === undefined) return;
+    (byClass[s._classId] = byClass[s._classId] || []).push(s);
   });
-  if (!toSave.length) { showToast('No marks to save. Enter at least one score.', 'warning'); return; }
+
+  const classIds = Object.keys(byClass);
+  if (!classIds.length) { showToast('No marks to save. Enter at least one score.', 'warning'); return; }
 
   state.saving = true;
   setSaveBusy(true);
   updateSaveStatus('saving');
 
-  const result = await API.post('/marks/bulk', {
-    examId: state.examId, subjectId: state.subjectId, classId: state.classId,
-    marks: toSave.map(s => ({
-      studentId: s._id,
-      score: state.marks[s._id] === 'A' ? null : Number(state.marks[s._id]),
-      absent: state.marks[s._id] === 'A',
-    })),
-  });
+  const failed = [];
+  let total = 0;
+
+  for (const cid of classIds) {
+    const t    = state.targets[cid];
+    const list = byClass[cid];
+
+    const result = await API.post('/marks/bulk', {
+      examId: t.examId, subjectId: t.subjectId, classId: cid,
+      marks: list.map(s => ({
+        studentId: s._id,
+        score: state.marks[s._id] === 'A' ? null : Number(state.marks[s._id]),
+        absent: state.marks[s._id] === 'A',
+      })),
+    });
+
+    if (result?.ok) {
+      total += list.length;
+      list.forEach(s => {
+        const row = $(`row-${s._id}`);
+        if (row) { row.classList.add('row-saved'); setTimeout(() => row.classList.remove('row-saved'), 2000); }
+      });
+    } else {
+      failed.push(`${t.className}: ${result?.data?.message || 'status ' + result?.status}`);
+    }
+  }
 
   state.saving = false;
   setSaveBusy(false);
 
-  if (!result?.ok) {
-    showToast(result?.data?.message || 'Failed to save marks.', 'error');
+  if (failed.length) {
+    alert((total ? `${total} marks were saved.\n\n` : '') + 'These classes did not save:\n\n' + failed.join('\n'));
     updateSaveStatus('unsaved');
     return;
   }
-
-  toSave.forEach(s => {
-    const row = $(`row-${s._id}`);
-    if (row) { row.classList.add('row-saved'); setTimeout(() => row.classList.remove('row-saved'), 2000); }
-  });
-  finishSave(`${toSave.length} marks saved to database!`);
+  finishSave(`${total} marks saved to database!`);
 }
+
 async function saveAllSubjects() {
   const m = state.multi;
   state.saving = true;
@@ -633,22 +836,30 @@ async function saveAllSubjects() {
   const failed = [];
   let savedCount = 0;
 
-  for (const s of m.subjects) {
-    const marks = m.students
-      .filter(st => m.marks[st._id][s._id] !== '' && m.marks[st._id][s._id] !== undefined)
-      .map(st => {
-        const v = m.marks[st._id][s._id];
-        return { studentId: st._id, score: v === 'A' ? null : Number(v), absent: v === 'A' };
+  for (const cid of Object.keys(state.targets)) {
+    const t     = state.targets[cid];
+    const studs = m.students.filter(st => st._classId === cid);
+
+    for (const s of m.subjects) {
+      const subjectId = s.ids[cid];
+      if (!subjectId) continue;
+
+      const marks = studs
+        .filter(st => m.marks[st._id][s.key] !== '' && m.marks[st._id][s.key] !== undefined)
+        .map(st => {
+          const v = m.marks[st._id][s.key];
+          return { studentId: st._id, score: v === 'A' ? null : Number(v), absent: v === 'A' };
+        });
+
+      if (!marks.length) continue;
+
+      const result = await API.post('/marks/bulk', {
+        examId: t.examId, subjectId, classId: cid, marks,
       });
 
-    if (!marks.length) continue;
-
-    const result = await API.post('/marks/bulk', {
-      examId: m.examId, subjectId: s._id, classId: m.classId, marks,
-    });
-
-    if (result?.ok) savedCount++;
-    else failed.push(`${shortLabel(s)}: ${result?.data?.message || 'status ' + result?.status}`);
+      if (result?.ok) savedCount++;
+      else failed.push(`${t.className} ${shortLabel(s)}: ${result?.data?.message || 'status ' + result?.status}`);
+    }
   }
 
   state.saving = false;
@@ -677,6 +888,7 @@ document.addEventListener('keydown', e => {
     saveMarks();
   }
 });
+
 /* ══════════════════════════════════════════════════════════
    CLEAR ALL
 ══════════════════════════════════════════════════════════ */
@@ -686,7 +898,7 @@ el.clearBtn?.addEventListener('click', () => {
 
   if (state.multi) {
     const m = state.multi;
-    m.students.forEach(st => m.subjects.forEach(s => { m.marks[st._id][s._id] = ''; }));
+    m.students.forEach(st => m.subjects.forEach(s => { m.marks[st._id][s.key] = ''; }));
     renderMultiTable();
   } else {
     state.students.forEach(s => { state.marks[s._id] = ''; });
@@ -699,9 +911,13 @@ el.clearBtn?.addEventListener('click', () => {
 });
 
 /* ══════════════════════════════════════════════════════════
-   EXCEL IMPORT (unchanged)
+   EXCEL IMPORT  (one class at a time)
 ══════════════════════════════════════════════════════════ */
 el.importExcelBtn?.addEventListener('click', () => {
+  if (isGradeValue(el.selClass.value)) {
+    showToast('Excel import works one class at a time. Pick a single class (e.g. Grade 7 East), then import.', 'warning');
+    return;
+  }
   if (!el.selClass.value || !el.selExam.value) {
     showToast('Please select a Class and an Exam first.', 'warning');
     ['selClass','selExam'].forEach(id => {
@@ -761,15 +977,15 @@ const showImportResults = (data) => {
 
   if (s.createdStudents?.length) {
     html += heading('New students added (finish their profiles in Students page)', 'var(--text-mid)') +
-      `<ul style="margin:0;padding-left:18px;font-size:0.85rem;color:var(--text-mid);">${s.createdStudents.map(n => `<li>${n}</li>`).join('')}</ul>`;
+      `<ul style="margin:0;padding-left:18px;font-size:0.85rem;color:var(--text-mid);">${s.createdStudents.map(n => `<li>${esc(n)}</li>`).join('')}</ul>`;
   }
   if (s.unmatchedColumns?.length) {
     html += heading('Column headers not matched to any subject', '#e74c3c') +
-      `<ul style="margin:0;padding-left:18px;font-size:0.85rem;color:var(--text-mid);">${s.unmatchedColumns.map(c => `<li>${c}</li>`).join('')}</ul>`;
+      `<ul style="margin:0;padding-left:18px;font-size:0.85rem;color:var(--text-mid);">${s.unmatchedColumns.map(c => `<li>${esc(c)}</li>`).join('')}</ul>`;
   }
   if (data.errors?.length) {
     html += heading('Errors', '#e74c3c') +
-      `<ul style="margin:0;padding-left:18px;font-size:0.8rem;color:var(--text-mid);">${data.errors.map(e => `<li>${e.student || ''} ${e.subject ? '(' + e.subject + ')' : ''}: ${e.error}</li>`).join('')}</ul>`;
+      `<ul style="margin:0;padding-left:18px;font-size:0.8rem;color:var(--text-mid);">${data.errors.map(e => `<li>${esc(e.student || '')} ${e.subject ? '(' + esc(e.subject) + ')' : ''}: ${esc(e.error)}</li>`).join('')}</ul>`;
   }
 
   body.innerHTML = html;

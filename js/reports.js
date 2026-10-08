@@ -1,10 +1,20 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Reports & PDFs
    File: js/reports.js
-   Version: 6.0 — Now wired to real backend data.
-   Same pixel-perfect CBC report card design as v5.1;
-   MOCK_DATA removed, replaced with /classes, /exams,
-   /results/class (the same ranking already used by Results page).
+   Version: 6.2
+   6.2: ONE class dropdown — Whole Grade, or any single class (East / West).
+        Exam names come from real exams; teacher names are saved per class.
+   Changes from 6.0:
+   • Pathway Summary now blends CORE subjects (Maths, English,
+     Kiswahili) at 40% with PATHWAY-ONLY subjects at 60%.
+     Weights and the core list are in KJSEA.PATHWAY_WEIGHTS and
+     KJSEA.CORE_KEYWORDS — change them there.
+   • Subject teacher names can be typed on the Reports page, per
+     class (e.g. Grade 7 East / Grade 7 West) or per grade when
+     "Whole Grade" scope is used. Nothing is hard-coded: classes
+     and subjects come from the backend. Names are saved in this
+     browser and fill the TEACHER column on the report card.
+   • Class teacher / Principal names print above signature lines.
 ═══════════════════════════════════════════════════════════ */
 
 /* ── Auth ─────────────────────────────────────────────────── */
@@ -14,8 +24,6 @@ initSidebar(user);
 
 /* ══════════════════════════════════════════════════════════
    1. KJSEA GRADING ENGINE
-   (grading scale/comments are pure functions of score/grade —
-   unchanged from before, since they don't depend on data source)
 ══════════════════════════════════════════════════════════ */
 const KJSEA = {
 
@@ -42,6 +50,19 @@ const KJSEA = {
     'Creative Arts': 'creative',
   },
 
+  /* ── CORE SUBJECTS ─────────────────────────────────────────
+     A subject is "core" if its name STARTS WITH one of these
+     keywords (case-insensitive). So 'Mathematics', 'Maths',
+     'English', 'English Language', 'Kiswahili' are all matched.
+     Core subjects are scored once, as a shared base, and are
+     NOT counted again inside any pathway's own subjects. */
+  CORE_KEYWORDS: ['math', 'english', 'kiswahili'],
+
+  /* ── PATHWAY WEIGHTS ───────────────────────────────────────
+     Pathway score = core% × core  +  pathway-only% × pathway
+     Must add up to 1. */
+  PATHWAY_WEIGHTS: { core: 0.40, pathway: 0.60 },
+
   PATHWAYS: {
     stem    : { name:'STEM',            col:'#1d4ed8', bg:'#dbeafe', border:'#3b82f6', pillBg:'#bfdbfe', pillCol:'#1e3a8a' },
     social  : { name:'Social Sciences', col:'#166534', bg:'#dcfce7', border:'#22c55e', pillBg:'#bbf7d0', pillCol:'#14532d' },
@@ -53,43 +74,67 @@ const KJSEA = {
     return this.SCALE.find(s => Number(score) >= s.min && Number(score) <= s.max) || null;
   },
 
-  /* Groups a learner's subjectResults into stem/social/creative buckets
-     using each subject's learningArea. Subjects with no learningArea
-     set, or one that isn't in the map, are simply left out of every
-     bucket (rather than guessed) — the Subjects page can assign a
-     learningArea to fix that. */
+  isCore(name) {
+    const n = String(name || '').trim().toLowerCase();
+    return this.CORE_KEYWORDS.some(k => n.startsWith(k));
+  },
+
+  /* Pathway score (40/60 by default):
+       core%     = mean score of the core subjects the learner sat
+       pathway%  = mean score of that pathway's own (non-core) subjects
+       final     = core% × 0.40 + pathway% × 0.60
+     • Core subjects never appear inside a pathway's own list.
+     • Subjects with no learningArea (or one not in the map) are
+       left out rather than guessed.
+     • If the learner has no core scores at all, the pathway score
+       falls back to the pathway-only average.
+     • If a pathway has no subjects with scores, its score is null
+       and the card shows "—". */
   computePathways(subjectResults) {
+    const w     = this.PATHWAY_WEIGHTS;
+    const valid = s => s && s.score !== null && s.score !== undefined && !isNaN(Number(s.score));
+    const mean  = arr => arr.length ? arr.reduce((a,b)=>a+b,0) / arr.length : null;
+    const r1    = x => x === null ? null : parseFloat(x.toFixed(1));
+
+    const coreSubs   = subjectResults.filter(s => valid(s) && this.isCore(s.name));
+    const coreScores = coreSubs.map(s => Number(s.score));
+    const coreAvg    = mean(coreScores);
+
     const acc = {
-      stem    : { scores:[], points:0, count:0, subjectNames:[] },
-      social  : { scores:[], points:0, count:0, subjectNames:[] },
-      creative: { scores:[], points:0, count:0, subjectNames:[] },
+      stem    : { scores:[], points:0, names:[] },
+      social  : { scores:[], points:0, names:[] },
+      creative: { scores:[], points:0, names:[] },
     };
 
     subjectResults.forEach(s => {
-      const pathwayKey = this.LEARNING_AREA_TO_PATHWAY[s.learningArea];
-      if (!pathwayKey || s.score === null) return;
-      const p = acc[pathwayKey];
-      p.scores.push(s.score);
-      p.points += s.points;
-      p.count++;
-      p.subjectNames.push(s.name);
+      if (!valid(s) || this.isCore(s.name)) return;
+      const key = this.LEARNING_AREA_TO_PATHWAY[s.learningArea];
+      if (!key) return;
+      acc[key].scores.push(Number(s.score));
+      acc[key].points += s.points || 0;
+      acc[key].names.push(s.name);
     });
 
     const out = {};
     Object.entries(acc).forEach(([key, p]) => {
-      const avg       = p.scores.length
-        ? parseFloat((p.scores.reduce((a,b)=>a+b,0)/p.scores.length).toFixed(1))
-        : 0;
-      const maxPts    = p.count * 8;
-      const gradeInfo = this.getGrade(avg);
+      const pathAvg = mean(p.scores);
+      let final = null;
+      if (pathAvg !== null) {
+        final = coreAvg === null ? pathAvg : (coreAvg * w.core + pathAvg * w.pathway);
+      }
+      const gradeInfo = final === null ? null : this.getGrade(Math.round(final));
       out[key] = {
-        avg,
-        points  : p.points,
-        maxPts,
-        grade   : gradeInfo?.label   || '--',
-        measure : gradeInfo?.measure || '--',
-        css     : gradeInfo?.css     || '',
-        subjects: p.subjectNames.join(' · ') || 'No subjects assigned to this pathway yet',
+        avg      : r1(final),
+        coreAvg  : r1(coreAvg),
+        pathAvg  : r1(pathAvg),
+        coreCount: coreScores.length,
+        count    : p.scores.length,
+        points   : p.points,
+        maxPts   : p.scores.length * 8,
+        grade    : gradeInfo?.label   || '--',
+        measure  : gradeInfo?.measure || '--',
+        css      : gradeInfo?.css     || '',
+        subjects : p.names.join(' · ') || 'No subjects assigned to this pathway yet',
       };
     });
     return out;
@@ -145,7 +190,8 @@ const KJSEA = {
 ══════════════════════════════════════════════════════════ */
 const state = {
   activeTab    : 'individual',
-  scope        : 'class', // 'class' | 'grade'
+  scope        : 'class', // 'class' (one class) | 'grade' (whole grade)
+  gradeValue   : '',      // e.g. "7" when scope === 'grade'
   classes      : [],
   exams        : [],
   subjects     : [],   // real per-class subject list from the last results call
@@ -203,92 +249,273 @@ const el = {
 };
 
 /* ══════════════════════════════════════════════════════════
-   4. LOAD CLASSES
+   3b. SUBJECT TEACHERS
+   Teacher names are typed on the Reports page, one box per
+   subject, and are always saved PER CLASS (e.g. Grade 7 East and
+   Grade 7 West can have different teachers). They are stored in
+   this browser (localStorage).
+   • Single class selected  → one set of boxes.
+   • Whole Grade selected   → one set of boxes for EACH stream; every
+     learner's card shows the teachers of their own stream.
+   Classes and subjects come from the backend — nothing is hard-coded.
+
+   The panel is inserted right after the Principal field. If you
+   prefer a fixed spot, add <div id="teacherNamesWrap"></div> to
+   reports.html and the panel will render there instead.
 ══════════════════════════════════════════════════════════ */
+const TEACHER_STORE_KEY = 'sa_report_subject_teachers_v1';
+
+const normName = (n) => String(n || '').trim().toLowerCase().replace(/\s+/g, ' ');
+const escHtml  = (t) => String(t ?? '')
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+const getTeacherStore = () => {
+  try { return JSON.parse(localStorage.getItem(TEACHER_STORE_KEY)) || {}; }
+  catch { return {}; }
+};
+const saveTeacherStore = (store) => {
+  try { localStorage.setItem(TEACHER_STORE_KEY, JSON.stringify(store)); } catch { /* storage full/blocked */ }
+};
+
+/* Classes in the current selection: 1 for a single class, N for a whole grade */
+const classesInScope = () => targetsOf(el.rptClass?.value);
+
+/* { 'Grade 7 East': { subjectName: teacher }, 'Grade 7 West': { … } } */
+const getTeacherMaps = () => {
+  const store = getTeacherStore();
+  const out = {};
+  classesInScope().forEach(c => { out[c.name] = store[`class:${c._id}`] || {}; });
+  return out;
+};
+
+const clearTeacherInputs = () => {
+  const wrap = document.getElementById('teacherNamesWrap');
+  if (wrap) wrap.innerHTML = '';
+};
+
+const renderTeacherInputs = () => {
+  let wrap = document.getElementById('teacherNamesWrap');
+
+  if (!wrap) {
+    const anchor =
+      el.rptPrincipal?.closest('.rpt-field, .form-group, .field') ||
+      el.rptPrincipal?.parentElement;
+    if (!anchor) return;
+    wrap = document.createElement('div');
+    wrap.id = 'teacherNamesWrap';
+    wrap.style.cssText = 'grid-column:1 / -1;width:100%;margin-top:10px;';
+    anchor.insertAdjacentElement('afterend', wrap);
+  }
+
+  const classes = classesInScope();
+  if (!state.subjects.length || !classes.length) { wrap.innerHTML = ''; return; }
+
+  const store = getTeacherStore();
+
+  const section = (c) => `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:#0d3349;margin-bottom:6px;">${escHtml(c.name)}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;">
+        ${state.subjects.map(subj => `
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:#334155;">
+            ${escHtml(subj.name)}
+            <input type="text" data-class="${c._id}" data-subj="${escHtml(normName(subj.name))}"
+              value="${escHtml((store[`class:${c._id}`] || {})[normName(subj.name)] || '')}"
+              placeholder="Teacher name"
+              style="padding:7px 9px;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;font-weight:400;" />
+          </label>`).join('')}
+      </div>
+    </div>`;
+
+  /* "Copy to other classes of this grade": from the first class in scope */
+  const src   = classes[0];
+  const dests = state.classes.filter(c => c.grade === src.grade && c._id !== src._id);
+  const copyBtn = dests.length ? `
+    <button type="button" id="copyTeachersBtn"
+      style="padding:6px 12px;font-size:12px;font-weight:600;border:1px solid #94a3b8;border-radius:6px;background:#fff;color:#0d3349;cursor:pointer;">
+      Copy ${escHtml(src.name)} names to ${dests.map(d => escHtml(d.name)).join(', ')}
+    </button>` : '';
+
+  wrap.innerHTML = `
+    <div style="border:1px solid #cbd5e1;border-radius:8px;padding:12px;background:#f8fafc;">
+      <div style="font-size:12px;font-weight:700;color:#0d3349;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px;">
+        Subject Teachers
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:10px;">
+        Type each teacher's name (e.g. Kemboi Dan). Saved on this device, separately for each class, and printed in the Teacher column.
+      </div>
+      ${classes.map(section).join('')}
+      ${copyBtn}
+    </div>`;
+
+  wrap.querySelectorAll('input[data-subj]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const st  = getTeacherStore();
+      const key = `class:${inp.dataset.class}`;
+      st[key] = st[key] || {};
+      st[key][inp.dataset.subj] = inp.value.trim();
+      saveTeacherStore(st);
+    });
+  });
+
+  document.getElementById('copyTeachersBtn')?.addEventListener('click', () => {
+    const st      = getTeacherStore();
+    const current = Object.fromEntries(
+      Object.entries(st[`class:${src._id}`] || {}).filter(([, v]) => v));
+    dests.forEach(d => {
+      st[`class:${d._id}`] = { ...(st[`class:${d._id}`] || {}), ...current };
+    });
+    saveTeacherStore(st);
+    renderTeacherInputs();
+    showToast(`Teacher names copied to ${dests.length} other class${dests.length === 1 ? '' : 'es'}.`, 'success');
+  });
+};
+
+/* ══════════════════════════════════════════════════════════
+   4. CLASS / GRADE SELECTION
+   ONE class dropdown with every choice:
+     • Whole Grade (all streams together)
+     • each single class (e.g. Grade 7 East, Grade 7 West)
+   The old "This Class / Whole Grade" toggle, the separate Grade
+   dropdown and the fixed exam-name dropdown are hidden.
+══════════════════════════════════════════════════════════ */
+const streamLabel  = c => c.stream || c.name;
+const isGradeValue = v => String(v || '').startsWith('grade:');
+
+const gradeGroups = () => {
+  const map = {};
+  state.classes.forEach(c => {
+    if (c.grade === undefined || c.grade === null) return;
+    (map[c.grade] = map[c.grade] || []).push(c);
+  });
+  return Object.entries(map).sort((a, b) => Number(a[0]) - Number(b[0]));
+};
+
+const targetsOf = (value) => {
+  if (!value) return [];
+  if (isGradeValue(value)) {
+    const g = value.slice(6);
+    return state.classes.filter(c => String(c.grade) === g);
+  }
+  const one = state.classes.find(c => c._id === value);
+  return one ? [one] : [];
+};
+
+const hideLegacyControls = () => {
+  const a = el.scopeClassBtn, b = el.scopeGradeBtn;
+  if (a && b && a.parentElement === b.parentElement &&
+      a.parentElement.querySelectorAll('button').length === 2) {
+    a.parentElement.style.display = 'none';
+  } else {
+    if (a) a.style.display = 'none';
+    if (b) b.style.display = 'none';
+  }
+  if (el.gradeFieldWrap)    el.gradeFieldWrap.style.display    = 'none';
+  if (el.examNameFieldWrap) el.examNameFieldWrap.style.display = 'none';
+  if (el.classFieldWrap)    el.classFieldWrap.style.display    = 'flex';
+  if (el.examFieldWrap)     el.examFieldWrap.style.display     = 'flex';
+};
+
 const loadClasses = async () => {
   const result = await API.get('/classes');
   if (!result?.ok) return;
 
   state.classes = result.data.classes || [];
 
+  const whole = gradeGroups()
+    .filter(([, list]) => list.length > 1)
+    .map(([g, list]) =>
+      `<option value="grade:${escHtml(g)}">Grade ${escHtml(g)} — Whole Grade (${escHtml(list.map(streamLabel).join(' + '))})</option>`
+    ).join('');
+  const single = state.classes.map(c =>
+    `<option value="${c._id}">${escHtml(c.name)}</option>`
+  ).join('');
+
   if (el.rptClass) {
     el.rptClass.innerHTML = '<option value="">-- Select Class --</option>' +
-      state.classes.map(c =>
-        `<option value="${c._id}">${c.name}</option>`
-      ).join('');
-  }
-
-  const grades = [...new Set(state.classes.map(c => c.grade).filter(Boolean))];
-  if (el.rptGrade) {
-    el.rptGrade.innerHTML = '<option value="">-- Select Grade --</option>' +
-      grades.map(g => `<option value="${g}">${g}</option>`).join('');
+      (whole  ? `<optgroup label="Whole grade (all streams together)">${whole}</optgroup>` : '') +
+      (single ? `<optgroup label="Single class">${single}</optgroup>` : '');
   }
 };
 
-/* ══════════════════════════════════════════════════════════
-   SCOPE TOGGLE — This Class vs Whole Grade
-══════════════════════════════════════════════════════════ */
-const setScope = (scope) => {
-  state.scope = scope;
-  el.scopeClassBtn?.classList.toggle('active', scope === 'class');
-  el.scopeGradeBtn?.classList.toggle('active', scope === 'grade');
-
-  if (el.classFieldWrap)    el.classFieldWrap.style.display    = scope === 'class' ? 'flex' : 'none';
-  if (el.gradeFieldWrap)    el.gradeFieldWrap.style.display    = scope === 'grade' ? 'flex' : 'none';
-  if (el.examFieldWrap)     el.examFieldWrap.style.display     = scope === 'class' ? 'flex' : 'none';
-  if (el.examNameFieldWrap) el.examNameFieldWrap.style.display = scope === 'grade' ? 'flex' : 'none';
-
+const resetLearnerList = () => {
   if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>';
-  resetPreview();
 };
-
-el.scopeClassBtn?.addEventListener('click', () => setScope('class'));
-el.scopeGradeBtn?.addEventListener('click', () => setScope('grade'));
 
 /* ══════════════════════════════════════════════════════════
    5. LOAD EXAMS WHEN CLASS + TERM SELECTED
+   Single class  → option value = exam id
+   Whole grade   → option value = "year|exam name"
 ══════════════════════════════════════════════════════════ */
 const loadExams = async () => {
-  const classId = el.rptClass?.value;
-  const term    = el.rptTerm?.value;
+  const value = el.rptClass?.value;
+  const term  = el.rptTerm?.value;
 
-  if (!classId || !term) return;
+  if (!value || !term || !el.rptExam) return;
 
-  if (el.rptExam) el.rptExam.innerHTML = '<option value="">Loading...</option>';
+  const targets = targetsOf(value);
+  if (!targets.length) return;
 
-  const result = await API.get(`/exams?class=${classId}&term=${term}`);
+  el.rptExam.innerHTML = '<option value="">Loading...</option>';
 
-  if (!result?.ok || !result.data.exams?.length) {
-    if (el.rptExam) el.rptExam.innerHTML = '<option value="">No exams found</option>';
+  if (!isGradeValue(value)) {
+    const result = await API.get(`/exams?class=${value}&term=${term}`);
+
+    if (!result?.ok || !result.data.exams?.length) {
+      el.rptExam.innerHTML = '<option value="">No exams found</option>';
+      return;
+    }
+
+    state.exams = result.data.exams;
+    el.rptExam.innerHTML = '<option value="">-- Select Exam --</option>' +
+      state.exams.map(e => `<option value="${e._id}">${escHtml(e.name)}</option>`).join('');
     return;
   }
 
-  state.exams = result.data.exams;
+  const results = await Promise.all(targets.map(c => API.get(`/exams?class=${c._id}&term=${term}`)));
 
-  if (el.rptExam) {
-    el.rptExam.innerHTML = '<option value="">-- Select Exam --</option>' +
-      state.exams.map(e =>
-        `<option value="${e._id}">${e.name}</option>`
-      ).join('');
+  const map = {};
+  results.forEach((r, i) => {
+    (r?.ok ? (r.data.exams || []) : []).forEach(e => {
+      const key = `${e.academicYear}|${e.name}`;
+      map[key] = map[key] || { name: e.name, year: e.academicYear, classes: [] };
+      map[key].classes.push(targets[i]);
+    });
+  });
+
+  const keys = Object.keys(map).sort();
+  if (!keys.length) {
+    el.rptExam.innerHTML = '<option value="">No exams found</option>';
+    return;
   }
+
+  const manyYears = new Set(keys.map(k => map[k].year)).size > 1;
+
+  el.rptExam.innerHTML = '<option value="">-- Select Exam --</option>' + keys.map(k => {
+    const x = map[k];
+    const missing = targets.filter(c => !x.classes.includes(c));
+    const note = missing.length ? ` — not in ${missing.map(streamLabel).join(', ')}` : '';
+    return `<option value="${escHtml(k)}">${escHtml(x.name)}${manyYears ? ` (${escHtml(x.year)})` : ''}${escHtml(note)}</option>`;
+  }).join('');
 };
 
 el.rptClass?.addEventListener('change', () => {
-  loadExams();
-  if (el.rptExam)    el.rptExam.innerHTML    = '<option value="">-- Select Exam --</option>';
-  if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>';
+  const v = el.rptClass.value;
+  state.scope      = isGradeValue(v) ? 'grade' : 'class';
+  state.gradeValue = isGradeValue(v) ? v.slice(6) : '';
+  if (el.rptExam) el.rptExam.innerHTML = '<option value="">-- Select Exam --</option>';
+  resetLearnerList();
+  clearTeacherInputs();
   resetPreview();
+  loadExams();
 });
 
 el.rptTerm?.addEventListener('change', () => {
-  if (state.scope === 'class') loadExams();
-  if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>';
+  if (el.rptExam) el.rptExam.innerHTML = '<option value="">-- Select Exam --</option>';
+  resetLearnerList();
   resetPreview();
-});
-
-el.rptGrade?.addEventListener('change', () => {
-  if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>';
-  resetPreview();
+  loadExams();
 });
 
 /* ══════════════════════════════════════════════════════════
@@ -298,26 +525,28 @@ el.rptGrade?.addEventListener('change', () => {
    so results are only fetched once per selection.
 ══════════════════════════════════════════════════════════ */
 el.rptExam?.addEventListener('change', fetchResults);
-el.rptExamName?.addEventListener('change', fetchResults);
 
 async function fetchResults() {
+  const classVal = el.rptClass?.value;
+  const examVal  = el.rptExam?.value;
+  const term     = el.rptTerm?.value;
+  if (!classVal || !examVal) return;
+
   let apiUrl;
   let key;
 
   if (state.scope === 'class') {
-    const classId = el.rptClass?.value;
-    const examId  = el.rptExam?.value;
-    if (!classId || !examId) return;
-    apiUrl = `/results/class?classId=${classId}&examId=${examId}`;
-    key    = `class:${classId}:${examId}`;
+    apiUrl = `/results/class?classId=${classVal}&examId=${examVal}`;
+    key    = `class:${classVal}:${examVal}`;
 
   } else {
-    const grade    = el.rptGrade?.value;
-    const term     = el.rptTerm?.value;
-    const examName = el.rptExamName?.value;
-    if (!grade || !term || !examName) return;
-    apiUrl = `/results/grade?grade=${encodeURIComponent(grade)}&term=${term}&examName=${encodeURIComponent(examName)}`;
-    key    = `grade:${grade}:${term}:${examName}`;
+    if (!term) return;
+    const i        = examVal.indexOf('|');
+    const year     = examVal.slice(0, i);
+    const examName = examVal.slice(i + 1);
+    apiUrl = `/results/grade?grade=${encodeURIComponent(state.gradeValue)}&term=${term}` +
+             `&examName=${encodeURIComponent(examName)}&academicYear=${encodeURIComponent(year)}`;
+    key    = `grade:${state.gradeValue}:${term}:${examVal}`;
   }
 
   if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">Loading...</option>';
@@ -326,7 +555,7 @@ async function fetchResults() {
 
   if (!result?.ok) {
     showToast(result?.data?.message || 'Failed to load results.', 'error');
-    if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>';
+    resetLearnerList();
     return;
   }
 
@@ -336,11 +565,14 @@ async function fetchResults() {
   state.results   = computeResults(data.results || []);
   state.loadedKey = key;
 
+  /* Show the "Subject Teachers" boxes for the class(es) in scope */
+  renderTeacherInputs();
+
   if (state.scope === 'class') {
     state.classInfo = data.class;
     state.examInfo  = data.exam;
   } else {
-    state.classInfo = { name: `${data.grade} (${(data.streams || []).join(' + ')})` };
+    state.classInfo = { name: `Grade ${data.grade} — Whole Grade (${(data.streams || []).join(' + ')})` };
     state.examInfo  = data.exam;
   }
 
@@ -353,7 +585,7 @@ async function fetchResults() {
   if (el.rptLearner) {
     el.rptLearner.innerHTML = '<option value="">-- Select Learner --</option>' +
       state.results.map(r =>
-        `<option value="${r.studentId}">${r.fullName}${r.streamName ? ' — ' + r.streamName : ''}</option>`
+        `<option value="${r.studentId}">${escHtml(r.fullName)}${r.streamName ? ' — ' + escHtml(r.streamName) : ''}</option>`
       ).join('');
   }
 }
@@ -428,26 +660,12 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
     return;
   }
 
-  let scopeValid, cls, exam;
-
-  if (state.scope === 'class') {
-    cls  = el.rptClass?.value;
-    exam = el.rptExam?.value;
-    scopeValid = !!(cls && exam);
-    if (!scopeValid) {
-      showToast('Please select Class and Exam.', 'warning');
-      flashMissing(cls, term, exam);
-      return;
-    }
-  } else {
-    cls  = el.rptGrade?.value;
-    exam = el.rptExamName?.value;
-    scopeValid = !!(cls && exam);
-    if (!scopeValid) {
-      showToast('Please select Grade and Exam.', 'warning');
-      flashMissing(cls, term, exam);
-      return;
-    }
+  const cls  = el.rptClass?.value;
+  const exam = el.rptExam?.value;
+  if (!cls || !exam) {
+    showToast('Please select Class and Exam.', 'warning');
+    flashMissing(cls, term, exam);
+    return;
   }
 
   if (state.activeTab === 'individual' && !el.rptLearner?.value) {
@@ -463,7 +681,7 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
      but fetch fresh if for some reason they aren't. */
   const expectedKey = state.scope === 'class'
     ? `class:${cls}:${exam}`
-    : `grade:${cls}:${term}:${exam}`;
+    : `grade:${state.gradeValue}:${term}:${exam}`;
 
   if (state.loadedKey !== expectedKey) {
     await fetchResults();
@@ -476,21 +694,22 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
 
   const className = state.scope === 'class'
     ? (state.classes.find(c => c._id === cls)?.name || state.classInfo?.name || 'Class')
-    : (state.classInfo?.name || cls);
+    : (state.classInfo?.name || 'Whole Grade');
 
   const examName = state.scope === 'class'
     ? (state.exams.find(e => e._id === exam)?.name || state.examInfo?.name || 'Exam')
-    : exam;
+    : (state.examInfo?.name || 'Exam');
 
   const settings = {
-    schoolName  : el.rptSchoolName?.value  || 'Scholar Analytics Demo School',
-    schoolMotto : el.rptSchoolMotto?.value || 'Excellence Through Knowledge',
-    teacher     : el.rptTeacher?.value     || 'Class Teacher',
-    principal   : el.rptPrincipal?.value   || 'The Principal',
-    closingDate : el.rptClosingDate?.value || 'To Be Announced',
-    nextTerm    : el.rptNextTerm?.value    || 'To Be Announced',
+    schoolName   : el.rptSchoolName?.value  || 'Scholar Analytics Demo School',
+    schoolMotto  : el.rptSchoolMotto?.value || 'Excellence Through Knowledge',
+    teacher      : (el.rptTeacher?.value   || '').trim(),   // class teacher (blank if not typed)
+    principal    : (el.rptPrincipal?.value || '').trim(),   // principal (blank if not typed)
+    teacherMaps  : getTeacherMaps(),                        // subject teachers, per class in scope
+    closingDate  : el.rptClosingDate?.value || 'To Be Announced',
+    nextTerm     : el.rptNextTerm?.value    || 'To Be Announced',
     cls: className, term, exam: examName,
-    year        : CURRENT_YEAR,
+    year         : state.examInfo?.academicYear || CURRENT_YEAR,
   };
 
   state.context = settings;
@@ -534,8 +753,8 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
 });
 
 const flashMissing = (cls, term, exam) => {
-  const clsId  = state.scope === 'class' ? 'rptClass' : 'rptGrade';
-  const examId = state.scope === 'class' ? 'rptExam'  : 'rptExamName';
+  const clsId  = 'rptClass';
+  const examId = 'rptExam';
   [{ v:cls, id:clsId }, {v:term, id:'rptTerm'}, {v:exam, id:examId}]
     .forEach(({v, id}) => {
       if (!v) {
@@ -547,8 +766,6 @@ const flashMissing = (cls, term, exam) => {
 
 /* ══════════════════════════════════════════════════════════
    11. BUILD INDIVIDUAL REPORT CARD
-       Same pixel design as before — only the data source and
-       dynamic subject count/pathway breakdown changed.
 ══════════════════════════════════════════════════════════ */
 const buildReportCard = (r, s) => {
 
@@ -558,6 +775,14 @@ const buildReportCard = (r, s) => {
   const maxTotal  = r.subjectCount * 100;
   const maxPoints = r.subjectCount * 8;
 
+  /* Teacher for a subject: typed name (for THIS learner's class) first,
+     then any name the backend already sends, otherwise a dash. */
+  const maps = s.teacherMaps || {};
+  const teacherMap =
+    maps[r.streamName] ||
+    (Object.keys(maps).length === 1 ? Object.values(maps)[0] : null) || {};
+  const teacherFor = (sub) => teacherMap[normName(sub.name)] || sub.teacherName || '—';
+
   const subjectRows = r.subjectResults.map((sub, i) => {
     const gradeInfo = KJSEA.getGrade(sub.score);
     const label     = gradeInfo?.label || (sub.absent ? 'Absent' : sub.notEntered ? 'Not Entered' : '--');
@@ -565,17 +790,17 @@ const buildReportCard = (r, s) => {
     return `
     <tr>
       <td style="${td('text-align:center;color:#94a3b8;font-size:10px;font-weight:600;width:4%;')}">${i+1}</td>
-      <td style="${td('text-align:left;font-weight:600;font-size:11px;color:#1a2a3a;width:20%;')}">${sub.name}</td>
+      <td style="${td('text-align:left;font-weight:600;font-size:11px;color:#1a2a3a;width:18%;')}">${sub.name}</td>
       <td style="${td('text-align:center;font-weight:700;font-size:11px;color:#0d3349;width:8%;')}">${sub.score !== null ? sub.score + '%' : '—'}</td>
-      <td style="${td('text-align:center;width:18%;line-height:1.2;')}">
+      <td style="${td('text-align:center;width:16%;line-height:1.2;')}">
         <div style="font-size:8.5px;font-weight:600;color:#1a2a3a;margin-bottom:1px;">${label.replace('Expectation','<br>Expectation')}</div>
         <span style="display:inline-block;background:#d0e8f7;color:#0d3349;border-radius:3px;padding:1px 4px;font-size:8px;font-weight:700;">${gradeCode}</span>
       </td>
-      <td style="${td('text-align:center;width:8%;font-weight:700;color:#0d3349;font-size:11px;')}">
+      <td style="${td('text-align:center;width:7%;font-weight:700;color:#0d3349;font-size:11px;')}">
         ${sub.points}<span style="font-size:8px;color:#94a3b8;font-weight:400;">/8</span>
       </td>
-      <td style="${td('text-align:left;font-size:9.5px;font-style:italic;color:#64748b;width:32%;')}">${sub.absent ? 'Absent — not assessed' : KJSEA.getSubjectRemark(sub.score)}</td>
-      <td style="${td('text-align:center;font-size:10px;font-weight:700;color:#0d3349;width:8%;border-right:none;')}">${sub.teacherName || '—'}</td>
+      <td style="${td('text-align:left;font-size:9.5px;font-style:italic;color:#64748b;width:29%;')}">${sub.absent ? 'Absent — not assessed' : KJSEA.getSubjectRemark(sub.score)}</td>
+      <td style="${td('text-align:center;font-size:9px;font-weight:700;color:#0d3349;width:18%;border-right:none;line-height:1.25;')}">${escHtml(teacherFor(sub))}</td>
     </tr>`;
   }).join('');
 
@@ -585,15 +810,23 @@ const buildReportCard = (r, s) => {
     { key:'creative', ...KJSEA.PATHWAYS.creative },
   ];
 
+  const wCore = Math.round(KJSEA.PATHWAY_WEIGHTS.core    * 100);
+  const wPath = Math.round(KJSEA.PATHWAY_WEIGHTS.pathway * 100);
+
   const pathwayCells = pathwayConfig.map(({ key, name, bg, border, col, pillBg, pillCol }, i) => {
     const pw   = r.pathways[key];
     const last = i === pathwayConfig.length - 1;
+    const hasScore = pw.avg !== null;
+    const breakdown = hasScore
+      ? `Core ${pw.coreAvg !== null ? pw.coreAvg + '%' : '—'} (${wCore}%) + Pathway ${pw.pathAvg}% (${wPath}%)`
+      : 'No pathway subjects scored';
     return `
       <div style="flex:1;padding:8px 8px;text-align:center;background:${bg};border-top:2px solid ${border};border-bottom:2px solid ${border};border-left:2px solid ${border};${last ? 'border-right:2px solid ' + border + ';' : ''}">
         <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:${col};margin-bottom:2px;">${name}</div>
         <div style="font-size:7px;color:${col};opacity:0.75;margin-bottom:5px;line-height:1.4;">${pw.subjects}</div>
-        <div style="font-size:1.4rem;font-weight:700;color:${col};line-height:1;margin-bottom:1px;">${pw.avg}%</div>
-        <div style="font-size:9px;font-weight:600;color:${col};margin-bottom:4px;">${pw.points}/${pw.maxPts} pts</div>
+        <div style="font-size:1.4rem;font-weight:700;color:${col};line-height:1;margin-bottom:2px;">${hasScore ? pw.avg + '%' : '—'}</div>
+        <div style="font-size:7.5px;font-weight:600;color:${col};margin-bottom:1px;">${breakdown}</div>
+        <div style="font-size:7.5px;color:${col};opacity:0.8;margin-bottom:4px;">${pw.count} pathway subject${pw.count === 1 ? '' : 's'}</div>
         <span style="display:inline-block;background:${pillBg};color:${pillCol};border-radius:3px;padding:1px 7px;font-size:7.5px;font-weight:700;">${pw.grade}</span>
       </div>`;
   }).join('');
@@ -622,7 +855,7 @@ const buildReportCard = (r, s) => {
     ${[
       { label:'Full Name',      val: r.fullName          },
       { label:'Assessment No.', val: r.assessmentNo||'—' },
-      { label:'Grade',          val: s.cls               },
+      { label:'Grade',          val: r.streamName || s.cls },
       { label:'Gender',         val: r.gender||'—'       },
       { label:'Admission No.',  val: r.upiNumber||'—'    },
       { label:'Academic Year',  val: s.year              },
@@ -654,12 +887,12 @@ const buildReportCard = (r, s) => {
     <thead>
       <tr style="background:#0d3349;">
         <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:4%;">No.</th>
-        <th style="padding:5px 8px;text-align:left;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:20%;">Learning Area</th>
+        <th style="padding:5px 8px;text-align:left;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:18%;">Learning Area</th>
         <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:8%;">Score %</th>
-        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:18%;">Grade</th>
-        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:8%;">Points</th>
-        <th style="padding:5px 8px;text-align:left;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:32%;">Teacher Comment</th>
-        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-bottom:1.5px solid rgba(255,255,255,0.20);width:8%;">Teacher</th>
+        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:16%;">Grade</th>
+        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:7%;">Points</th>
+        <th style="padding:5px 8px;text-align:left;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:29%;">Teacher Comment</th>
+        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-bottom:1.5px solid rgba(255,255,255,0.20);width:18%;">Teacher</th>
       </tr>
     </thead>
     <tbody>
@@ -685,7 +918,7 @@ const buildReportCard = (r, s) => {
   </table>
 
   <!-- ══ PATHWAY SUMMARY ══ -->
-  <div style="background:#0d3349;padding:4px 12px;font-size:0.60rem;font-weight:700;color:rgba(255,255,255,0.90);text-transform:uppercase;letter-spacing:0.8px;">Pathway Summary — KNEC</div>
+  <div style="background:#0d3349;padding:4px 12px;font-size:0.60rem;font-weight:700;color:rgba(255,255,255,0.90);text-transform:uppercase;letter-spacing:0.8px;">Pathway Summary — Core ${wCore}% + Pathway Subjects ${wPath}%</div>
   <div style="display:flex;border-bottom:2px solid #64748b;">${pathwayCells}</div>
 
   <!-- ══ COMMENTS HEADER ══ -->
@@ -703,7 +936,8 @@ const buildReportCard = (r, s) => {
     <div style="padding:8px 12px;border-right:1.5px solid #94a3b8;background:#ffffff;">
       <div style="font-size:0.55rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px;">Class Teacher's Comment</div>
       <div style="font-size:0.68rem;color:#334155;line-height:1.45;font-style:italic;">${KJSEA.getTeacherComment(r.meanGrade)}</div>
-      <div style="border-bottom:1px solid #94a3b8;margin:6px 0 3px;"></div>
+      <div style="font-size:0.64rem;font-weight:700;color:#0d3349;margin-top:6px;min-height:11px;">${s.teacher ? escHtml(s.teacher) : ''}</div>
+      <div style="border-bottom:1px solid #94a3b8;margin:2px 0 3px;"></div>
       <div style="font-size:0.52rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.3px;display:flex;justify-content:space-between;">
         <span>Class Teacher Signature &amp; Date</span><span>Date: .....................</span>
       </div>
@@ -711,7 +945,8 @@ const buildReportCard = (r, s) => {
     <div style="padding:8px 12px;background:#ffffff;">
       <div style="font-size:0.55rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px;">Principal Signature Stamp &amp; Date</div>
       <div style="font-size:0.68rem;color:#334155;line-height:1.45;font-style:italic;">${KJSEA.getPrincipalComment(r, r.meanGrade)}</div>
-      <div style="border-bottom:1px solid #94a3b8;margin:6px 0 3px;"></div>
+      <div style="font-size:0.64rem;font-weight:700;color:#0d3349;margin-top:6px;min-height:11px;">${s.principal ? escHtml(s.principal) : ''}</div>
+      <div style="border-bottom:1px solid #94a3b8;margin:2px 0 3px;"></div>
       <div style="font-size:0.52rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.3px;display:flex;justify-content:flex-end;">
         <span>Date: .....................</span>
       </div>
@@ -757,7 +992,7 @@ const buildReportCard = (r, s) => {
 
 /* ══════════════════════════════════════════════════════════
    12. BUILD CLASS RESULT SHEET
-       Subject columns are now the real per-class subject list
+       Subject columns are the real per-class subject list
 ══════════════════════════════════════════════════════════ */
 const buildClassSheet = (results, s) => {
   const avg      = (results.reduce((a,r)=>a+r.avgScore,0)/results.length).toFixed(1);
@@ -1080,12 +1315,12 @@ const buildClassSheet = (results, s) => {
   <!-- ══ SIGNATURES ══ -->
   <div style="display:grid;grid-template-columns:1fr 1fr;border-top:2px solid #0d3349;margin-top:2px;">
     <div style="padding:14px 18px;border-right:1px solid #e2e8f0;">
-      <div style="font-size:0.65rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Class Teacher: ${s.teacher||''}</div>
+      <div style="font-size:0.65rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Class Teacher: ${escHtml(s.teacher||'')}</div>
       <div style="border-bottom:1px solid #cbd5e0;margin:10px 0 6px;"></div>
       <div style="font-size:0.62rem;color:#94a3b8;">Signature &amp; Date: .....................</div>
     </div>
     <div style="padding:14px 18px;">
-      <div style="font-size:0.65rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Principal: ${s.principal||''}</div>
+      <div style="font-size:0.65rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Principal: ${escHtml(s.principal||'')}</div>
       <div style="border-bottom:1px solid #cbd5e0;margin:10px 0 6px;"></div>
       <div style="font-size:0.62rem;color:#94a3b8;">Signature, Stamp &amp; Date: .....................</div>
     </div>
@@ -1373,4 +1608,5 @@ window.redownloadLast = () => {
 switchTab('individual');
 renderRecentReports();
 
+hideLegacyControls();
 loadClasses();
