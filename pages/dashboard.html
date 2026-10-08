@@ -76,7 +76,7 @@
       <div class="topbar-right">
         <div class="term-badge">
           <i class="fas fa-calendar"></i>
-          <span id="currentTerm">Term 1 &bull; 2024</span>
+          <span id="currentTerm">--</span>
         </div>
         <button class="topbar-icon-btn" id="refreshBtn" title="Refresh data">
           <i class="fas fa-rotate-right"></i>
@@ -139,11 +139,9 @@
             <p class="dash-kpi-label">Total Students</p>
             <div class="dash-kpi-row">
               <span class="dash-kpi-value" id="kpiStudents">--</span>
-              <span class="dash-kpi-trend up" id="kpiStudentsTrend">
-                <i class="fas fa-arrow-trend-up"></i> +12
-              </span>
+              <span class="dash-kpi-trend flat" id="kpiStudentsTrend"></span>
             </div>
-            <p class="dash-kpi-sub">Across all 6 classes</p>
+            <p class="dash-kpi-sub" id="kpiStudentsSub">--</p>
           </div>
           <div class="dash-kpi-bar">
             <canvas id="sparkStudents" width="80" height="36"
@@ -159,11 +157,9 @@
             <p class="dash-kpi-label">School Average</p>
             <div class="dash-kpi-row">
               <span class="dash-kpi-value" id="kpiAverage">--</span>
-              <span class="dash-kpi-trend up" id="kpiAverageTrend">
-                <i class="fas fa-arrow-trend-up"></i> +3.2%
-              </span>
+              <span class="dash-kpi-trend flat" id="kpiAverageTrend"></span>
             </div>
-            <p class="dash-kpi-sub">Term 1 Opener result</p>
+            <p class="dash-kpi-sub" id="kpiAverageSub">--</p>
           </div>
           <div class="dash-kpi-bar">
             <canvas id="sparkAverage" width="80" height="36"
@@ -179,11 +175,9 @@
             <p class="dash-kpi-label">Pass Rate</p>
             <div class="dash-kpi-row">
               <span class="dash-kpi-value" id="kpiPassRate">--</span>
-              <span class="dash-kpi-trend up" id="kpiPassTrend">
-                <i class="fas fa-arrow-trend-up"></i> +5.1%
-              </span>
+              <span class="dash-kpi-trend flat" id="kpiPassTrend"></span>
             </div>
-            <p class="dash-kpi-sub">Learners above 41%</p>
+            <p class="dash-kpi-sub" id="kpiPassSub">--</p>
           </div>
           <div class="dash-kpi-bar">
             <canvas id="sparkPassRate" width="80" height="36"
@@ -232,12 +226,6 @@
               <div class="dash-card-actions">
                 <select class="dash-select" id="trendClassFilter">
                   <option value="all">All Classes</option>
-                  <option value="Grade 7 East">Grade 7 East</option>
-                  <option value="Grade 7 West">Grade 7 West</option>
-                  <option value="Grade 8 East">Grade 8 East</option>
-                  <option value="Grade 8 West">Grade 8 West</option>
-                  <option value="Grade 9 East">Grade 9 East</option>
-                  <option value="Grade 9 West">Grade 9 West</option>
                 </select>
               </div>
             </div>
@@ -271,15 +259,10 @@
                   <i class="fas fa-book-open"></i>
                   Subject Performance
                 </h3>
-                <p class="dash-card-sub">Average score per learning area — Term 1 Opener</p>
+                <p class="dash-card-sub" id="subjectChartSub">Average score per learning area</p>
               </div>
               <div class="dash-card-actions">
-                <select class="dash-select" id="subjectClassFilter">
-                  <option value="all">All Classes</option>
-                  <option value="grade7">Grade 7</option>
-                  <option value="grade8">Grade 8</option>
-                  <option value="grade9">Grade 9</option>
-                </select>
+                <select class="dash-select" id="subjectClassFilter"></select>
               </div>
             </div>
             <div class="dash-card-body">
@@ -330,7 +313,7 @@
                 </h3>
                 <p class="dash-card-sub">Needs your attention</p>
               </div>
-              <span class="dash-badge-count" id="alertCount">3</span>
+              <span class="dash-badge-count" id="alertCount">0</span>
             </div>
             <div class="dash-card-body" id="alertsList" style="display:flex;flex-direction:column;gap:8px;padding:14px 18px;">
               <!-- Injected by JS -->
