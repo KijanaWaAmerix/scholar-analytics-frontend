@@ -1,14 +1,16 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Reports & PDFs
    File: js/reports.js
-   Version: 6.2
+   Version: 6.3
    6.2: ONE class dropdown — Whole Grade, or any single class (East / West).
         Exam names come from real exams; teacher names are saved per class.
    Changes from 6.0:
-   • Pathway Summary now blends CORE subjects (Maths, English,
-     Kiswahili) at 40% with PATHWAY-ONLY subjects at 60%.
-     Weights and the core list are in KJSEA.PATHWAY_WEIGHTS and
-     KJSEA.CORE_KEYWORDS — change them there.
+   • Pathway Summary follows the KNEC subject sets:
+       STEM            = Mathematics, Integrated Science, Pre-Technical, Agriculture
+       Creative Arts   = Creative Arts & Sports, English, Kiswahili
+       Social Sciences = Social Studies, CRE + the better of English / Kiswahili
+     Edit them in KJSEA.SUBJECT_SLOTS / KJSEA.PATHWAY_SUBJECTS.
+   • Report card gridlines are black and thicker.
    • Subject teacher names can be typed on the Reports page, per
      class (e.g. Grade 7 East / Grade 7 West) or per grade when
      "Whole Grade" scope is used. Nothing is hard-coded: classes
@@ -38,30 +40,37 @@ const KJSEA = {
     { grade:'BE2', label:'Below Expectation',        measure:'Below Minimal',  min:1,  max:10,  points:1, css:'be2' },
   ],
 
-  /* Maps a subject's real learningArea (from Subject model) to one
-     of the 3 KNEC pathway buckets shown in the Pathway Summary. */
-  LEARNING_AREA_TO_PATHWAY: {
-    'Mathematics'  : 'stem',
-    'Sciences'     : 'stem',
-    'Technical'    : 'stem',
-    'Languages'    : 'social',
-    'Humanities'   : 'social',
-    'Life Skills'  : 'social',
-    'Creative Arts': 'creative',
+  /* ══════════════════════════════════════════════════════════
+     KNEC PATHWAY SUBJECTS
+     Which subjects count toward each pathway (as KNEC does it):
+       STEM            → Mathematics, Integrated Science,
+                         Pre-Technical, Agriculture
+       Creative Arts   → Creative Arts & Sports, English, Kiswahili
+       Social Sciences → Social Studies, Religious Education (CRE)
+                         + the BETTER of English or Kiswahili
+
+     A subject is recognised by its CODE or by the START of its
+     NAME (case-insensitive). Add extra codes/names below if yours
+     differ. In PATHWAY_SUBJECTS, a nested array like ['eng','kisw']
+     means "take whichever of these has the higher score".
+  ══════════════════════════════════════════════════════════ */
+  SUBJECT_SLOTS: {
+    math   : { label:'Mathematics',            codes:['MATH','MAT'],       names:['math'] },
+    inter  : { label:'Integrated Science',     codes:['INTER','INT'],      names:['integrated science'] },
+    pretech: { label:'Pre-Technical',          codes:['PRETECH','PRT'],    names:['pre technical','pre-technical','pretechnical','pre tech'] },
+    agri   : { label:'Agriculture',            codes:['AGN','AGR','AGRI'], names:['agricultur'] },
+    cas    : { label:'Creative Arts & Sports', codes:['CAS'],              names:['creative arts'] },
+    eng    : { label:'English',                codes:['ENG'],              names:['english'] },
+    kisw   : { label:'Kiswahili',              codes:['KISW','KIS'],       names:['kiswahili'] },
+    sst    : { label:'Social Studies',         codes:['SST'],              names:['social studies'] },
+    cre    : { label:'Religious Education',    codes:['CRE'],              names:['religious','christian religious'] },
   },
 
-  /* ── CORE SUBJECTS ─────────────────────────────────────────
-     A subject is "core" if its name STARTS WITH one of these
-     keywords (case-insensitive). So 'Mathematics', 'Maths',
-     'English', 'English Language', 'Kiswahili' are all matched.
-     Core subjects are scored once, as a shared base, and are
-     NOT counted again inside any pathway's own subjects. */
-  CORE_KEYWORDS: ['math', 'english', 'kiswahili'],
-
-  /* ── PATHWAY WEIGHTS ───────────────────────────────────────
-     Pathway score = core% × core  +  pathway-only% × pathway
-     Must add up to 1. */
-  PATHWAY_WEIGHTS: { core: 0.40, pathway: 0.60 },
+  PATHWAY_SUBJECTS: {
+    stem    : ['math', 'inter', 'pretech', 'agri'],
+    creative: ['cas', 'eng', 'kisw'],
+    social  : ['sst', 'cre', ['eng', 'kisw']],   // better of English / Kiswahili
+  },
 
   PATHWAYS: {
     stem    : { name:'STEM',            col:'#1d4ed8', bg:'#dbeafe', border:'#3b82f6', pillBg:'#bfdbfe', pillCol:'#1e3a8a' },
@@ -74,69 +83,63 @@ const KJSEA = {
     return this.SCALE.find(s => Number(score) >= s.min && Number(score) <= s.max) || null;
   },
 
-  isCore(name) {
-    const n = String(name || '').trim().toLowerCase();
-    return this.CORE_KEYWORDS.some(k => n.startsWith(k));
+  /* Does this subject result belong to the given slot (math, eng, …)? */
+  matchSlot(sub, slotKey) {
+    const slot = this.SUBJECT_SLOTS[slotKey];
+    if (!slot || !sub) return false;
+    const code = String(sub.code || '').trim().toUpperCase();
+    const name = String(sub.name || '').trim().toLowerCase();
+    return slot.codes.includes(code) || slot.names.some(k => name.startsWith(k));
   },
 
-  /* Pathway score (40/60 by default):
-       core%     = mean score of the core subjects the learner sat
-       pathway%  = mean score of that pathway's own (non-core) subjects
-       final     = core% × 0.40 + pathway% × 0.60
-     • Core subjects never appear inside a pathway's own list.
-     • Subjects with no learningArea (or one not in the map) are
-       left out rather than guessed.
-     • If the learner has no core scores at all, the pathway score
-       falls back to the pathway-only average.
-     • If a pathway has no subjects with scores, its score is null
-       and the card shows "—". */
+  /* Pathway result per KNEC subject sets.
+       avg    = mean score % of the counted subjects
+       points = sum of their KJSEA points, out of 8 per subject
+     Subjects the learner has no score for (absent / not entered)
+     are left out, and the card says how many were counted. */
   computePathways(subjectResults) {
-    const w     = this.PATHWAY_WEIGHTS;
     const valid = s => s && s.score !== null && s.score !== undefined && !isNaN(Number(s.score));
-    const mean  = arr => arr.length ? arr.reduce((a,b)=>a+b,0) / arr.length : null;
-    const r1    = x => x === null ? null : parseFloat(x.toFixed(1));
-
-    const coreSubs   = subjectResults.filter(s => valid(s) && this.isCore(s.name));
-    const coreScores = coreSubs.map(s => Number(s.score));
-    const coreAvg    = mean(coreScores);
-
-    const acc = {
-      stem    : { scores:[], points:0, names:[] },
-      social  : { scores:[], points:0, names:[] },
-      creative: { scores:[], points:0, names:[] },
-    };
-
-    subjectResults.forEach(s => {
-      if (!valid(s) || this.isCore(s.name)) return;
-      const key = this.LEARNING_AREA_TO_PATHWAY[s.learningArea];
-      if (!key) return;
-      acc[key].scores.push(Number(s.score));
-      acc[key].points += s.points || 0;
-      acc[key].names.push(s.name);
-    });
+    const scored = (subjectResults || []).filter(valid);
+    const findSlot = key => scored.find(s => this.matchSlot(s, key)) || null;
 
     const out = {};
-    Object.entries(acc).forEach(([key, p]) => {
-      const pathAvg = mean(p.scores);
-      let final = null;
-      if (pathAvg !== null) {
-        final = coreAvg === null ? pathAvg : (coreAvg * w.core + pathAvg * w.pathway);
-      }
-      const gradeInfo = final === null ? null : this.getGrade(Math.round(final));
+
+    Object.entries(this.PATHWAY_SUBJECTS).forEach(([key, slots]) => {
+      const picked = [];
+
+      slots.forEach(slot => {
+        if (Array.isArray(slot)) {
+          const cands = slot.map(findSlot).filter(Boolean);
+          if (!cands.length) return;
+          const best = cands.reduce((a, b) => Number(b.score) > Number(a.score) ? b : a);
+          const label = slot.map(k => this.SUBJECT_SLOTS[k]?.label || k).join(' / ');
+          picked.push({ sub: best, note: `better of ${label}` });
+        } else {
+          const sub = findSlot(slot);
+          if (sub) picked.push({ sub });
+        }
+      });
+
+      const scores  = picked.map(p => Number(p.sub.score));
+      const avg     = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+      const points  = picked.reduce((a, p) => a + (p.sub.points || 0), 0);
+      const gradeInfo = avg === null ? null : this.getGrade(Math.round(avg));
+
       out[key] = {
-        avg      : r1(final),
-        coreAvg  : r1(coreAvg),
-        pathAvg  : r1(pathAvg),
-        coreCount: coreScores.length,
-        count    : p.scores.length,
-        points   : p.points,
-        maxPts   : p.scores.length * 8,
-        grade    : gradeInfo?.label   || '--',
-        measure  : gradeInfo?.measure || '--',
-        css      : gradeInfo?.css     || '',
-        subjects : p.names.join(' · ') || 'No subjects assigned to this pathway yet',
+        avg     : avg === null ? null : parseFloat(avg.toFixed(1)),
+        points,
+        maxPts  : picked.length * 8,
+        count   : picked.length,
+        expected: slots.length,
+        grade   : gradeInfo?.label   || '--',
+        measure : gradeInfo?.measure || '--',
+        css     : gradeInfo?.css     || '',
+        subjects: picked.length
+          ? picked.map(p => p.sub.name + (p.note ? ` (${p.note})` : '')).join(' · ')
+          : 'No scored subjects for this pathway',
       };
     });
+
     return out;
   },
 
@@ -769,11 +772,43 @@ const flashMissing = (cls, term, exam) => {
 ══════════════════════════════════════════════════════════ */
 const buildReportCard = (r, s) => {
 
-  const td = (extra = '') =>
-    `padding:5px 8px;background:#ffffff;border-right:1.5px solid #94a3b8;border-bottom:1.5px solid #94a3b8;${extra}`;
+  /* ── Design tokens ──────────────────────────────────────── */
+  const INK  = '#0b1220';   // body text
+  const LINE = '#000000';   // gridlines
+  const MUTE = '#475569';   // secondary text
+  const NAVY = '#0d3349';   // brand / section bars
+  const LEVEL_COL = {
+    EE1:'#15803d', EE2:'#15803d',
+    ME1:'#1d4ed8', ME2:'#1d4ed8',
+    AE1:'#b45309', AE2:'#b45309',
+    BE1:'#b91c1c', BE2:'#b91c1c',
+  };
 
+  /* Level chip: white fill, coloured outline + text (prints crisply) */
+  const chip = (code, extra = '') => {
+    const c = LEVEL_COL[code] || MUTE;
+    return `<span style="display:inline-block;min-width:30px;text-align:center;padding:2px 5px;border:1.5px solid ${c};color:${c};background:#ffffff;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:0.3px;line-height:1.2;${extra}">${escHtml(code || '—')}</span>`;
+  };
+
+  const sectionBar = (title, right = '') => `
+    <div style="background:${NAVY};color:#ffffff;display:flex;justify-content:space-between;align-items:center;padding:5px 12px;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">
+      <span>${title}</span><span style="font-weight:500;letter-spacing:0.3px;text-transform:none;opacity:0.85;">${right}</span>
+    </div>`;
+
+  const th = (label, width, align = 'center', last = false) =>
+    `<th style="width:${width}%;padding:6px 8px;text-align:${align};font-size:8.5px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:#ffffff;background:${NAVY};border-right:${last ? 'none' : '2px solid rgba(255,255,255,0.65)'};">${label}</th>`;
+
+  const td = (extra = '') =>
+    `padding:5px 8px;background:#ffffff;border-right:2px solid ${LINE};border-bottom:2px solid ${LINE};vertical-align:middle;${extra}`;
+
+  /* ── Derived values ─────────────────────────────────────── */
   const maxTotal  = r.subjectCount * 100;
   const maxPoints = r.subjectCount * 8;
+
+  const initials = String(s.schoolName || 'S').trim().split(/\s+/).filter(Boolean)
+    .slice(0, 2).map(w => w[0].toUpperCase()).join('');
+
+  const gender   = r.gender ? r.gender.charAt(0).toUpperCase() + r.gender.slice(1) : '—';
 
   /* Teacher for a subject: typed name (for THIS learner's class) first,
      then any name the backend already sends, otherwise a dash. */
@@ -783,208 +818,191 @@ const buildReportCard = (r, s) => {
     (Object.keys(maps).length === 1 ? Object.values(maps)[0] : null) || {};
   const teacherFor = (sub) => teacherMap[normName(sub.name)] || sub.teacherName || '—';
 
+  /* ── Subject rows ───────────────────────────────────────── */
   const subjectRows = r.subjectResults.map((sub, i) => {
     const gradeInfo = KJSEA.getGrade(sub.score);
-    const label     = gradeInfo?.label || (sub.absent ? 'Absent' : sub.notEntered ? 'Not Entered' : '--');
-    const gradeCode = sub.grade || (sub.absent ? 'ABS' : '--');
+    const code      = sub.grade || '';
+    const label     = gradeInfo ? gradeInfo.label.split(' ')[0] : (sub.absent ? 'Absent' : sub.notEntered ? 'Not entered' : '');
+    const scoreTxt  = sub.score !== null && sub.score !== undefined ? sub.score + '%' : (sub.absent ? 'ABS' : '—');
+    const remark    = sub.absent ? 'Absent — not assessed' : sub.notEntered ? 'Marks not entered' : KJSEA.getSubjectRemark(sub.score);
+    const hasLevel  = !!LEVEL_COL[code];
+
     return `
     <tr>
-      <td style="${td('text-align:center;color:#94a3b8;font-size:10px;font-weight:600;width:4%;')}">${i+1}</td>
-      <td style="${td('text-align:left;font-weight:600;font-size:11px;color:#1a2a3a;width:18%;')}">${sub.name}</td>
-      <td style="${td('text-align:center;font-weight:700;font-size:11px;color:#0d3349;width:8%;')}">${sub.score !== null ? sub.score + '%' : '—'}</td>
-      <td style="${td('text-align:center;width:16%;line-height:1.2;')}">
-        <div style="font-size:8.5px;font-weight:600;color:#1a2a3a;margin-bottom:1px;">${label.replace('Expectation','<br>Expectation')}</div>
-        <span style="display:inline-block;background:#d0e8f7;color:#0d3349;border-radius:3px;padding:1px 4px;font-size:8px;font-weight:700;">${gradeCode}</span>
+      <td style="${td(`text-align:center;color:${MUTE};font-size:10px;font-weight:600;`)}">${i + 1}</td>
+      <td style="${td(`text-align:left;font-weight:700;font-size:11.5px;color:${INK};`)}">${escHtml(sub.name)}</td>
+      <td style="${td(`text-align:center;font-weight:800;font-size:12px;color:${INK};`)}">${scoreTxt}</td>
+      <td style="${td('text-align:left;')}">
+        ${hasLevel ? chip(code) : ''}
+        <span style="font-size:9px;color:${INK};margin-left:${hasLevel ? 6 : 0}px;">${escHtml(label)}</span>
       </td>
-      <td style="${td('text-align:center;width:7%;font-weight:700;color:#0d3349;font-size:11px;')}">
-        ${sub.points}<span style="font-size:8px;color:#94a3b8;font-weight:400;">/8</span>
-      </td>
-      <td style="${td('text-align:left;font-size:9.5px;font-style:italic;color:#64748b;width:29%;')}">${sub.absent ? 'Absent — not assessed' : KJSEA.getSubjectRemark(sub.score)}</td>
-      <td style="${td('text-align:center;font-size:9px;font-weight:700;color:#0d3349;width:18%;border-right:none;line-height:1.25;')}">${escHtml(teacherFor(sub))}</td>
+      <td style="${td(`text-align:center;font-weight:800;font-size:12px;color:${INK};`)}">${sub.absent || sub.notEntered ? '—' : sub.points}<span style="font-size:8.5px;color:${MUTE};font-weight:500;">${sub.absent || sub.notEntered ? '' : '/8'}</span></td>
+      <td style="${td(`text-align:left;font-size:9.5px;font-style:italic;color:${MUTE};`)}">${escHtml(remark)}</td>
+      <td style="${td(`text-align:left;font-size:9.5px;font-weight:700;color:${INK};line-height:1.25;border-right:none;`)}">${escHtml(teacherFor(sub))}</td>
     </tr>`;
   }).join('');
 
+  /* ── Learner details grid ───────────────────────────────── */
+  const cell = (label, value, { span = 1, last = false, bottom = true } = {}) => `
+    <div style="grid-column:span ${span};padding:6px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}${bottom ? `border-bottom:2px solid ${LINE};` : ''}">
+      <div style="font-size:7.5px;font-weight:700;color:${MUTE};text-transform:uppercase;letter-spacing:0.8px;margin-bottom:2px;">${label}</div>
+      <div style="font-size:12.5px;font-weight:800;color:${INK};line-height:1.2;">${value}</div>
+    </div>`;
+
+  const learnerGrid = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:3px solid ${LINE};">
+      ${cell('Learner name',  escHtml(r.fullName),            { span: 2 })}
+      ${cell('Class',         escHtml(r.streamName || s.cls))}
+      ${cell('Gender',        escHtml(gender),                { last: true })}
+      ${cell('Assessment no.', escHtml(r.assessmentNo || '—'), { bottom: false })}
+      ${cell('Admission no.',  escHtml(r.upiNumber || '—'),    { bottom: false })}
+      ${cell('Academic year',  escHtml(s.year),                { bottom: false, span: 2, last: true })}
+    </div>`;
+
+  /* ── Key figures strip ──────────────────────────────────── */
+  const stat = (label, value, last = false) => `
+    <div style="padding:7px 12px;text-align:center;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
+      <div style="font-size:7.5px;font-weight:700;color:${MUTE};text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px;">${label}</div>
+      <div style="font-size:16px;font-weight:800;color:${NAVY};line-height:1.1;">${value}</div>
+    </div>`;
+
+  const statsStrip = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:3px solid ${LINE};">
+      ${stat('Total marks',  `${r.totalScore}<span style="font-size:10px;color:${MUTE};font-weight:600;">/${maxTotal}</span>`)}
+      ${stat('Average',      `${r.avgScore}%`)}
+      ${stat('KJSEA points', `${r.totalPoints}<span style="font-size:10px;color:${MUTE};font-weight:600;">/${maxPoints}</span>`)}
+      ${stat('Overall level', `${chip(r.meanGrade, 'font-size:11px;padding:2px 8px;')} <span style="font-size:9px;font-weight:600;color:${INK};margin-left:4px;">${escHtml(r.meanGradeInfo?.label || '')}</span>`, true)}
+    </div>`;
+
+  /* ── Pathway summary ────────────────────────────────────── */
   const pathwayConfig = [
     { key:'stem',     ...KJSEA.PATHWAYS.stem     },
     { key:'social',   ...KJSEA.PATHWAYS.social   },
     { key:'creative', ...KJSEA.PATHWAYS.creative },
   ];
 
-  const wCore = Math.round(KJSEA.PATHWAY_WEIGHTS.core    * 100);
-  const wPath = Math.round(KJSEA.PATHWAY_WEIGHTS.pathway * 100);
-
-  const pathwayCells = pathwayConfig.map(({ key, name, bg, border, col, pillBg, pillCol }, i) => {
-    const pw   = r.pathways[key];
-    const last = i === pathwayConfig.length - 1;
+  const pathwayCells = pathwayConfig.map(({ key, name, col }, i) => {
+    const pw       = r.pathways[key];
+    const last     = i === pathwayConfig.length - 1;
     const hasScore = pw.avg !== null;
-    const breakdown = hasScore
-      ? `Core ${pw.coreAvg !== null ? pw.coreAvg + '%' : '—'} (${wCore}%) + Pathway ${pw.pathAvg}% (${wPath}%)`
-      : 'No pathway subjects scored';
+    const code     = (pw.css || '').toUpperCase();
+    const partial  = hasScore && pw.count < pw.expected
+      ? `<div style="font-size:8px;color:${MUTE};margin-top:4px;">${pw.count} of ${pw.expected} subjects counted</div>` : '';
     return `
-      <div style="flex:1;padding:8px 8px;text-align:center;background:${bg};border-top:2px solid ${border};border-bottom:2px solid ${border};border-left:2px solid ${border};${last ? 'border-right:2px solid ' + border + ';' : ''}">
-        <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:${col};margin-bottom:2px;">${name}</div>
-        <div style="font-size:7px;color:${col};opacity:0.75;margin-bottom:5px;line-height:1.4;">${pw.subjects}</div>
-        <div style="font-size:1.4rem;font-weight:700;color:${col};line-height:1;margin-bottom:2px;">${hasScore ? pw.avg + '%' : '—'}</div>
-        <div style="font-size:7.5px;font-weight:600;color:${col};margin-bottom:1px;">${breakdown}</div>
-        <div style="font-size:7.5px;color:${col};opacity:0.8;margin-bottom:4px;">${pw.count} pathway subject${pw.count === 1 ? '' : 's'}</div>
-        <span style="display:inline-block;background:${pillBg};color:${pillCol};border-radius:3px;padding:1px 7px;font-size:7.5px;font-weight:700;">${pw.grade}</span>
+      <div style="flex:1;padding:9px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+          <span style="width:9px;height:9px;background:${col};border-radius:2px;display:inline-block;"></span>
+          <span style="font-size:10px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:${INK};">${name}</span>
+        </div>
+        <div style="font-size:8px;color:${MUTE};line-height:1.35;min-height:22px;">${escHtml(pw.subjects)}</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin:5px 0 5px;">
+          <span style="font-size:24px;font-weight:800;color:${col};line-height:1;">${hasScore ? pw.avg + '%' : '—'}</span>
+          <span style="font-size:10px;font-weight:700;color:${INK};">${hasScore ? pw.points + '/' + pw.maxPts + ' pts' : ''}</span>
+        </div>
+        <div style="height:8px;border:1.5px solid ${LINE};border-radius:4px;overflow:hidden;background:#ffffff;">
+          <div style="height:100%;width:${hasScore ? Math.min(100, pw.avg) : 0}%;background:${col};"></div>
+        </div>
+        <div style="margin-top:6px;display:flex;align-items:center;">
+          ${hasScore ? chip(code) : ''}
+          <span style="font-size:9px;font-weight:600;color:${INK};margin-left:${hasScore ? 6 : 0}px;">${hasScore ? escHtml(pw.grade) : 'No data'}</span>
+        </div>
+        ${partial}
       </div>`;
   }).join('');
 
+  /* ── Comments + sign-off ────────────────────────────────── */
+  const signBlock = (title, comment, person, personLabel, last = false) => `
+    <div style="padding:8px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
+      <div style="font-size:7.5px;font-weight:700;color:${MUTE};text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px;">${title}</div>
+      <div style="font-size:10px;color:${INK};line-height:1.45;font-style:italic;min-height:44px;">${escHtml(comment)}</div>
+      <div style="margin-top:14px;border-bottom:2px solid ${LINE};"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:8px;color:${MUTE};">
+        <span><strong style="color:${INK};font-size:9.5px;">${person ? escHtml(person) : '&nbsp;'}</strong><br/>${personLabel}</span>
+        <span style="align-self:flex-end;">Date: ....................</span>
+      </div>
+    </div>`;
+
+  const dateCell = (label, value, last = false) => `
+    <div style="padding:6px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
+      <div style="font-size:7.5px;font-weight:700;color:${MUTE};text-transform:uppercase;letter-spacing:0.8px;margin-bottom:2px;">${label}</div>
+      <div style="font-size:12px;font-weight:800;color:${INK};">${escHtml(value)}</div>
+    </div>`;
+
+  /* ── Grading key ────────────────────────────────────────── */
+  const keyCells = KJSEA.SCALE.map((g, i) => `
+    <div style="padding:5px 4px;text-align:center;background:#ffffff;${i < KJSEA.SCALE.length - 1 ? `border-right:2px solid ${LINE};` : ''}">
+      ${chip(g.grade)}
+      <div style="font-size:8px;color:${INK};margin-top:3px;font-weight:600;">${g.min}–${g.max}%</div>
+      <div style="font-size:7.5px;color:${MUTE};">${g.points} pts</div>
+    </div>`).join('');
+
+  /* ── Page ───────────────────────────────────────────────── */
   return `
-<div style="max-width:700px;background:#ffffff;border:2px solid #64748b;border-radius:8px;overflow:hidden;font-family:'DM Sans',Arial,sans-serif;font-size:11px;color:#1e293b;margin:0 auto;">
+<div style="width:100%;max-width:754px;box-sizing:border-box;background:#ffffff;color-scheme:light;-webkit-print-color-adjust:exact;print-color-adjust:exact;border:3px solid ${LINE};border-radius:6px;overflow:hidden;font-family:'DM Sans','Segoe UI',Arial,sans-serif;font-size:11px;color:${INK};margin:0 auto;font-variant-numeric:tabular-nums;">
 
-  <!-- ══ HEADER ══ -->
-  <div style="background:#ffffff;padding:10px 16px;display:flex;align-items:center;gap:12px;border-bottom:2px solid #64748b;">
-    <div style="width:46px;height:46px;background:#0d3349;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🎓</div>
-    <div style="flex:1;">
-      <div style="font-size:0.95rem;font-weight:700;color:#0d3349;letter-spacing:0.2px;margin-bottom:1px;">${s.schoolName.toUpperCase()}</div>
-      <div style="font-size:0.65rem;color:#64748b;margin-bottom:1px;">Junior Secondary School</div>
-      <div style="font-size:0.62rem;color:#475569;font-style:italic;">${s.schoolMotto}</div>
+  <!-- Letterhead -->
+  <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:#ffffff;border-bottom:3px solid ${LINE};">
+    <div style="width:50px;height:50px;background:${NAVY};color:#ffffff;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800;letter-spacing:1px;flex-shrink:0;">${escHtml(initials)}</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:17px;font-weight:800;color:${NAVY};letter-spacing:0.4px;line-height:1.15;">${escHtml(String(s.schoolName).toUpperCase())}</div>
+      <div style="font-size:10px;color:${MUTE};margin-top:3px;">Junior Secondary School &nbsp;&bull;&nbsp; <em>${escHtml(s.schoolMotto)}</em></div>
     </div>
-    <div style="width:1.5px;height:44px;background:#64748b;flex-shrink:0;"></div>
-    <div style="text-align:center;flex-shrink:0;padding-left:8px;">
-      <div style="width:38px;height:38px;background:#0d3349;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;margin:0 auto 3px;">🛡️</div>
-      <div style="font-size:0.52rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;">Academic Year</div>
-      <div style="font-size:1.05rem;font-weight:800;color:#0d3349;line-height:1.1;">${s.year}</div>
+    <div style="text-align:right;flex-shrink:0;">
+      <div style="font-size:12.5px;font-weight:800;letter-spacing:1.2px;color:${INK};">LEARNER PROGRESS REPORT</div>
+      <div style="font-size:10px;color:${MUTE};margin-top:3px;">Term ${escHtml(s.term)} &nbsp;&bull;&nbsp; ${escHtml(s.exam)} Examination &nbsp;&bull;&nbsp; ${escHtml(s.year)}</div>
     </div>
   </div>
 
-  <!-- ══ LEARNER META BAR ══ -->
-  <div style="display:grid;grid-template-columns:repeat(6,1fr);background:#ffffff;border-bottom:2px solid #64748b;">
-    ${[
-      { label:'Full Name',      val: r.fullName          },
-      { label:'Assessment No.', val: r.assessmentNo||'—' },
-      { label:'Grade',          val: r.streamName || s.cls },
-      { label:'Gender',         val: r.gender||'—'       },
-      { label:'Admission No.',  val: r.upiNumber||'—'    },
-      { label:'Academic Year',  val: s.year              },
-    ].map((c,i,a) => `
-      <div style="padding:6px 8px;background:#ffffff;${i < a.length-1 ? 'border-right:1.5px solid #94a3b8;' : ''}">
-        <div style="font-size:0.52rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:2px;">${c.label}</div>
-        <div style="font-size:0.75rem;font-weight:700;color:#0d3349;">${c.val}</div>
-      </div>`
-    ).join('')}
-  </div>
+  ${learnerGrid}
+  ${statsStrip}
 
-  <!-- ══ EXAM STRIP ══ -->
-  <div style="background:#0d3349;display:flex;align-items:center;justify-content:center;gap:16px;padding:5px 16px;">
-    <span style="color:rgba(255,255,255,0.90);font-size:0.68rem;font-weight:600;">📅 Term ${s.term}</span>
-    <span style="color:rgba(255,255,255,0.25);font-size:16px;line-height:1;">|</span>
-    <span style="color:rgba(255,255,255,0.90);font-size:0.68rem;font-weight:600;">📄 ${s.exam} Examination</span>
-    <span style="color:rgba(255,255,255,0.25);font-size:16px;line-height:1;">|</span>
-    <span style="display:flex;align-items:center;gap:4px;color:rgba(255,255,255,0.90);font-size:0.68rem;font-weight:600;">
-      <span style="width:6px;height:6px;background:#4ecb8d;border-radius:50%;display:inline-block;"></span>
-      Academic Year ${s.year}
-    </span>
-  </div>
-
-  <!-- ══ SUBJECT PERFORMANCE LABEL ══ -->
-  <div style="background:#0d3349;padding:4px 12px;font-size:0.60rem;font-weight:700;color:rgba(255,255,255,0.90);text-transform:uppercase;letter-spacing:0.8px;">Subject Performance</div>
-
-  <!-- ══ TABLE ══ -->
-  <table style="width:100%;border-collapse:collapse;border-left:2px solid #64748b;border-right:2px solid #64748b;">
+  ${sectionBar('Subject performance')}
+  <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
     <thead>
-      <tr style="background:#0d3349;">
-        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:4%;">No.</th>
-        <th style="padding:5px 8px;text-align:left;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:18%;">Learning Area</th>
-        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:8%;">Score %</th>
-        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:16%;">Grade</th>
-        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:7%;">Points</th>
-        <th style="padding:5px 8px;text-align:left;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-right:1.5px solid rgba(255,255,255,0.20);border-bottom:1.5px solid rgba(255,255,255,0.20);width:29%;">Teacher Comment</th>
-        <th style="padding:5px 8px;text-align:center;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;border-bottom:1.5px solid rgba(255,255,255,0.20);width:18%;">Teacher</th>
+      <tr>
+        ${th('No.', 4)}${th('Learning area', 21, 'left')}${th('Score', 9)}${th('Level', 20, 'left')}${th('Points', 8)}${th('Teacher&rsquo;s remark', 24, 'left')}${th('Teacher', 14, 'left', true)}
       </tr>
     </thead>
     <tbody>
       ${subjectRows}
-      <!-- TOTAL ROW -->
       <tr>
-        <td style="padding:5px 8px;background:#0d3349;border-right:1.5px solid rgba(255,255,255,0.18);"></td>
-        <td style="padding:5px 8px;background:#0d3349;border-right:1.5px solid rgba(255,255,255,0.18);font-weight:700;font-size:10.5px;color:#ffffff;text-transform:uppercase;letter-spacing:0.3px;">Total</td>
-        <td style="padding:5px 8px;background:#0d3349;border-right:1.5px solid rgba(255,255,255,0.18);text-align:center;font-weight:700;font-size:11px;color:#ffffff;">${r.totalScore}/${maxTotal}</td>
-        <td style="padding:5px 8px;background:#0d3349;border-right:1.5px solid rgba(255,255,255,0.18);text-align:center;line-height:1.2;">
-          <div style="font-size:8px;color:rgba(255,255,255,0.60);margin-bottom:2px;">${r.meanGradeInfo?.label || '--'}</div>
-          <span style="display:inline-block;background:#1d9e75;color:#fff;border-radius:3px;padding:1px 5px;font-size:7.5px;font-weight:700;">${r.meanGrade || '--'}</span>
-        </td>
-        <td style="padding:5px 8px;background:#0d3349;border-right:1.5px solid rgba(255,255,255,0.18);text-align:center;">
-          <span style="font-weight:700;color:#4ecb8d;font-size:11px;">${r.totalPoints}</span>
-          <span style="font-size:8px;color:rgba(255,255,255,0.40);">/${maxPoints}</span>
-        </td>
-        <td colspan="2" style="padding:5px 8px;background:#0d3349;font-style:italic;font-size:9px;color:rgba(255,255,255,0.55);">
-          ${KJSEA.getTeacherComment(r.meanGrade).split('.')[0]}.
-        </td>
+        <td style="padding:6px 8px;background:${NAVY};border-right:2px solid rgba(255,255,255,0.65);"></td>
+        <td style="padding:6px 8px;background:${NAVY};border-right:2px solid rgba(255,255,255,0.65);font-weight:800;font-size:10.5px;color:#ffffff;letter-spacing:0.8px;">TOTAL</td>
+        <td style="padding:6px 8px;background:${NAVY};border-right:2px solid rgba(255,255,255,0.65);text-align:center;font-weight:800;font-size:11px;color:#ffffff;">${r.totalScore}/${maxTotal}</td>
+        <td style="padding:6px 8px;background:${NAVY};border-right:2px solid rgba(255,255,255,0.65);">${chip(r.meanGrade)} <span style="font-size:9px;color:#ffffff;margin-left:4px;">${escHtml((r.meanGradeInfo?.label || '').split(' ')[0])}</span></td>
+        <td style="padding:6px 8px;background:${NAVY};border-right:2px solid rgba(255,255,255,0.65);text-align:center;font-weight:800;font-size:11px;color:#ffffff;">${r.totalPoints}<span style="font-size:8.5px;opacity:0.7;font-weight:500;">/${maxPoints}</span></td>
+        <td colspan="2" style="padding:6px 8px;background:${NAVY};font-style:italic;font-size:9.5px;color:#ffffff;">${escHtml(KJSEA.getTeacherComment(r.meanGrade).split('.')[0])}.</td>
       </tr>
     </tbody>
   </table>
 
-  <!-- ══ PATHWAY SUMMARY ══ -->
-  <div style="background:#0d3349;padding:4px 12px;font-size:0.60rem;font-weight:700;color:rgba(255,255,255,0.90);text-transform:uppercase;letter-spacing:0.8px;">Pathway Summary — Core ${wCore}% + Pathway Subjects ${wPath}%</div>
-  <div style="display:flex;border-bottom:2px solid #64748b;">${pathwayCells}</div>
+  ${sectionBar('Pathway summary', 'Average of the KNEC subjects for each pathway')}
+  <div style="display:flex;border-bottom:3px solid ${LINE};">${pathwayCells}</div>
 
-  <!-- ══ COMMENTS HEADER ══ -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1.5px solid #94a3b8;">
-    <div style="background:#f1f5f9;padding:3px 12px;border-right:1.5px solid #94a3b8;">
-      <div style="font-size:0.57rem;font-weight:700;color:#0d3349;text-transform:uppercase;letter-spacing:0.4px;">Comments</div>
-    </div>
-    <div style="background:#f1f5f9;padding:3px 12px;">
-      <div style="font-size:0.57rem;font-weight:700;color:#0d3349;text-transform:uppercase;letter-spacing:0.4px;">Principal's Comment</div>
-    </div>
+  ${sectionBar('Comments')}
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid ${LINE};">
+    ${signBlock("Class teacher's comment", KJSEA.getTeacherComment(r.meanGrade), s.teacher, 'Class teacher &mdash; signature')}
+    ${signBlock("Principal's comment",     KJSEA.getPrincipalComment(r, r.meanGrade), s.principal, 'Principal &mdash; signature &amp; stamp', true)}
   </div>
 
-  <!-- ══ COMMENTS BODY ══ -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:2px solid #64748b;">
-    <div style="padding:8px 12px;border-right:1.5px solid #94a3b8;background:#ffffff;">
-      <div style="font-size:0.55rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px;">Class Teacher's Comment</div>
-      <div style="font-size:0.68rem;color:#334155;line-height:1.45;font-style:italic;">${KJSEA.getTeacherComment(r.meanGrade)}</div>
-      <div style="font-size:0.64rem;font-weight:700;color:#0d3349;margin-top:6px;min-height:11px;">${s.teacher ? escHtml(s.teacher) : ''}</div>
-      <div style="border-bottom:1px solid #94a3b8;margin:2px 0 3px;"></div>
-      <div style="font-size:0.52rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.3px;display:flex;justify-content:space-between;">
-        <span>Class Teacher Signature &amp; Date</span><span>Date: .....................</span>
-      </div>
-    </div>
-    <div style="padding:8px 12px;background:#ffffff;">
-      <div style="font-size:0.55rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px;">Principal Signature Stamp &amp; Date</div>
-      <div style="font-size:0.68rem;color:#334155;line-height:1.45;font-style:italic;">${KJSEA.getPrincipalComment(r, r.meanGrade)}</div>
-      <div style="font-size:0.64rem;font-weight:700;color:#0d3349;margin-top:6px;min-height:11px;">${s.principal ? escHtml(s.principal) : ''}</div>
-      <div style="border-bottom:1px solid #94a3b8;margin:2px 0 3px;"></div>
-      <div style="font-size:0.52rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.3px;display:flex;justify-content:flex-end;">
-        <span>Date: .....................</span>
-      </div>
-    </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid ${LINE};">
+    ${dateCell('Term closing date', s.closingDate)}
+    ${dateCell('Next term opens',   s.nextTerm, true)}
   </div>
 
-  <!-- ══ DATES BAR ══ -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1.5px solid #94a3b8;background:#ffffff;">
-    <div style="padding:6px 12px;border-right:1.5px solid #94a3b8;display:flex;align-items:center;gap:8px;">
-      <div style="width:26px;height:26px;border-radius:6px;background:#e1f5ee;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">📅</div>
-      <div>
-        <div style="font-size:0.52rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:1px;">Term Closing Date</div>
-        <div style="font-size:0.78rem;font-weight:700;color:#0d3349;">${s.closingDate}</div>
-      </div>
-    </div>
-    <div style="padding:6px 12px;display:flex;align-items:center;gap:8px;">
-      <div style="width:26px;height:26px;border-radius:6px;background:#e1f5ee;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">📅</div>
-      <div>
-        <div style="font-size:0.52rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:1px;">Next Term Opens</div>
-        <div style="font-size:0.78rem;font-weight:700;color:#0d3349;">${s.nextTerm}</div>
-      </div>
-    </div>
+  <div style="display:flex;align-items:flex-end;gap:10px;padding:10px 12px 6px;background:#ffffff;border-bottom:3px solid ${LINE};font-size:10px;color:${INK};">
+    <span style="white-space:nowrap;font-weight:700;">Parent / Guardian signature:</span>
+    <div style="flex:1;border-bottom:2px solid ${LINE};height:14px;"></div>
+    <span style="white-space:nowrap;">Date: ______________</span>
   </div>
 
-  <!-- ══ PARENT SIGNATURE ══ -->
-  <div style="padding:6px 12px;border-bottom:1.5px solid #94a3b8;display:flex;align-items:center;gap:8px;font-size:0.68rem;color:#475569;background:#ffffff;">
-    <span style="white-space:nowrap;font-weight:600;">Parent / Guardian signature:</span>
-    <div style="flex:1;border-bottom:1.5px solid #64748b;height:14px;"></div>
-    <span style="white-space:nowrap;">Date: ___________</span>
-  </div>
+  ${sectionBar('Grading key', 'Level, score range and KJSEA points')}
+  <div style="display:grid;grid-template-columns:repeat(8,1fr);border-bottom:3px solid ${LINE};">${keyCells}</div>
 
-  <!-- ══ FOOTER ══ -->
-  <div style="background:#0d3349;display:flex;align-items:center;justify-content:space-between;padding:6px 12px;">
-    <div style="display:flex;align-items:center;gap:5px;font-size:0.62rem;color:rgba(255,255,255,0.55);">
-      <span style="color:#4ecb8d;font-size:12px;">🎓</span>
-      Powered by Scholar Analytics &nbsp;|&nbsp; ${s.schoolMotto}
-    </div>
-    <div style="font-size:0.55rem;color:rgba(255,255,255,0.30);">Confidential — For Authorised Personnel Only</div>
+  <!-- Footer -->
+  <div style="background:${NAVY};display:flex;justify-content:space-between;align-items:center;padding:6px 14px;font-size:8.5px;color:rgba(255,255,255,0.85);">
+    <span>Powered by Scholar Analytics</span>
+    <span>Confidential &mdash; for authorised personnel only</span>
   </div>
 
 </div>`;
