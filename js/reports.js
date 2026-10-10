@@ -967,6 +967,20 @@ const flashMissing = (cls, term, exam) => {
    Nothing else in reports.js is touched. Pathway calculations
    (KJSEA.computePathways) are unchanged.
 ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   reports_fixes.js  — drop-in replacement for sections 11 and 12
+   of js/reports.js (buildReportCard and buildClassSheet).
+
+   HOW TO USE
+   1. In reports.js DELETE the old "11. BUILD INDIVIDUAL REPORT CARD"
+      (const buildReportCard = …) and "12. BUILD CLASS RESULT SHEET"
+      (const buildClassSheet = …) blocks completely.
+   2. Paste this whole file in their place (between sections 10 and 13).
+   3. Make the two small edits in section 10 listed in the notes.
+
+   Nothing else in reports.js is touched. Pathway calculations
+   (KJSEA.computePathways) are unchanged.
+═══════════════════════════════════════════════════════════ */
 
 /* ── A. Grading scale: full level names, 0 covered, whole-number rounding ──
    These lines REPLACE the old KJSEA.SCALE / getGrade / getSubjectRemark.
@@ -1012,6 +1026,21 @@ KJSEA.getSubjectRemark = function (score) {
 
 /* ── B. Shared print-friendly style: white page, black text, gridlines only ── */
 const PRINT = { INK: '#000000', LINE: '#000000', MUTE: '#1f2937' };
+
+/* Fixed subject order for every result sheet and report card:
+   English, Maths, Kiswahili, Integrated Science, Social Studies, CRE,
+   Creative Arts & Sports, Agriculture, Pre-Technical.
+   Subjects are recognised by code or name (see KJSEA.SUBJECT_SLOTS);
+   anything not in the list goes last, in its original order. */
+const SUBJECT_ORDER = ['eng', 'math', 'kisw', 'inter', 'sst', 'cre', 'cas', 'agri', 'pretech'];
+
+const sortSubjects = (list) => (list || [])
+  .map((x, i) => {
+    const k = SUBJECT_ORDER.findIndex(key => KJSEA.matchSlot({ code: x.code, name: x.name }, key));
+    return { x, i, k: k < 0 ? 99 : k };
+  })
+  .sort((a, b) => (a.k - b.k) || (a.i - b.i))
+  .map(o => o.x);
 
 /* "7 EAST" -> "Grade 7 East";  "Grade 7 East" stays as it is */
 const prettyClass = (name) => {
@@ -1068,7 +1097,7 @@ const buildReportCard = (r, s) => {
   const teacherFor = (sub) => tidyName(teacherMap[normName(sub.name)] || sub.teacherName || '');
 
   /* ── Subject rows ───────────────────────────────────────── */
-  const subjectRows = r.subjectResults.map((sub, i) => {
+  const subjectRows = sortSubjects(r.subjectResults).map((sub, i) => {
     const isOut    = sub.absent || sub.notEntered;
     const code     = sub.grade || '';
     const scoreTxt = sub.score !== null && sub.score !== undefined ? sub.score + '%' : (sub.absent ? 'ABS' : '—');
@@ -1255,6 +1284,16 @@ const buildClassSheet = (allResults, s) => {
   const n = results.length;
   const div = (a, b) => b ? a / b : 0;
 
+  /* One subject list for the whole sheet. Subjects are matched by NAME, because East and West
+     keep separate subject records (different ids) for the same subject. */
+  const subjectList = [...(state.subjects || [])];
+  allResults.forEach(r => (r.subjectResults || []).forEach(x => {
+    if (x.name && !subjectList.some(sj => normName(sj.name) === normName(x.name)))
+      subjectList.push({ name: x.name, code: x.code || String(x.name).slice(0, 4).toUpperCase() });
+  }));
+  subjectList.splice(0, subjectList.length, ...sortSubjects(subjectList));
+  const sameSubj = (x, subj) => normName(x.name) === normName(subj.name);
+
   const avg      = div(results.reduce((a, r) => a + r.avgScore, 0), n).toFixed(1);
   const meanPts  = div(results.reduce((a, r) => a + r.avgPoints, 0), n).toFixed(2);
   const classCode = KJSEA.getGrade(Math.round(Number(avg)))?.grade || '';
@@ -1271,9 +1310,8 @@ const buildClassSheet = (allResults, s) => {
     [...new Set(Object.values(maps).map(m => m[normName(name)]).filter(Boolean))].map(tidyName).join(' / ');
 
   /* Subject averages, grade counts, top 3 */
-  const sameSubj = (x, subj) => String(x.subjectId) === String(subj._id);
 
-  const subjectStats = state.subjects.map(subj => {
+  const subjectStats = subjectList.map(subj => {
     const scores = [];
     results.forEach(r => {
       const sr = r.subjectResults?.find(x => sameSubj(x, subj));
@@ -1294,7 +1332,7 @@ const buildClassSheet = (allResults, s) => {
   });
 
   const ranked = [...subjectStats].sort((a, b) => b.avg - a.avg).map((x, i) => ({ ...x, rank: i + 1 }));
-  const statOf = (subj) => subjectStats.find(x => String(x._id) === String(subj._id));
+  const statOf = (subj) => subjectStats.find(x => normName(x.name) === normName(subj.name));
 
   /* Gender analytics */
   const males     = results.filter(r => r.gender === 'male'   && r.subjectCount > 0);
@@ -1314,10 +1352,26 @@ const buildClassSheet = (allResults, s) => {
   const tdS = (extra = '') => `padding:4px 5px 6px;border-right:1px solid ${LINE};border-bottom:1px solid ${LINE};font-size:10.5px;line-height:1.3;color:${INK};background:#ffffff;${extra}`;
 
   /* ── Merit table (Kaaboi style: mark + level in one cell) ── */
-  const subjHeaders = state.subjects.map(subj => th(escHtml(subj.code), 'center', subj.name)).join('');
+  /* Whole-grade sheets: which class each learner is in, and their position within that class */
+  const multi = new Set(allResults.map(r => r.streamName).filter(Boolean)).size > 1;
+  const extra = multi ? 2 : 0;
+  const shortClass = (n) => prettyClass(n).replace(/^Grade\s+/, '');
+  const streamPos = results.map(() => 0);
+  const tally = {};
+  results.forEach((r, i) => {
+    const t = (tally[r.streamName || ''] = tally[r.streamName || ''] || { n: 0, lastTotal: null, lastPos: 0 });
+    t.n++;
+    if (r.totalScore !== t.lastTotal) { t.lastPos = t.n; t.lastTotal = r.totalScore; }
+    streamPos[i] = t.lastPos;
+  });
+  const classCells = (r, i) => multi
+    ? `<td style="${tdS('text-align:center;white-space:nowrap;')}">${escHtml(shortClass(r.streamName))}</td><td style="${tdS('text-align:center;font-weight:800;')}">${i === null ? '—' : streamPos[i]}</td>`
+    : '';
 
-  const tableRows = results.map(r => {
-    const subjCells = state.subjects.map(subj => {
+  const subjHeaders = subjectList.map(subj => th(escHtml(subj.code), 'center', subj.name)).join('');
+
+  const tableRows = results.map((r, i) => {
+    const subjCells = subjectList.map(subj => {
       const sr = r.subjectResults?.find(x => sameSubj(x, subj));
       let txt = '—';
       if (sr && !sr.notEntered) txt = sr.absent ? 'ABS' : `${sr.score ?? '—'}${sr.grade ? ' ' + sr.grade : ''}`;
@@ -1331,6 +1385,7 @@ const buildClassSheet = (allResults, s) => {
         <td style="${tdS('text-align:center;font-weight:800;')}">${r.position}</td>
         <td style="${tdS('text-align:left;font-weight:700;white-space:nowrap;')}">${escHtml(r.fullName)}</td>
         <td style="${tdS('text-align:center;')}">${escHtml(r.gender?.charAt(0).toUpperCase() || '—')}</td>
+        ${classCells(r, i)}
         ${subjCells}
         <td style="${tdS('text-align:center;font-weight:800;')}">${r.totalScore}</td>
         <td style="${tdS('text-align:center;font-weight:700;')}">${r.avgScore}%</td>
@@ -1340,12 +1395,13 @@ const buildClassSheet = (allResults, s) => {
       </tr>`;
   }).join('');
 
-  const xCells = state.subjects.map(() => `<td style="${tdS('text-align:center;')}">—</td>`).join('');
+  const xCells = subjectList.map(() => `<td style="${tdS('text-align:center;')}">—</td>`).join('');
   const noMarksRows = noMarks.map(r => `
       <tr>
         <td style="${tdS('text-align:center;')}">—</td>
         <td style="${tdS('text-align:left;font-weight:700;white-space:nowrap;')}">${escHtml(r.fullName)}</td>
         <td style="${tdS('text-align:center;')}">${escHtml(r.gender?.charAt(0).toUpperCase() || '—')}</td>
+        ${classCells(r, null)}
         ${xCells}
         <td style="${tdS('text-align:center;')}">—</td>
         <td style="${tdS('text-align:center;')}">—</td>
@@ -1357,8 +1413,8 @@ const buildClassSheet = (allResults, s) => {
   /* Bottom rows: subject average marks, and average points with level (as in Kaaboi) */
   const avgMarksRow = `
     <tr>
-      <td colspan="3" style="${tdS(`font-weight:800;border-top:3px double ${LINE};`)}">AVG. MARKS</td>
-      ${state.subjects.map(subj => `<td style="${tdS(`text-align:center;font-weight:800;border-top:3px double ${LINE};`)}">${statOf(subj)?.avg ?? 0}%</td>`).join('')}
+      <td colspan="${3 + extra}" style="${tdS(`font-weight:800;border-top:3px double ${LINE};`)}">AVG. MARKS</td>
+      ${subjectList.map(subj => `<td style="${tdS(`text-align:center;font-weight:800;border-top:3px double ${LINE};`)}">${statOf(subj)?.avg ?? 0}%</td>`).join('')}
       <td style="${tdS(`border-top:3px double ${LINE};`)}"></td>
       <td style="${tdS(`text-align:center;font-weight:800;border-top:3px double ${LINE};`)}">${avg}%</td>
       <td style="${tdS(`text-align:center;font-weight:800;border-top:3px double ${LINE};`)}">${meanPts}</td>
@@ -1368,8 +1424,8 @@ const buildClassSheet = (allResults, s) => {
 
   const avgPointsRow = `
     <tr>
-      <td colspan="3" style="${tdS('font-weight:800;')}">AVG. POINTS</td>
-      ${state.subjects.map(subj => {
+      <td colspan="${3 + extra}" style="${tdS('font-weight:800;')}">AVG. POINTS</td>
+      ${subjectList.map(subj => {
         const st = statOf(subj);
         const code = st && st.count ? (KJSEA.getGrade(Math.round(st.avg))?.grade || '') : '';
         return `<td style="${tdS('text-align:center;font-weight:700;white-space:nowrap;')}">${st?.avgPts ?? 0} ${escHtml(code)}</td>`;
@@ -1400,8 +1456,8 @@ const buildClassSheet = (allResults, s) => {
     </tr>`).join('');
 
   /* ── Top 3 per subject ── */
-  const top3Cards = ranked.map(x => `
-    <div class="keep" style="flex:1 1 200px;border:1.5px solid ${LINE};background:#ffffff;">
+  const top3Cards = subjectStats.map(x => `
+    <div class="keep" style="flex:0 0 calc(25% - 7.5px);box-sizing:border-box;border:1.5px solid ${LINE};background:#ffffff;">
       <div style="padding:5px 10px;border-bottom:1.5px solid ${LINE};">
         <div style="font-size:11px;font-weight:800;">${escHtml(x.name)}</div>
         <div style="font-size:9.5px;">Avg: ${x.avg}%</div>
@@ -1418,7 +1474,7 @@ const buildClassSheet = (allResults, s) => {
     </div>`).join('');
 
   /* ── Gender, per subject ── */
-  const genderRows = state.subjects.map(subj => {
+  const genderRows = subjectList.map(subj => {
     const pick = (list) => list.map(r => r.subjectResults?.find(x => sameSubj(x, subj)))
       .filter(x => x && !x.absent && !x.notEntered && x.score !== null && x.score !== undefined).map(x => x.score);
     const mS = pick(males), fS = pick(females);
@@ -1480,7 +1536,7 @@ const buildClassSheet = (allResults, s) => {
     <table style="width:100%;border-collapse:collapse;">
       <thead>
         <tr>
-          ${th('Pos')}${th('Learner name', 'left')}${th('G')}${subjHeaders}${th('Total')}${th('Avg %')}${th('Points')}${th('Performance level', 'left')}${th('VAP')}
+          ${th('Pos')}${th('Learner name', 'left')}${th('G')}${multi ? th('Class') + th('Str pos') : ''}${subjHeaders}${th('Total')}${th('Avg %')}${th('Points')}${th('Performance level', 'left')}${th('VAP')}
         </tr>
       </thead>
       <tbody>${tableRows}${noMarksRows}${avgMarksRow}${avgPointsRow}</tbody>
