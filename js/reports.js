@@ -374,7 +374,193 @@ const renderTeacherInputs = () => {
     showToast(`Teacher names copied to ${dests.length} other class${dests.length === 1 ? '' : 'es'}.`, 'success');
   });
 };
+/* ══════════════════════════════════════════════════════════
+   3c. SAVED SETTINGS — remembered on this device AND on the server
+   Paste this block straight AFTER section 3b (SUBJECT TEACHERS),
+   after renderTeacherInputs and before "4. CLASS / GRADE SELECTION".
+   (If you pasted the earlier, device-only version of this block,
+    delete it and use this one instead.)
 
+   What happens
+   • When the page opens it fills in what is saved: school name, motto,
+     principal, each class's teacher and each class's subject teachers.
+   • As you type, the change is kept on this device straight away and
+     sent to the server about 1.5 seconds after you stop typing.
+   • School name, motto and principal are sent to the server only when
+     an ADMIN types them. Teacher names are saved for everyone.
+   • If the server cannot be reached, nothing is lost: the names stay on
+     this device and are sent next time.
+   • Term closing date and next term opens are NOT saved (they change
+     every term).
+   Needs: api.js (Auth, API, showToast) and section 3b helpers.
+══════════════════════════════════════════════════════════ */
+const SETTINGS_KEY = 'sa_report_school_settings_v1';
+
+const readSavedSettings = () => {
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; }
+  catch { return {}; }
+};
+const writeSavedSettings = (obj) => {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj)); } catch { /* storage blocked */ }
+};
+
+/* Run fn once, 1.5 s after the last call for the same key (keeps requests low) */
+const debounceByKey = (fn, ms = 1500) => {
+  const timers = {};
+  return (key) => {
+    clearTimeout(timers[key]);
+    timers[key] = setTimeout(() => fn(key), ms);
+  };
+};
+
+let warnedSaveFailed = false;
+const warnSaveFailed = (what) => {
+  if (warnedSaveFailed) return;
+  warnedSaveFailed = true;
+  showToast(`Could not save ${what} to the server. It is kept on this device.`, 'warning');
+};
+
+const canEditSchool = () => {
+  try { return Auth.isAdmin(); } catch { return false; }
+};
+
+/* ── School name, motto, principal ─────────────────────────── */
+const schoolFields = [
+  { key: 'schoolName',  input: el.rptSchoolName,  sendAs: 'schoolName'    },
+  { key: 'schoolMotto', input: el.rptSchoolMotto, sendAs: 'schoolMotto'   },
+  { key: 'principal',   input: el.rptPrincipal,   sendAs: 'principalName' },
+];
+
+const pushSchoolToServer = debounceByKey(async () => {
+  if (!canEditSchool()) return;
+  const body = {};
+  schoolFields.forEach(f => {
+    const v = f.input?.value.trim();
+    if (v) body[f.sendAs] = v;
+  });
+  if (!Object.keys(body).length) return;
+  const r = await API.put('/settings/school', body);
+  if (!r?.ok) warnSaveFailed('the school details');
+});
+
+schoolFields.forEach(({ key, input }) => {
+  if (!input) return;
+  const saved = readSavedSettings()[key];
+  if (saved) input.value = saved;                         // device copy, instantly
+  input.addEventListener('input', () => {
+    input.dataset.touched = '1';
+    const st = readSavedSettings();
+    st[key] = input.value.trim();
+    writeSavedSettings(st);
+    pushSchoolToServer('school');
+  });
+});
+
+const loadSchoolFromServer = async () => {
+  const r = await API.get('/settings');
+  if (!r?.ok || !r.data?.school) return;
+  const sch = r.data.school;
+  const fromServer = {
+    schoolName : sch.schoolName,
+    schoolMotto: sch.schoolMotto,
+    principal  : sch.principal?.name,
+  };
+  const st = readSavedSettings();
+  schoolFields.forEach(({ key, input }) => {
+    const v = fromServer[key];
+    if (!v) return;
+    st[key] = v;
+    if (input && !input.dataset.touched) input.value = v;   // never overwrite what is being typed
+  });
+  writeSavedSettings(st);
+};
+
+/* ── Class teacher (one name per class) ────────────────────── */
+const classTeacherKey = () => el.rptClass?.value ? `classTeacher:${el.rptClass.value}` : null;
+
+/* What to send to the server for one class */
+const teachersPayload = (classId) => ({
+  classTeacherName: readSavedSettings()[`classTeacher:${classId}`] || '',
+  subjectTeachers : Object.fromEntries(
+    Object.entries(getTeacherStore()[`class:${classId}`] || {}).filter(([, v]) => v)
+  ),
+});
+
+const pushTeachersToServer = debounceByKey(async (classId) => {
+  const r = await API.put(`/settings/class-teachers/${classId}`, teachersPayload(classId));
+  if (!r?.ok) warnSaveFailed('the teacher names');
+});
+
+el.rptClass?.addEventListener('change', () => {
+  if (!el.rptTeacher) return;
+  delete el.rptTeacher.dataset.touched;
+  const k = classTeacherKey();
+  el.rptTeacher.value = k ? (readSavedSettings()[k] || '') : '';   // never carry one class's teacher to another
+});
+
+el.rptTeacher?.addEventListener('input', () => {
+  el.rptTeacher.dataset.touched = '1';
+  const k = classTeacherKey();
+  if (!k) return;
+  const st = readSavedSettings();
+  st[k] = el.rptTeacher.value.trim();
+  writeSavedSettings(st);
+  if (!isGradeValue(el.rptClass.value)) pushTeachersToServer(el.rptClass.value);
+});
+
+/* Subject-teacher boxes (built in section 3b) save to the device themselves;
+   here we only send the same change to the server. */
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t?.matches?.('input[data-subj][data-class]')) pushTeachersToServer(t.dataset.class);
+});
+
+/* "Copy names to other classes" button: send every class that now has names */
+document.addEventListener('click', (e) => {
+  if (!e.target?.closest?.('#copyTeachersBtn')) return;
+  const store = getTeacherStore();
+  (state.classes || []).forEach(c => {
+    if (Object.keys(store[`class:${c._id}`] || {}).length) pushTeachersToServer(c._id);
+  });
+});
+
+/* Load what the server has, merge with this device, upload anything the server lacks */
+const loadTeachersFromServer = async () => {
+  const r = await API.get('/settings/class-teachers');
+  if (!r?.ok || !Array.isArray(r.data?.classes)) return;
+
+  const store  = getTeacherStore();
+  const st     = readSavedSettings();
+  const toPush = [];
+
+  r.data.classes.forEach(c => {
+    const key    = `class:${c._id}`;
+    const server = c.subjectTeachers || {};
+    const merged = { ...(store[key] || {}), ...server };    // server wins, device fills the gaps
+    store[key]   = merged;
+
+    const ctKey = `classTeacher:${c._id}`;
+    const ct    = c.classTeacherName || st[ctKey] || '';
+    if (ct) st[ctKey] = ct;
+
+    const lacksOnServer = Object.keys(merged).some(k => !server[k]) || (!!st[ctKey] && !c.classTeacherName);
+    if (lacksOnServer) toPush.push(c._id);                  // first-time upload of names saved on this device
+  });
+
+  saveTeacherStore(store);
+  writeSavedSettings(st);
+  toPush.forEach(id => pushTeachersToServer(id));
+
+  /* Refresh what is on screen, unless someone is typing in it */
+  const wrap = document.getElementById('teacherNamesWrap');
+  if (wrap && wrap.innerHTML && !wrap.contains(document.activeElement)) renderTeacherInputs();
+  const k = classTeacherKey();
+  if (el.rptTeacher && !el.rptTeacher.dataset.touched && k && st[k]) el.rptTeacher.value = st[k];
+};
+
+/* Start: fetch in the background so the page never waits for a sleeping server */
+loadSchoolFromServer();
+loadTeachersFromServer();
 /* ══════════════════════════════════════════════════════════
    4. CLASS / GRADE SELECTION
    ONE class dropdown with every choice:
@@ -767,6 +953,7 @@ const flashMissing = (cls, term, exam) => {
     });
 };
 /* ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
    reports_fixes.js  — drop-in replacement for sections 11 and 12
    of js/reports.js (buildReportCard and buildClassSheet).
 
@@ -813,13 +1000,13 @@ KJSEA.getSubjectRemark = function (score) {
   if (!g) return '—';
   return {
     EE1: 'Outstanding performance. Keep it up.',
-    EE2: 'Very good performance. Aim even higher.',
-    ME1: 'Good performance. The next level is within reach.',
-    ME2: 'Meeting the expected standard. Steady practice will lift it.',
-    AE1: 'Close to the expected standard. More practice needed.',
-    AE2: 'Approaching the standard. Needs regular support and practice.',
-    BE1: 'Below the expected standard. Needs extra support.',
-    BE2: 'Well below the expected standard. Needs close support.',
+    EE2: 'Very good performance. Aim higher.',
+    ME1: 'Good performance. Next level is near.',
+    ME2: 'Meeting the standard. Keep practising.',
+    AE1: 'Close to the standard. Practise more.',
+    AE2: 'Approaching the standard. Needs support.',
+    BE1: 'Below the standard. Needs extra support.',
+    BE2: 'Well below the standard. Needs close support.',
   }[g.grade];
 };
 
@@ -834,12 +1021,17 @@ const prettyClass = (name) => {
   return /^\d/.test(w) ? 'Grade ' + w : w;
 };
 
+/* "MR.ANDREW WAMACHO" -> "Mr. Andrew Wamacho" */
+const tidyName = (n) => String(n || '').trim()
+  .replace(/\.(?=[A-Za-z])/g, '. ').replace(/\s+/g, ' ').toLowerCase()
+  .replace(/(^|[\s-])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+
 /* Level in full: name on line one, bold code on line two (no box, no colour) */
 const levelBlock = (code) => {
   const full = KJSEA.levelFull(code);
   if (!code || !full) return '';
-  return `<div style="font-size:10px;font-weight:600;line-height:1.2;">${escHtml(full)}</div>` +
-         `<div style="font-size:11.5px;font-weight:800;line-height:1.25;">${escHtml(code)}</div>`;
+  return `<div style="font-size:10px;font-weight:600;line-height:1.3;">${escHtml(full)}</div>` +
+         `<div style="font-size:11.5px;font-weight:800;line-height:1.3;">${escHtml(code)}</div>`;
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -857,7 +1049,7 @@ const buildReportCard = (r, s) => {
     `<th style="width:${width}%;padding:6px 6px;text-align:${align};font-size:9.5px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;line-height:1.2;color:${INK};background:#ffffff;border-right:${last ? 'none' : `2px solid ${LINE}`};border-bottom:3px solid ${LINE};">${label}</th>`;
 
   const td = (extra = '') =>
-    `padding:5px 6px;background:#ffffff;border-right:2px solid ${LINE};border-bottom:2px solid ${LINE};vertical-align:middle;${extra}`;
+    `padding:4px 6px 7px;line-height:1.3;background:#ffffff;border-right:2px solid ${LINE};border-bottom:2px solid ${LINE};vertical-align:middle;${extra}`;
 
   /* ── Derived values ─────────────────────────────────────── */
   const maxTotal  = r.subjectCount * 100;
@@ -873,7 +1065,7 @@ const buildReportCard = (r, s) => {
   const teacherMap =
     maps[r.streamName] ||
     (Object.keys(maps).length === 1 ? Object.values(maps)[0] : null) || {};
-  const teacherFor = (sub) => teacherMap[normName(sub.name)] || sub.teacherName || '';
+  const teacherFor = (sub) => tidyName(teacherMap[normName(sub.name)] || sub.teacherName || '');
 
   /* ── Subject rows ───────────────────────────────────────── */
   const subjectRows = r.subjectResults.map((sub, i) => {
@@ -901,9 +1093,9 @@ const buildReportCard = (r, s) => {
 
   /* ── Learner details grid ───────────────────────────────── */
   const cell = (label, value, { span = 1, last = false, bottom = true } = {}) => `
-    <div style="grid-column:span ${span};padding:6px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}${bottom ? `border-bottom:2px solid ${LINE};` : ''}">
+    <div style="grid-column:span ${span};padding:5px 12px 8px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}${bottom ? `border-bottom:2px solid ${LINE};` : ''}">
       <div style="font-size:9px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">${label}</div>
-      <div style="font-size:12.5px;font-weight:800;color:${INK};line-height:1.2;min-height:15px;">${value || '&nbsp;'}</div>
+      <div style="font-size:12.5px;font-weight:800;color:${INK};line-height:1.35;min-height:17px;">${value || '&nbsp;'}</div>
     </div>`;
 
   const learnerGrid = `
@@ -957,10 +1149,10 @@ const buildReportCard = (r, s) => {
   const signBlock = (title, comment, person, personLabel, last = false) => `
     <div style="padding:8px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
       <div style="font-size:9px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">${title}</div>
-      <div style="font-size:10.5px;color:${INK};line-height:1.45;font-style:italic;min-height:44px;">${escHtml(comment)}</div>
+      <div style="font-size:10.5px;color:${INK};line-height:1.45;font-style:italic;min-height:32px;">${escHtml(comment)}</div>
       <div style="margin-top:14px;border-bottom:2px solid ${LINE};"></div>
       <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:9px;color:${INK};">
-        <span><strong style="font-size:10px;">${person ? escHtml(person) : '&nbsp;'}</strong><br/>${personLabel}</span>
+        <span><strong style="font-size:10px;">${person ? escHtml(tidyName(person)) : '&nbsp;'}</strong><br/>${personLabel}</span>
         <span style="align-self:flex-end;">Date: ....................</span>
       </div>
     </div>`;
@@ -1056,29 +1248,27 @@ const buildReportCard = (r, s) => {
 /* ══════════════════════════════════════════════════════════
    12. BUILD CLASS RESULT SHEET  (Kaaboi table + Chebarus analysis, low ink)
 ══════════════════════════════════════════════════════════ */
-const buildClassSheet = (results, s) => {
+const buildClassSheet = (allResults, s) => {
   const { INK, LINE, MUTE } = PRINT;
+  const results = allResults.filter(r => r.subjectCount > 0);    // learners with marks
+  const noMarks = allResults.filter(r => !(r.subjectCount > 0));  // shown as X, not ranked
   const n = results.length;
+  const div = (a, b) => b ? a / b : 0;
 
-  const avg      = (results.reduce((a, r) => a + r.avgScore, 0) / n).toFixed(1);
-  const passed   = results.filter(r => r.avgScore >= 41).length;
-  const passRate = ((passed / n) * 100).toFixed(1);
-  const meanPts  = (results.reduce((a, r) => a + r.avgPoints, 0) / n).toFixed(2);
+  const avg      = div(results.reduce((a, r) => a + r.avgScore, 0), n).toFixed(1);
+  const meanPts  = div(results.reduce((a, r) => a + r.avgPoints, 0), n).toFixed(2);
   const classCode = KJSEA.getGrade(Math.round(Number(avg)))?.grade || '';
 
   /* Overall grade distribution */
   const dist = {};
   KJSEA.SCALE.forEach(g => dist[g.grade] = 0);
-  let xCount = 0;
-  results.forEach(r => {
-    if (r.subjectCount === 0) { xCount++; return; }
-    if (r.meanGrade && dist[r.meanGrade] !== undefined) dist[r.meanGrade]++;
-  });
+  const xCount = noMarks.length;
+  results.forEach(r => { if (r.meanGrade && dist[r.meanGrade] !== undefined) dist[r.meanGrade]++; });
 
   /* Teachers for a subject (one class -> one name; whole grade -> names joined) */
   const maps = s.teacherMaps || {};
   const teachersOf = (name) =>
-    [...new Set(Object.values(maps).map(m => m[normName(name)]).filter(Boolean))].join(' / ');
+    [...new Set(Object.values(maps).map(m => m[normName(name)]).filter(Boolean))].map(tidyName).join(' / ');
 
   /* Subject averages, grade counts, top 3 */
   const sameSubj = (x, subj) => String(x.subjectId) === String(subj._id);
@@ -1111,17 +1301,17 @@ const buildClassSheet = (results, s) => {
   const females   = results.filter(r => r.gender === 'female' && r.subjectCount > 0);
   const maleAvg   = males.length   ? parseFloat((males.reduce((a, r) => a + r.avgScore, 0) / males.length).toFixed(1))   : 0;
   const femaleAvg = females.length ? parseFloat((females.reduce((a, r) => a + r.avgScore, 0) / females.length).toFixed(1)) : 0;
-  const betterGender = femaleAvg >= maleAvg ? 'Female' : 'Male';
-  const genderGap    = Math.abs(maleAvg - femaleAvg).toFixed(2);
+  const betterGender = (!males.length || !females.length) ? 'Not enough data' : (femaleAvg >= maleAvg ? 'Female' : 'Male');
+  const genderGap    = (!males.length || !females.length) ? '—' : Math.abs(maleAvg - femaleAvg).toFixed(2);
 
   /* Most improved (VAP) */
   const mostImproved = results.filter(r => r.vap !== null && r.vap !== undefined && r.vap > 0)
     .sort((a, b) => b.vap - a.vap).slice(0, 5);
 
   /* ── Style helpers: white, black text, 1px gridlines ── */
-  const bar = (t) => `<div style="padding:5px 14px;background:#ffffff;color:${INK};font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border-top:3px solid ${LINE};border-bottom:2px solid ${LINE};">${t}</div>`;
+  const bar = (t) => `<div class="bar" style="padding:5px 14px;background:#ffffff;color:${INK};font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border-top:3px solid ${LINE};border-bottom:2px solid ${LINE};">${t}</div>`;
   const th  = (label, align = 'center', title = '') => `<th ${title ? `title="${escHtml(title)}"` : ''} style="padding:6px 5px;text-align:${align};font-size:9px;font-weight:800;line-height:1.15;color:${INK};background:#ffffff;border-right:1px solid ${LINE};border-bottom:2px solid ${LINE};">${label}</th>`;
-  const tdS = (extra = '') => `padding:5px 5px;border-right:1px solid ${LINE};border-bottom:1px solid ${LINE};font-size:10.5px;color:${INK};background:#ffffff;${extra}`;
+  const tdS = (extra = '') => `padding:4px 5px 6px;border-right:1px solid ${LINE};border-bottom:1px solid ${LINE};font-size:10.5px;line-height:1.3;color:${INK};background:#ffffff;${extra}`;
 
   /* ── Merit table (Kaaboi style: mark + level in one cell) ── */
   const subjHeaders = state.subjects.map(subj => th(escHtml(subj.code), 'center', subj.name)).join('');
@@ -1139,7 +1329,7 @@ const buildClassSheet = (results, s) => {
     return `
       <tr>
         <td style="${tdS('text-align:center;font-weight:800;')}">${r.position}</td>
-        <td style="${tdS('text-align:left;font-weight:700;')}">${escHtml(r.fullName)}</td>
+        <td style="${tdS('text-align:left;font-weight:700;white-space:nowrap;')}">${escHtml(r.fullName)}</td>
         <td style="${tdS('text-align:center;')}">${escHtml(r.gender?.charAt(0).toUpperCase() || '—')}</td>
         ${subjCells}
         <td style="${tdS('text-align:center;font-weight:800;')}">${r.totalScore}</td>
@@ -1149,6 +1339,20 @@ const buildClassSheet = (results, s) => {
         <td style="${tdS('text-align:center;font-weight:700;border-right:none;')}">${vapText}</td>
       </tr>`;
   }).join('');
+
+  const xCells = state.subjects.map(() => `<td style="${tdS('text-align:center;')}">—</td>`).join('');
+  const noMarksRows = noMarks.map(r => `
+      <tr>
+        <td style="${tdS('text-align:center;')}">—</td>
+        <td style="${tdS('text-align:left;font-weight:700;white-space:nowrap;')}">${escHtml(r.fullName)}</td>
+        <td style="${tdS('text-align:center;')}">${escHtml(r.gender?.charAt(0).toUpperCase() || '—')}</td>
+        ${xCells}
+        <td style="${tdS('text-align:center;')}">—</td>
+        <td style="${tdS('text-align:center;')}">—</td>
+        <td style="${tdS('text-align:center;')}">—</td>
+        <td style="${tdS('text-align:left;font-weight:800;')}">X</td>
+        <td style="${tdS('text-align:center;border-right:none;')}">—</td>
+      </tr>`).join('');
 
   /* Bottom rows: subject average marks, and average points with level (as in Kaaboi) */
   const avgMarksRow = `
@@ -1197,16 +1401,16 @@ const buildClassSheet = (results, s) => {
 
   /* ── Top 3 per subject ── */
   const top3Cards = ranked.map(x => `
-    <div style="flex:1 1 200px;border:1.5px solid ${LINE};background:#ffffff;">
+    <div class="keep" style="flex:1 1 200px;border:1.5px solid ${LINE};background:#ffffff;">
       <div style="padding:5px 10px;border-bottom:1.5px solid ${LINE};">
         <div style="font-size:11px;font-weight:800;">${escHtml(x.name)}</div>
         <div style="font-size:9.5px;">Avg: ${x.avg}%</div>
       </div>
       <div style="padding:5px 10px;">
         ${x.top3.map((st, i) => `
-          <div style="display:flex;gap:6px;padding:3px 0;font-size:10.5px;${i < x.top3.length - 1 ? `border-bottom:1px solid ${LINE};` : ''}">
+          <div style="display:flex;gap:6px;padding:3px 0 5px;font-size:10.5px;${i < x.top3.length - 1 ? `border-bottom:1px solid ${LINE};` : ''}">
             <span style="font-weight:800;">${i + 1}.</span>
-            <span style="flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(st.fullName)}</span>
+            <span style="flex:1;font-weight:600;line-height:1.3;">${escHtml(st.fullName)}</span>
             <span style="font-weight:800;white-space:nowrap;">${st.score} ${escHtml(st.grade || '')}</span>
           </div>`).join('')}
         ${!x.top3.length ? '<div style="font-size:10px;">No data</div>' : ''}
@@ -1220,13 +1424,14 @@ const buildClassSheet = (results, s) => {
     const mS = pick(males), fS = pick(females);
     const mA = mS.length ? parseFloat((mS.reduce((a, b) => a + b, 0) / mS.length).toFixed(1)) : 0;
     const fA = fS.length ? parseFloat((fS.reduce((a, b) => a + b, 0) / fS.length).toFixed(1)) : 0;
-    const leader = mA > fA ? 'Male' : mA < fA ? 'Female' : 'Tie';
+    const none = !mS.length || !fS.length;
+    const leader = none ? '—' : mA > fA ? 'Male' : mA < fA ? 'Female' : 'Tie';
     return `
       <tr>
         <td style="${tdS('font-weight:700;')}">${escHtml(subj.name)}</td>
-        <td style="${tdS('text-align:center;')}">${mA}%</td>
-        <td style="${tdS('text-align:center;')}">${fA}%</td>
-        <td style="${tdS('text-align:center;')}">${Math.abs(mA - fA).toFixed(1)}</td>
+        <td style="${tdS('text-align:center;')}">${mS.length ? mA + '%' : '—'}</td>
+        <td style="${tdS('text-align:center;')}">${fS.length ? fA + '%' : '—'}</td>
+        <td style="${tdS('text-align:center;')}">${none ? '—' : Math.abs(mA - fA).toFixed(1)}</td>
         <td style="${tdS('text-align:center;font-weight:800;border-right:none;')}">${leader}</td>
       </tr>`;
   }).join('');
@@ -1241,15 +1446,9 @@ const buildClassSheet = (results, s) => {
       <td style="${tdS('text-align:center;font-weight:800;border-right:none;')}">+${r.vap}</td>
     </tr>`).join('');
 
-  const statBox = (val, lbl, last = false) => `
-    <div style="padding:9px 10px;text-align:center;background:#ffffff;${last ? '' : `border-right:1px solid ${LINE};`}">
-      <div style="font-size:16px;font-weight:800;">${val}</div>
-      <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">${lbl}</div>
-    </div>`;
-
   const sigBlock = (title, person, label, last = false) => `
     <div style="padding:12px 18px;background:#ffffff;${last ? '' : `border-right:1px solid ${LINE};`}">
-      <div style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">${title}${person ? ': ' + escHtml(person) : ''}</div>
+      <div style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">${title}${person ? ': ' + escHtml(tidyName(person)) : ''}</div>
       <div style="border-bottom:1.5px solid ${LINE};margin:22px 0 5px;"></div>
       <div style="font-size:9px;">${label}</div>
     </div>`;
@@ -1259,6 +1458,10 @@ const buildClassSheet = (results, s) => {
   /* ════════════ FULL HTML ════════════ */
   return `
 <div style="max-width:960px;background:#ffffff;border:2px solid ${LINE};font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${INK};margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+
+  <style>
+    @media print { tr, .keep { break-inside: avoid; page-break-inside: avoid; } thead { display: table-header-group; } }
+  </style>
 
   <!-- Header -->
   <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:14px;padding:14px 18px;border-bottom:3px solid ${LINE};">
@@ -1272,11 +1475,6 @@ const buildClassSheet = (results, s) => {
     </div>
   </div>
 
-  <!-- Class summary -->
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);border-bottom:2px solid ${LINE};">
-    ${statBox(n, 'Total learners')}${statBox(avg + '%', 'Average marks')}${statBox(passed, 'Passed (≥41%)')}${statBox(passRate + '%', 'Pass rate')}${statBox(meanPts, 'Mean points', true)}
-  </div>
-
   ${bar('Class rankings')}
   <div style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;">
@@ -1285,7 +1483,7 @@ const buildClassSheet = (results, s) => {
           ${th('Pos')}${th('Learner name', 'left')}${th('G')}${subjHeaders}${th('Total')}${th('Avg %')}${th('Points')}${th('Performance level', 'left')}${th('VAP')}
         </tr>
       </thead>
-      <tbody>${tableRows}${avgMarksRow}${avgPointsRow}</tbody>
+      <tbody>${tableRows}${noMarksRows}${avgMarksRow}${avgPointsRow}</tbody>
     </table>
   </div>
   <div style="padding:5px 14px;font-size:9px;border-top:1px solid ${LINE};">
@@ -1314,10 +1512,10 @@ const buildClassSheet = (results, s) => {
   <div style="display:grid;grid-template-columns:1fr 2fr;">
     <div style="padding:12px;border-right:1px solid ${LINE};font-size:11px;">
       <div style="display:flex;gap:10px;margin-bottom:10px;">
-        <div style="flex:1;border:1.5px solid ${LINE};padding:8px;text-align:center;"><div style="font-size:15px;font-weight:800;">${males.length}</div><div style="font-size:9.5px;">Male | Avg ${maleAvg}%</div></div>
-        <div style="flex:1;border:1.5px solid ${LINE};padding:8px;text-align:center;"><div style="font-size:15px;font-weight:800;">${females.length}</div><div style="font-size:9.5px;">Female | Avg ${femaleAvg}%</div></div>
+        <div style="flex:1;border:1.5px solid ${LINE};padding:8px;text-align:center;"><div style="font-size:15px;font-weight:800;">${males.length}</div><div style="font-size:9.5px;">Male | Avg ${males.length ? maleAvg + '%' : '—'}</div></div>
+        <div style="flex:1;border:1.5px solid ${LINE};padding:8px;text-align:center;"><div style="font-size:15px;font-weight:800;">${females.length}</div><div style="font-size:9.5px;">Female | Avg ${females.length ? femaleAvg + '%' : '—'}</div></div>
       </div>
-      <strong>Better performing gender: ${betterGender}</strong><br/>Performance gap: ${genderGap} marks
+      <strong>Better performing gender: ${betterGender}</strong><br/>Performance gap: ${genderGap}${genderGap === '—' ? '' : ' marks'}
     </div>
     <div style="overflow-x:auto;">
       <table style="width:100%;border-collapse:collapse;">
@@ -1349,21 +1547,28 @@ const buildClassSheet = (results, s) => {
 
 </div>`;
 };
+/* ═══════════════════════════════════════════════════════════
+   SECTIONS 13, 14 AND 15 OF js/reports.js — complete replacement
+   Delete your old sections 13, 14 and 15 (everything from
+   "13. BULK PREVIEW" down to just before "16. RECENT REPORTS")
+   and paste this whole file in their place.
+═══════════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════════
-   13. BULK PREVIEW — All cards stacked
+   13. BULK PREVIEW — All cards stacked (skips learners with no marks)
 ══════════════════════════════════════════════════════════ */
 const buildBulkPreview = (results, settings) => {
   state.bulkCards = [];
+  const withMarks = results.filter(r => r.subjectCount > 0);
 
-  const pages = results.map((learner, i) => {
+  const pages = withMarks.map((learner, i) => {
     const cardHTML = buildReportCard(learner, settings);
     state.bulkCards.push({ learner, html: cardHTML });
     return `
       <div style="position:relative;margin-bottom:4px;">
         <div style="font-size:11px;font-weight:700;color:#718096;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
           <i class="fas fa-file"></i>
-          Card ${i+1} of ${results.length} — ${learner.fullName}
+          Card ${i + 1} of ${withMarks.length} — ${escHtml(learner.fullName)}
         </div>
         ${cardHTML}
       </div>`;
@@ -1373,7 +1578,7 @@ const buildBulkPreview = (results, settings) => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   14. PRINT
+   14. PRINT  (unchanged)
 ══════════════════════════════════════════════════════════ */
 el.printBtn?.addEventListener('click', () => {
   if (!el.previewPaper?.innerHTML.trim()) {
@@ -1393,6 +1598,8 @@ el.printBtn?.addEventListener('click', () => {
 
 /* ══════════════════════════════════════════════════════════
    15. PDF DOWNLOAD
+   Report card = always ONE page. Class sheet = landscape, cut
+   only between rows and sections, with page numbers.
 ══════════════════════════════════════════════════════════ */
 el.downloadPdfBtn?.addEventListener('click', () => {
   state.activeTab === 'bulk' ? downloadBulkPDF() : downloadSinglePDF();
@@ -1404,64 +1611,142 @@ const setDownloadLoading = (loading) => {
   if (el.downloadBtnSpinner) el.downloadBtnSpinner.style.display = loading ? 'inline' : 'none';
 };
 
-/* ── Single / Class Sheet PDF ─────────────────────────── */
+const PDF_MARGIN = 6;   // mm, on every side
+
+/* ── helpers ──────────────────────────────────────────────── */
+const pdfFormat = () => state.paperSize === 'Letter' ? 'letter' : 'a4';
+
+const safeFileText = (t, fallback) =>
+  String(t || fallback).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '') || fallback;
+
+/* Draw html off-screen, measure where a page may be cut, and capture it.
+   breaks = y positions (CSS px from the top of the sheet) that are safe to cut at. */
+async function captureHTML(html, widthPx, maxScale) {
+  if (document.fonts && document.fonts.ready) {
+    try { await document.fonts.ready; } catch { /* ignore */ }
+  }
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = `position:fixed;top:-99999px;left:-99999px;width:${widthPx}px;background:#fff;z-index:-9999;`;
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+
+  try {
+    const root = wrap.firstElementChild;
+    const box  = root.getBoundingClientRect();
+    const top  = box.top;
+
+    const breaks = [];
+    root.querySelectorAll(':scope > *, tr, .keep').forEach(node => {
+      if (node.tagName === 'STYLE')                 return;
+      if (node.classList.contains('bar'))           return;   // never cut right after a heading
+      if (node.closest('thead'))                    return;   // never cut right after the table header
+      breaks.push(node.getBoundingClientRect().bottom - top);
+    });
+    breaks.sort((a, b) => a - b);
+
+    /* keep very tall sheets under the browser's canvas size limit */
+    const scale = Math.min(maxScale, 12000 / Math.max(box.height, 1));
+
+    const canvas = await html2canvas(wrap, {
+      scale, useCORS: true, allowTaint: true, backgroundColor: '#ffffff',
+      logging: false, windowWidth: widthPx, scrollX: 0, scrollY: 0,
+    });
+
+    return { canvas, scale, breaks, cssW: canvas.width / scale, cssH: canvas.height / scale };
+  } finally {
+    wrap.remove();
+  }
+}
+
+/* Report card: scale to fit ONE page */
+function addCardOnePage(pdf, cap) {
+  const pw = pdf.internal.pageSize.getWidth();
+  const ph = pdf.internal.pageSize.getHeight();
+  const k  = Math.min((pw - 2 * PDF_MARGIN) / cap.cssW, (ph - 2 * PDF_MARGIN) / cap.cssH);
+  const w  = cap.cssW * k;
+  const h  = cap.cssH * k;
+  pdf.addImage(cap.canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (pw - w) / 2, PDF_MARGIN, w, h);
+}
+
+/* Where to cut: the last safe break that fits on the page */
+function planPageCuts(breaks, totalPx, pagePx) {
+  const cuts = [0];
+  let y = 0;
+  while (totalPx - y > pagePx) {
+    const limit = y + pagePx;
+    const minY  = y + pagePx * 0.4;                  // avoid tiny pages
+    const cut   = breaks.filter(b => b <= limit && b >= minY).pop() || limit;
+    cuts.push(cut);
+    y = cut;
+  }
+  cuts.push(totalPx);
+  return cuts;
+}
+
+/* Class sheet: many pages, cut between rows and sections only */
+function addSheetPaged(pdf, cap) {
+  const pw = pdf.internal.pageSize.getWidth();
+  const ph = pdf.internal.pageSize.getHeight();
+  const usableW = pw - 2 * PDF_MARGIN;
+  const usableH = ph - 2 * PDF_MARGIN - 4;           // 4 mm kept for the page number
+  const mmPerPx = usableW / cap.cssW;
+  const cuts    = planPageCuts(cap.breaks, cap.cssH, usableH / mmPerPx);
+
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const y0 = Math.round(cuts[i] * cap.scale);
+    const h  = Math.round(cuts[i + 1] * cap.scale) - y0;
+    if (h <= 0) continue;
+
+    const slice = document.createElement('canvas');
+    slice.width = cap.canvas.width;
+    slice.height = h;
+    slice.getContext('2d').drawImage(cap.canvas, 0, y0, cap.canvas.width, h, 0, 0, cap.canvas.width, h);
+
+    if (i > 0) pdf.addPage();
+    pdf.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG',
+      PDF_MARGIN, PDF_MARGIN, usableW, (h / cap.scale) * mmPerPx);
+  }
+
+  const total = pdf.getNumberOfPages();
+  for (let p = 1; p <= total; p++) {
+    pdf.setPage(p);
+    pdf.setFontSize(8);
+    pdf.text(`Page ${p} of ${total}`, pw / 2, ph - 3, { align: 'center' });
+  }
+}
+
+/* ── Single card / class sheet PDF ────────────────────────── */
 async function downloadSinglePDF() {
   if (!el.previewPaper?.innerHTML.trim()) {
     showToast('Generate a preview first.', 'warning');
     return;
   }
 
-  const reportEl = el.previewPaper.querySelector('div');
-  if (!reportEl) return;
-
   setDownloadLoading(true);
 
   try {
-    const wrap       = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:794px;background:#fff;z-index:-9999;';
-    wrap.appendChild(reportEl.cloneNode(true));
-    document.body.appendChild(wrap);
-
-    const canvas = await html2canvas(wrap, {
-      scale:2, useCORS:true, allowTaint:true,
-      backgroundColor:'#ffffff', logging:false,
-      windowWidth:794, scrollX:0, scrollY:0,
+    const isSheet = state.activeTab === 'class';
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+      orientation: isSheet ? 'landscape' : 'portrait',
+      unit: 'mm', format: pdfFormat(),
     });
 
-    document.body.removeChild(wrap);
+    const cap = await captureHTML(el.previewPaper.innerHTML, isSheet ? 960 : 794, isSheet ? 1.6 : 2);
 
-    const { jsPDF } = window.jspdf;
-    const pdf        = new jsPDF({ orientation:'portrait', unit:'mm',
-      format: state.paperSize === 'Letter' ? 'letter' : 'a4' });
-
-    const pw = pdf.internal.pageSize.getWidth();
-    const ph = pdf.internal.pageSize.getHeight();
-    const img= canvas.toDataURL('image/png');
-    const iw = pw;
-    const ih = (canvas.height * iw) / canvas.width;
-
-    let left = ih, pos = 0;
-    pdf.addImage(img,'PNG',0,pos,iw,ih);
-    left -= ph;
-
-    while (left > 0) {
-      pos = left - ih;
-      pdf.addPage();
-      pdf.addImage(img,'PNG',0,pos,iw,ih);
-      left -= ph;
-    }
+    if (isSheet) addSheetPaged(pdf, cap);
+    else         addCardOnePage(pdf, cap);
 
     const ctx  = state.context;
     const date = new Date().toISOString().split('T')[0];
-    let   fn   = '';
+    let fn;
 
     if (state.activeTab === 'individual') {
-      const lrn  = state.results.find(r=>r.studentId===el.rptLearner?.value);
-      const name = lrn?.fullName?.replace(/\s+/g,'_')?.replace(/[^a-zA-Z0-9_]/g,'') || 'Learner';
-      fn = `Report_Card_${name}_T${ctx.term}_${ctx.exam}_${date}.pdf`;
+      const lrn = state.results.find(r => r.studentId === el.rptLearner?.value);
+      fn = `Report_Card_${safeFileText(lrn?.fullName, 'Learner')}_T${ctx.term}_${ctx.exam}_${date}.pdf`;
     } else {
-      const cls = ctx.cls?.replace(/\s+/g,'_')?.replace(/[^a-zA-Z0-9_]/g,'') || 'Class';
-      fn = `Class_Results_${cls}_T${ctx.term}_${ctx.exam}_${date}.pdf`;
+      fn = `Class_Results_${safeFileText(ctx.cls, 'Class')}_T${ctx.term}_${ctx.exam}_${date}.pdf`;
     }
 
     pdf.save(fn);
@@ -1476,7 +1761,7 @@ async function downloadSinglePDF() {
   }
 }
 
-/* ── Bulk PDF — all students one file ─────────────────── */
+/* ── Bulk PDF: one report card per page, all learners in one file ── */
 async function downloadBulkPDF() {
   if (!state.bulkCards.length) {
     showToast('Generate bulk preview first.', 'warning');
@@ -1488,60 +1773,25 @@ async function downloadBulkPDF() {
 
   try {
     const { jsPDF } = window.jspdf;
-    const pdf        = new jsPDF({ orientation:'portrait', unit:'mm',
-      format: state.paperSize === 'Letter' ? 'letter' : 'a4' });
-
-    const pw    = pdf.internal.pageSize.getWidth();
-    const ph    = pdf.internal.pageSize.getHeight();
+    const pdf   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: pdfFormat() });
     const total = state.bulkCards.length;
 
     for (let i = 0; i < total; i++) {
       const { learner, html } = state.bulkCards[i];
 
-      const pct = Math.round(((i+1)/total)*100);
-      if (el.bulkProgressFill) el.bulkProgressFill.style.width = pct + '%';
-      if (el.bulkProgressText) el.bulkProgressText.textContent =
-        `Generating ${i+1} of ${total} — ${learner.fullName}`;
+      if (el.bulkProgressFill) el.bulkProgressFill.style.width = Math.round(((i + 1) / total) * 100) + '%';
+      if (el.bulkProgressText) el.bulkProgressText.textContent = `Generating ${i + 1} of ${total} — ${learner.fullName}`;
 
-      await new Promise(r => setTimeout(r, 20));
+      await new Promise(r => setTimeout(r, 20));          // let the progress bar repaint
 
-      const wrap       = document.createElement('div');
-      wrap.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:794px;background:#fff;z-index:-9999;';
-      wrap.innerHTML     = html;
-      document.body.appendChild(wrap);
-
-      const canvas = await html2canvas(wrap, {
-        scale:1.5, useCORS:true, allowTaint:true,
-        backgroundColor:'#ffffff', logging:false,
-        windowWidth:794, scrollX:0, scrollY:0,
-      });
-
-      document.body.removeChild(wrap);
-
-      const img = canvas.toDataURL('image/png');
-      const iw  = pw;
-      const ih  = (canvas.height * iw) / canvas.width;
-
+      const cap = await captureHTML(html, 794, 1.5);
       if (i > 0) pdf.addPage();
-
-      let left = ih, pos = 0;
-      pdf.addImage(img,'PNG',0,pos,iw,ih);
-      left -= ph;
-
-      while (left > 0) {
-        pos = left - ih;
-        pdf.addPage();
-        pdf.addImage(img,'PNG',0,pos,iw,ih);
-        left -= ph;
-      }
+      addCardOnePage(pdf, cap);
     }
 
     const ctx  = state.context;
-    const cls  = ctx.cls?.replace(/\s+/g,'_')?.replace(/[^a-zA-Z0-9_]/g,'') || 'Class';
     const date = new Date().toISOString().split('T')[0];
-    const fn   = `All_Report_Cards_${cls}_T${ctx.term}_${ctx.exam}_${date}.pdf`;
-
-    pdf.save(fn);
+    pdf.save(`All_Report_Cards_${safeFileText(ctx.cls, 'Class')}_T${ctx.term}_${ctx.exam}_${date}.pdf`);
     showToast(`${total} report cards downloaded!`, 'success');
     addToRecent(ctx);
 
@@ -1554,7 +1804,6 @@ async function downloadBulkPDF() {
     if (el.bulkProgressFill) el.bulkProgressFill.style.width  = '0%';
   }
 }
-
 /* ══════════════════════════════════════════════════════════
    16. RECENT REPORTS
 ══════════════════════════════════════════════════════════ */
