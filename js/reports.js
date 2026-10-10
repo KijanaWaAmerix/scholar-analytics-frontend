@@ -375,6 +375,7 @@ const renderTeacherInputs = () => {
   });
 };
 /* ══════════════════════════════════════════════════════════
+   /* ══════════════════════════════════════════════════════════
    3c. SAVED SETTINGS — remembered on this device AND on the server
    Paste this block straight AFTER section 3b (SUBJECT TEACHERS),
    after renderTeacherInputs and before "4. CLASS / GRADE SELECTION".
