@@ -984,6 +984,23 @@ const flashMissing = (cls, term, exam) => {
 
 /* ── A. Grading scale: full level names, 0 covered, whole-number rounding ──
    These lines REPLACE the old KJSEA.SCALE / getGrade / getSubjectRemark.
+   /* ═══════════════════════════════════════════════════════════
+   reports_fixes.js  — drop-in replacement for sections 11 and 12
+   of js/reports.js (buildReportCard and buildClassSheet).
+
+   HOW TO USE
+   1. In reports.js DELETE the old "11. BUILD INDIVIDUAL REPORT CARD"
+      (const buildReportCard = …) and "12. BUILD CLASS RESULT SHEET"
+      (const buildClassSheet = …) blocks completely.
+   2. Paste this whole file in their place (between sections 10 and 13).
+   3. Make the two small edits in section 10 listed in the notes.
+
+   Nothing else in reports.js is touched. Pathway calculations
+   (KJSEA.computePathways) are unchanged.
+═══════════════════════════════════════════════════════════ */
+
+/* ── A. Grading scale: full level names, 0 covered, whole-number rounding ──
+   These lines REPLACE the old KJSEA.SCALE / getGrade / getSubjectRemark.
    (They run after the KJSEA object exists, so the old copies are simply
    overridden; you can delete the old ones later if you like.) */
 KJSEA.SCALE = [
@@ -1347,6 +1364,9 @@ const buildClassSheet = (allResults, s) => {
     .sort((a, b) => b.vap - a.vap).slice(0, 5);
 
   /* ── Style helpers: white, black text, 1px gridlines ── */
+  const levelShort = (code) => code
+    ? `<span style="font-size:12.5px;font-weight:800;letter-spacing:0.3px;">${escHtml(code)}</span>` : '—';
+
   const bar = (t) => `<div class="bar" style="padding:5px 14px;background:#ffffff;color:${INK};font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border-top:3px solid ${LINE};border-bottom:2px solid ${LINE};">${t}</div>`;
   const th  = (label, align = 'center', title = '') => `<th ${title ? `title="${escHtml(title)}"` : ''} style="padding:6px 5px;text-align:${align};font-size:9px;font-weight:800;line-height:1.15;color:${INK};background:#ffffff;border-right:1px solid ${LINE};border-bottom:2px solid ${LINE};">${label}</th>`;
   const tdS = (extra = '') => `padding:4px 5px 6px;border-right:1px solid ${LINE};border-bottom:1px solid ${LINE};font-size:10.5px;line-height:1.3;color:${INK};background:#ffffff;${extra}`;
@@ -1390,7 +1410,7 @@ const buildClassSheet = (allResults, s) => {
         <td style="${tdS('text-align:center;font-weight:800;')}">${r.totalScore}</td>
         <td style="${tdS('text-align:center;font-weight:700;')}">${r.avgScore}%</td>
         <td style="${tdS('text-align:center;font-weight:800;')}">${r.totalPoints}</td>
-        <td style="${tdS('text-align:left;')}">${levelBlock(r.meanGrade) || '—'}</td>
+        <td style="${tdS('text-align:center;white-space:nowrap;')}">${levelShort(r.meanGrade)}</td>
         <td style="${tdS('text-align:center;font-weight:700;border-right:none;')}">${vapText}</td>
       </tr>`;
   }).join('');
@@ -1406,7 +1426,7 @@ const buildClassSheet = (allResults, s) => {
         <td style="${tdS('text-align:center;')}">—</td>
         <td style="${tdS('text-align:center;')}">—</td>
         <td style="${tdS('text-align:center;')}">—</td>
-        <td style="${tdS('text-align:left;font-weight:800;')}">X</td>
+        <td style="${tdS('text-align:center;font-weight:800;font-size:12.5px;')}">X</td>
         <td style="${tdS('text-align:center;border-right:none;')}">—</td>
       </tr>`).join('');
 
@@ -1418,7 +1438,7 @@ const buildClassSheet = (allResults, s) => {
       <td style="${tdS(`border-top:3px double ${LINE};`)}"></td>
       <td style="${tdS(`text-align:center;font-weight:800;border-top:3px double ${LINE};`)}">${avg}%</td>
       <td style="${tdS(`text-align:center;font-weight:800;border-top:3px double ${LINE};`)}">${meanPts}</td>
-      <td style="${tdS(`border-top:3px double ${LINE};`)}">${levelBlock(classCode)}</td>
+      <td style="${tdS(`text-align:center;border-top:3px double ${LINE};`)}">${levelShort(classCode)}</td>
       <td style="${tdS(`border-top:3px double ${LINE};border-right:none;`)}"></td>
     </tr>`;
 
@@ -1536,14 +1556,14 @@ const buildClassSheet = (allResults, s) => {
     <table style="width:100%;border-collapse:collapse;">
       <thead>
         <tr>
-          ${th('Pos')}${th('Learner name', 'left')}${th('G')}${multi ? th('Class') + th('Str pos') : ''}${subjHeaders}${th('Total')}${th('Avg %')}${th('Points')}${th('Performance level', 'left')}${th('VAP')}
+          ${th('Pos')}${th('Learner name', 'left')}${th('G')}${multi ? th('Class') + th('Str pos') : ''}${subjHeaders}${th('Total')}${th('Avg %')}${th('Points')}${th('Performance<br/>level')}${th('VAP')}
         </tr>
       </thead>
       <tbody>${tableRows}${noMarksRows}${avgMarksRow}${avgPointsRow}</tbody>
     </table>
   </div>
   <div style="padding:5px 14px;font-size:9px;border-top:1px solid ${LINE};">
-    Learner position is assigned using total marks. Performance level is calculated using average marks. Marks are rounded to the nearest whole number before the level is worked out.
+    Learner position is assigned using total marks. Performance level is calculated using average marks. Marks are rounded to the nearest whole number before the level is worked out.<br/><strong>Performance level:</strong> EE1, EE2 = Exceeding Expectation &nbsp;·&nbsp; ME1, ME2 = Meeting Expectation &nbsp;·&nbsp; AE1, AE2 = Approaching Expectation &nbsp;·&nbsp; BE1, BE2 = Below Expectation
   </div>
 
   ${bar('Overall grade distribution')}
