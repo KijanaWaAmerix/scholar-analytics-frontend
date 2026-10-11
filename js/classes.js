@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Classes Page
    File: js/classes.js
+   Change: "Seed Default Classes" removed. Classes are added by hand.
 ═══════════════════════════════════════════════════════════ */
 
 const user = requireAuth();
@@ -73,7 +74,7 @@ const renderGrid = () => {
         <i class="fas fa-school" style="font-size:40px;opacity:0.2;display:block;margin-bottom:16px;"></i>
         <h3 style="color:var(--text-dark);margin-bottom:8px;">No classes yet</h3>
         <p style="color:var(--text-soft);font-size:0.875rem;margin-bottom:20px;">
-          Add your first class or use Seed Default Classes to create Grade 7–9.
+          Add your first class to get started.
         </p>
         <button class="btn-primary" onclick="openAddModal()">
           <i class="fas fa-plus"></i> Add First Class
@@ -322,34 +323,9 @@ const confirmDelete = async () => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   SEED DEFAULT CLASSES
-══════════════════════════════════════════════════════════ */
-const seedDefaults = async () => {
-  const btn = document.getElementById('seedDefaultsBtn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Seeding...'; }
-
-  const result = await API.post('/classes/seed-defaults', { academicYear: '2024' });
-
-  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Seed Default Classes'; }
-
-  if (!result?.ok) {
-    showToast(result?.data?.message || 'Failed to seed classes.', 'error');
-    return;
-  }
-
-  const { created, skipped } = result.data;
-  showToast(
-    `${created.length} classes created, ${skipped.length} already existed.`,
-    'success'
-  );
-  loadClasses();
-};
-
-/* ══════════════════════════════════════════════════════════
    EVENT LISTENERS
 ══════════════════════════════════════════════════════════ */
 document.getElementById('addClassBtn')?.addEventListener('click', openAddModal);
-document.getElementById('seedDefaultsBtn')?.addEventListener('click', seedDefaults);
 document.getElementById('saveClassBtn')?.addEventListener('click', saveClass);
 document.getElementById('classModalClose')?.addEventListener('click', closeClassModal);
 document.getElementById('classModalCancel')?.addEventListener('click', closeClassModal);
@@ -360,5 +336,8 @@ document.getElementById('confirmDeleteClass')?.addEventListener('click', confirm
 window.openEditModal   = openEditModal;
 window.openDeleteModal = openDeleteModal;
 window.openAddModal    = openAddModal;
+
+/* The Seed Default Classes button no longer exists: remove it from the page if classes.html still has it */
+document.getElementById('seedDefaultsBtn')?.remove();
 
 loadClasses();
