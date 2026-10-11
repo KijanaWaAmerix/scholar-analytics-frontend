@@ -254,11 +254,21 @@ const saveSchool = async () => {
     return;
   }
 
+    const wasEditing = !!state.editingId;
+
   closeModal('addSchoolModalOverlay');
   showToast(
-    state.editingId ? 'School updated successfully.' : `School created. Admin can log in with ${adminEmail}.`,
+    wasEditing ? 'School updated successfully.' : `School created. Admin can log in with ${adminEmail}.`,
     'success'
   );
+
+  // After creating a school, show the login details so they can be copied and shared
+  if (!wasEditing) {
+    setField('credentialsEmail', adminEmail);
+    setField('credentialsPassword', adminPassword);
+    openModal('credentialsModalOverlay');
+  }
+
   loadSchools();
 };
 
