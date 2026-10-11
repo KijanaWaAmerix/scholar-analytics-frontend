@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="robots" content="noindex" />
+  <title>Scholar Analytics — Set Up Your Account</title>
+
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/mobile.css"/>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+  />
+
+  <style>
+    body.login-body { overflow: auto; }
+    .token-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .token-brand {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #fff;
+    }
+    .token-brand .brand-icon { margin: 0 auto 10px; }
+    .token-brand h1 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.5rem;
+    }
+    .token-brand p { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-top: 4px; }
+    .token-alert {
+      display: none;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      margin-bottom: 16px;
+      background: rgba(231,76,60,0.10);
+      border: 1px solid rgba(231,76,60,0.25);
+      color: #c0392b;
+      line-height: 1.5;
+    }
+    .token-alert i { margin-top: 2px; }
+    .field-error { display: none; }
+    .strength { font-size: 0.75rem; margin-top: 6px; min-height: 1em; }
+    .bad-link { display: none; text-align: center; }
+    .bad-link .bad-icon {
+      width: 64px; height: 64px;
+      margin: 0 auto 16px;
+      border-radius: 18px;
+      background: rgba(231,76,60,0.10);
+      color: #e74c3c;
+      font-size: 28px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .bad-link h3 { font-family: 'Playfair Display', Georgia, serif; margin-bottom: 8px; color: #1a2a3a; }
+    .bad-link p  { font-size: 0.85rem; color: #718096; margin-bottom: 20px; line-height: 1.6; }
+    .back-link { display: block; text-align: center; margin-top: 18px; font-size: 0.82rem; }
+  </style>
+</head>
+
+<body class="login-body" data-mode="setup">
+  <div class="token-page">
+    <div style="width:100%;max-width:440px;">
+
+      <div class="token-brand">
+        <div class="brand-icon"><i class="fas fa-graduation-cap"></i></div>
+        <h1>Scholar Analytics</h1>
+        <p>Empowering Education Through Data</p>
+      </div>
+
+      <div class="login-card">
+
+        <!-- Form state -->
+        <div id="formWrap">
+          <div class="login-card-header">
+            <h2>Welcome aboard</h2>
+            <p>Create a password to activate your account.</p>
+          </div>
+
+          <div class="token-alert" id="formAlert">
+            <i class="fas fa-exclamation-circle"></i>
+            <span id="formAlertText"></span>
+          </div>
+
+          <form class="login-form" id="tokenForm" novalidate>
+
+            <div class="form-group">
+              <label for="newPassword"><i class="fas fa-lock"></i> Password</label>
+              <div class="password-wrapper">
+                <input type="password" id="newPassword" placeholder="Create a password"
+                       autocomplete="new-password" required />
+                <button type="button" class="toggle-password" data-toggle="newPassword"
+                        aria-label="Show or hide password">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+              <div class="strength" id="strengthText"></div>
+              <span class="field-error" id="pwdError">
+                <i class="fas fa-circle-exclamation"></i> <span></span>
+              </span>
+            </div>
+
+            <div class="form-group">
+              <label for="confirmPassword"><i class="fas fa-lock"></i> Confirm Password</label>
+              <div class="password-wrapper">
+                <input type="password" id="confirmPassword" placeholder="Re-enter your password"
+                       autocomplete="new-password" required />
+                <button type="button" class="toggle-password" data-toggle="confirmPassword"
+                        aria-label="Show or hide password">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+              <span class="field-error" id="confError">
+                <i class="fas fa-circle-exclamation"></i> <span></span>
+              </span>
+            </div>
+
+            <button type="submit" class="btn-login" id="submitBtn">
+              Activate Account &nbsp;<i class="fas fa-arrow-right"></i>
+            </button>
+          </form>
+
+          <a class="back-link" href="login.html">Already set up? Sign in</a>
+        </div>
+
+        <!-- Broken / missing link state -->
+        <div class="bad-link" id="badLink">
+          <div class="bad-icon"><i class="fas fa-link-slash"></i></div>
+          <h3>This link isn't valid</h3>
+          <p>Your setup link is missing or incomplete. Ask your school administrator to
+             resend your invitation.</p>
+          <a class="btn-login" href="login.html"
+             style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;">
+            Go to sign in
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/api.js?v=2"></script>
+  <script src="../js/auth-token.js?v=1"></script>
+</body>
+</html>

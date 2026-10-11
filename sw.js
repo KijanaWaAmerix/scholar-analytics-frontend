@@ -4,7 +4,7 @@
    Handles: Offline caching, background sync
 ═══════════════════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'scholar-analytics-v2';
+const CACHE_NAME    = 'scholar-analytics-v3';
 const API_BASE      = 'https://scholar-analytics-api.onrender.com';
 
 
@@ -96,6 +96,17 @@ self.addEventListener('fetch', (event) => {
    * even after being removed from the precache list.
    */
   if (url.pathname.startsWith('/js/')) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  /*
+   * Reset-password / setup-account pages: ALWAYS network-only.
+   * Their URLs carry a one-time token in the query string, which
+   * must never be stored in the cache.
+   */
+  if (url.pathname === '/pages/reset-password.html' ||
+      url.pathname === '/pages/setup-account.html') {
     event.respondWith(fetch(request));
     return;
   }

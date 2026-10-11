@@ -248,6 +248,73 @@
     }
     .suspension-footer i { color: rgba(46,204,113,0.50); font-size: 13px; }
 
+    /* ── Forgot-password modal ─────────────────────────────── */
+    .forgot-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9000;
+      background: rgba(13,27,42,0.60);
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .forgot-modal.visible { display: flex; }
+    .forgot-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 32px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+      position: relative;
+    }
+    .forgot-card h3 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.4rem;
+      color: #1a2a3a;
+      margin-bottom: 6px;
+    }
+    .forgot-card > p { font-size: 0.85rem; color: #718096; margin-bottom: 20px; line-height: 1.5; }
+    .forgot-close {
+      position: absolute;
+      top: 14px; right: 14px;
+      width: 32px; height: 32px;
+      border: none; border-radius: 8px;
+      background: transparent;
+      color: #718096;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .forgot-close:hover { background: #f0f4f8; color: #1a2a3a; }
+    .forgot-alert {
+      display: none;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+    .forgot-alert.success { background: rgba(39,174,96,0.10); border: 1px solid rgba(39,174,96,0.25); color: #1e8449; }
+    .forgot-alert.error   { background: rgba(231,76,60,0.10); border: 1px solid rgba(231,76,60,0.25); color: #c0392b; }
+    .forgot-alert i { margin-top: 2px; }
+    .forgot-actions { display: flex; gap: 10px; margin-top: 18px; }
+    .forgot-actions .btn-login { flex: 1; }
+    .forgot-cancel {
+      padding: 0 18px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      background: #fff;
+      color: #4a5568;
+      font-weight: 600;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+    }
+    .forgot-cancel:hover { background: #f8fafc; }
+
     @media (max-width: 540px) {
       .suspension-card { padding: 40px 28px; border-radius: 20px; }
       .suspension-title { font-size: 1.55rem; }
@@ -473,7 +540,7 @@
               <input type="checkbox" id="rememberMe" />
               Remember me
             </label>
-            <a href="#" class="forgot-link">Forgot password?</a>
+            <a href="#" class="forgot-link" id="forgotLink">Forgot password?</a>
           </div>
 
           <button type="submit" class="btn-login" id="loginBtn">
@@ -504,7 +571,52 @@
     </div>
 
   </div>
+  <div class="forgot-modal" id="forgotModal" role="dialog" aria-modal="true" aria-labelledby="forgotTitle">
+    <div class="forgot-card">
+      <button type="button" class="forgot-close" data-close-forgot aria-label="Close">
+        <i class="fas fa-xmark"></i>
+      </button>
+
+      <h3 id="forgotTitle">Reset your password</h3>
+      <p>Enter the email address you use to sign in and we'll send you a link to choose a new password.</p>
+
+      <div class="forgot-alert" id="forgotAlert">
+        <i class="fas fa-circle-info"></i>
+        <span id="forgotAlertText"></span>
+      </div>
+
+      <form id="forgotForm" novalidate>
+        <div class="form-group">
+          <label for="forgotEmail">
+            <i class="fas fa-envelope"></i> Email Address
+          </label>
+          <div class="input-wrapper">
+            <input
+              type="email"
+              id="forgotEmail"
+              placeholder="Enter your email address"
+              autocomplete="email"
+              required
+            />
+          </div>
+          <span class="field-error" id="forgotEmailError">
+            <i class="fas fa-circle-exclamation"></i>
+            Please enter a valid email address.
+          </span>
+        </div>
+
+        <div class="forgot-actions">
+          <button type="button" class="forgot-cancel" data-close-forgot>Cancel</button>
+          <button type="submit" class="btn-login" id="forgotSubmit">
+            Send Reset Link &nbsp;<i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
 <script src="../js/api.js?v=2"></script>
 <script src="../js/main.js?v=2"></script>
+<script src="../js/forgot-password.js?v=1"></script>
 </body>
 </html>
