@@ -4,7 +4,7 @@
    Handles: Offline caching, background sync
 ═══════════════════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'scholar-analytics-v3';
+const CACHE_NAME    = 'scholar-analytics-v4';
 const API_BASE      = 'https://scholar-analytics-api.onrender.com';
 
 
@@ -73,7 +73,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-/* ── FETCH — serve from cache when offline ──────────────── */
+/* ── FETCH — always fresh when online, cached copy when offline ── */
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url         = new URL(request.url);
@@ -111,7 +111,36 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  /* Cache-first strategy for static assets (HTML/CSS/etc.) */
+  /*
+   * YOUR OWN pages and styles (same origin): NETWORK-FIRST.
+   * When online the user always gets the latest deploy, so an old cached
+   * page can never be paired with newer JavaScript. The cache is only a
+   * fallback for when the network is down.
+   */
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(() =>
+          caches.match(request).then((cached) => {
+            if (cached) return cached;
+            /* Completely offline and never visited — fall back to the dashboard */
+            if (request.headers.get('accept')?.includes('text/html')) {
+              return caches.match('/pages/dashboard.html');
+            }
+          })
+        )
+    );
+    return;
+  }
+
+  /* Third-party files (fonts, icon CDN): cache-first — they never change */
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
