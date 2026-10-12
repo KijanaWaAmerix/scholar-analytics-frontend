@@ -1368,7 +1368,7 @@ const buildClassSheet = (allResults, s) => {
   const levelShort = (code) => code
     ? `<span style="font-size:12.5px;font-weight:800;letter-spacing:0.3px;">${escHtml(code)}</span>` : '—';
 
-  const bar = (t) => `<div class="bar" style="padding:5px 14px;background:#ffffff;color:${INK};font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border-top:3px solid ${LINE};border-bottom:2px solid ${LINE};">${t}</div>`;
+  const bar = (t, newPage = false) => `<div class="bar${newPage ? ' pgstart' : ''}" style="padding:5px 14px;background:#ffffff;color:${INK};font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border-top:3px solid ${LINE};border-bottom:2px solid ${LINE};">${t}</div>`;
   const th  = (label, align = 'center', title = '') => `<th ${title ? `title="${escHtml(title)}"` : ''} style="padding:6px 5px;text-align:${align};font-size:9px;font-weight:800;line-height:1.15;color:${INK};background:#ffffff;border-right:1px solid ${LINE};border-bottom:2px solid ${LINE};">${label}</th>`;
   const tdS = (extra = '') => `padding:4px 5px 6px;border-right:1px solid ${LINE};border-bottom:1px solid ${LINE};font-size:10.5px;line-height:1.3;color:${INK};background:#ffffff;${extra}`;
 
@@ -1537,7 +1537,7 @@ const buildClassSheet = (allResults, s) => {
 <div style="max-width:960px;background:#ffffff;border:2px solid ${LINE};font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${INK};margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
 
   <style>
-    @media print { tr, .keep { break-inside: avoid; page-break-inside: avoid; } thead { display: table-header-group; } }
+    @media print { tr, .keep { break-inside: avoid; page-break-inside: avoid; } thead { display: table-header-group; } .pgstart { break-before: page; page-break-before: always; } }
   </style>
 
   <!-- Header -->
@@ -1567,7 +1567,7 @@ const buildClassSheet = (allResults, s) => {
     Learner position is assigned using total marks. Performance level is calculated using average marks. Marks are rounded to the nearest whole number before the level is worked out.<br/><strong>Performance level:</strong> EE1, EE2 = Exceeding Expectation &nbsp;·&nbsp; ME1, ME2 = Meeting Expectation &nbsp;·&nbsp; AE1, AE2 = Approaching Expectation &nbsp;·&nbsp; BE1, BE2 = Below Expectation
   </div>
 
-  ${bar('Overall grade distribution')}
+  ${bar('Overall grade distribution', true)}
   <div style="display:grid;grid-template-columns:repeat(${xCount > 0 ? 9 : 8},1fr);">${distCells}</div>
 
   ${bar('Subject-wise performance summary')}
@@ -1582,10 +1582,10 @@ const buildClassSheet = (allResults, s) => {
     </table>
   </div>
 
-  ${bar('Top 3 learners per subject')}
+  ${bar('Top 3 learners per subject', true)}
   <div style="padding:12px;display:flex;flex-wrap:wrap;gap:10px;background:#ffffff;">${top3Cards}</div>
 
-  ${bar('Gender performance analytics')}
+  ${bar('Gender performance analytics', true)}
   <div style="display:grid;grid-template-columns:1fr 2fr;">
     <div style="padding:12px;border-right:1px solid ${LINE};font-size:11px;">
       <div style="display:flex;gap:10px;margin-bottom:10px;">
@@ -1679,7 +1679,7 @@ el.printBtn?.addEventListener('click', () => {
    only between rows and sections, with page numbers.
 ══════════════════════════════════════════════════════════ */
 el.downloadPdfBtn?.addEventListener('click', () => {
-  state.activeTab === 'bulk' ? downloadBulkPDF() : downloadSinglePDF();
+  state.activeTab === 'bulk' ? downloadBulkPDF() : generateSinglePDF();
 });
 
 const setDownloadLoading = (loading) => {
@@ -1722,6 +1722,11 @@ async function captureHTML(html, widthPx, maxScale) {
     });
     breaks.sort((a, b) => a - b);
 
+    /* sections that must start on a fresh page (class sheet) */
+    const starts = [...root.querySelectorAll('.pgstart')]
+      .map(node => node.getBoundingClientRect().top - top)
+      .sort((a, b) => a - b);
+
     /* keep very tall sheets under the browser's canvas size limit */
     const scale = Math.min(maxScale, 12000 / Math.max(box.height, 1));
 
@@ -1730,7 +1735,7 @@ async function captureHTML(html, widthPx, maxScale) {
       logging: false, windowWidth: widthPx, scrollX: 0, scrollY: 0,
     });
 
-    return { canvas, scale, breaks, cssW: canvas.width / scale, cssH: canvas.height / scale };
+    return { canvas, scale, breaks, starts, cssW: canvas.width / scale, cssH: canvas.height / scale };
   } finally {
     wrap.remove();
   }
@@ -1746,18 +1751,25 @@ function addCardOnePage(pdf, cap) {
   pdf.addImage(cap.canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (pw - w) / 2, PDF_MARGIN, w, h);
 }
 
-/* Where to cut: the last safe break that fits on the page */
-function planPageCuts(breaks, totalPx, pagePx) {
-  const cuts = [0];
-  let y = 0;
-  while (totalPx - y > pagePx) {
-    const limit = y + pagePx;
-    const minY  = y + pagePx * 0.4;                  // avoid tiny pages
-    const cut   = breaks.filter(b => b <= limit && b >= minY).pop() || limit;
-    cuts.push(cut);
-    y = cut;
+/* Where to cut. `starts` are forced page starts (each analysis section begins a new page);
+   inside each part, a page is cut at the last safe break (between rows) that fits. */
+function planPageCuts(breaks, totalPx, pagePx, starts = []) {
+  const marks = [0, ...starts.filter(m => m > 1 && m < totalPx - 1), totalPx];
+  const cuts  = [0];
+
+  for (let m = 0; m < marks.length - 1; m++) {
+    let y = marks[m];
+    const end = marks[m + 1];
+
+    while (end - y > pagePx) {
+      const limit = y + pagePx;
+      const minY  = y + pagePx * 0.4;                  // avoid tiny pages
+      const cut   = breaks.filter(b => b <= limit && b >= minY && b < end).pop() || limit;
+      cuts.push(cut);
+      y = cut;
+    }
+    cuts.push(end);
   }
-  cuts.push(totalPx);
   return cuts;
 }
 
@@ -1768,7 +1780,7 @@ function addSheetPaged(pdf, cap) {
   const usableW = pw - 2 * PDF_MARGIN;
   const usableH = ph - 2 * PDF_MARGIN - 4;           // 4 mm kept for the page number
   const mmPerPx = usableW / cap.cssW;
-  const cuts    = planPageCuts(cap.breaks, cap.cssH, usableH / mmPerPx);
+  const cuts    = planPageCuts(cap.breaks, cap.cssH, usableH / mmPerPx, cap.starts);
 
   for (let i = 0; i < cuts.length - 1; i++) {
     const y0 = Math.round(cuts[i] * cap.scale);
@@ -1794,7 +1806,7 @@ function addSheetPaged(pdf, cap) {
 }
 
 /* ── Single card / class sheet PDF ────────────────────────── */
-async function downloadSinglePDF() {
+async function generateSinglePDF() {
   if (!el.previewPaper?.innerHTML.trim()) {
     showToast('Generate a preview first.', 'warning');
     return;
@@ -1837,6 +1849,8 @@ async function downloadSinglePDF() {
     setDownloadLoading(false);
   }
 }
+
+window.downloadSinglePDF = generateSinglePDF;
 
 /* ── Bulk PDF: one report card per page, all learners in one file ── */
 async function downloadBulkPDF() {
@@ -1936,7 +1950,7 @@ window.reprintLast = () => {
 
 window.redownloadLast = () => {
   if (el.previewPaper?.innerHTML) {
-    state.activeTab === 'bulk' ? downloadBulkPDF() : downloadSinglePDF();
+    state.activeTab === 'bulk' ? downloadBulkPDF() : generateSinglePDF();
   } else showToast('Regenerate the report first.', 'warning');
 };
 
