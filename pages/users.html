@@ -10,6 +10,39 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
   <link rel="stylesheet" href="../css/mobile.css"/>
+  <style>
+    .u-label { font-size:0.78rem; font-weight:700; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:7px; }
+    .u-input { width:100%; padding:11px 14px; border:1.5px solid var(--border-input); border-radius:var(--radius-sm); font-size:0.875rem; font-family:var(--font-body); outline:none; background:#fff; }
+    .u-input:focus { border-color:var(--primary-light); }
+    .u-stack { display:flex; flex-direction:column; gap:14px; }
+    .u-pw-row { display:flex; gap:8px; }
+    .u-pw-wrap { position:relative; flex:1; }
+    .u-pw-wrap .u-input { padding-right:42px; }
+    .u-eye { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:32px; height:32px; border:none; background:transparent; color:var(--text-soft); cursor:pointer; border-radius:6px; }
+    .u-eye:hover { color:var(--text-dark); background:#f0f4f8; }
+    .u-gen { padding:0 14px; border:1.5px solid var(--border-input); background:#fff; border-radius:var(--radius-sm); font-size:0.78rem; font-weight:600; color:var(--text-mid); cursor:pointer; white-space:nowrap; font-family:var(--font-body); }
+    .u-gen:hover { background:#f8fafc; color:var(--primary); border-color:var(--primary-light); }
+    .u-hint { font-size:0.74rem; color:var(--text-soft); margin-top:6px; line-height:1.5; }
+    .u-error { display:none; background:rgba(231,76,60,0.10); border:1px solid rgba(231,76,60,0.25); color:#c0392b; border-radius:8px; padding:10px 12px; font-size:0.80rem; font-weight:500; }
+    .u-info { background:rgba(46,134,193,0.06); border:1px solid rgba(46,134,193,0.15); border-radius:8px; padding:12px; font-size:0.80rem; color:var(--text-mid); display:flex; gap:8px; align-items:flex-start; line-height:1.5; }
+    .u-info i { color:var(--primary-light); margin-top:2px; flex-shrink:0; }
+    .u-warn { background:rgba(243,156,18,0.10); border:1px solid rgba(243,156,18,0.30); color:#8a5a00; }
+    .u-warn i { color:#e67e22; }
+    .u-acts { display:flex; gap:6px; flex-wrap:nowrap; }
+    .u-act { padding:5px 10px; border-radius:6px; border:1px solid var(--border-input); background:#fff; cursor:pointer; font-size:0.75rem; color:var(--text-mid); font-family:var(--font-body); white-space:nowrap; }
+    .u-act:hover { background:#f8fafc; border-color:var(--primary-light); color:var(--primary); }
+    .u-act-go { color:#1e8449; border-color:rgba(39,174,96,0.35); }
+    .u-act { min-width:32px; display:inline-flex; align-items:center; justify-content:center; }
+    /* keep the action buttons in view even when the table scrolls sideways */
+    .students-table td.u-sticky { position:sticky; right:0; background:#fff; box-shadow:-8px 0 8px -8px rgba(15,30,50,0.18); }
+    .students-table th.u-sticky { position:sticky; right:0; background:#f8fafc; box-shadow:-8px 0 8px -8px rgba(15,30,50,0.18); }
+    .creds-box { border:1.5px dashed var(--border-input); border-radius:10px; padding:4px 14px; background:#f8fafc; }
+    .creds-row { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(209,220,235,0.6); font-size:0.84rem; }
+    .creds-row:last-child { border-bottom:none; }
+    .creds-row span:first-child { color:var(--text-soft); font-weight:600; flex-shrink:0; }
+    .creds-row span:last-child { color:var(--text-dark); font-weight:600; text-align:right; word-break:break-all; user-select:all; }
+    .creds-pw { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:0.95rem; letter-spacing:0.5px; }
+  </style>
 </head>
 <body class="dashboard-body">
 <div class="app-shell">
@@ -91,7 +124,7 @@
       <div class="page-header">
         <div class="page-header-left">
           <h2 class="page-header-title">School Users</h2>
-          <p class="page-header-sub">Manage admin and teacher accounts</p>
+          <p class="page-header-sub">Create teacher accounts, set their passwords and manage access</p>
         </div>
         <div class="page-header-right">
           <button class="btn-primary" id="addTeacherBtn">
@@ -136,7 +169,7 @@
                 <th>Account Setup</th>
                 <th>Last Login</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th class="u-sticky">Actions</th>
               </tr>
             </thead>
             <tbody id="usersTableBody">
@@ -154,57 +187,116 @@
 </div>
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-<!-- ADD TEACHER MODAL -->
+<!-- ADD / EDIT TEACHER MODAL -->
 <div class="modal-overlay" id="teacherModalOverlay">
   <div class="modal modal-sm">
     <div class="modal-header">
       <div>
-        <h3 class="modal-title">Add Teacher</h3>
-        <p class="modal-subtitle">Teacher will receive an email to set their password</p>
+        <h3 class="modal-title" id="teacherModalTitle">Add Teacher</h3>
+        <p class="modal-subtitle" id="teacherModalSub">Create the account and set the teacher's password</p>
       </div>
-      <button class="modal-close" id="teacherModalClose"><i class="fas fa-times"></i></button>
+      <button class="modal-close" id="teacherModalClose" aria-label="Close"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-body">
-      <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="u-stack">
         <div>
-          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
-            Full Name <span style="color:red;">*</span>
-          </label>
-          <input type="text" id="teacherName"
-            placeholder="e.g. Mr. John Kamau"
-            style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;"/>
+          <label class="u-label" for="teacherName">Full Name <span style="color:red;">*</span></label>
+          <input type="text" id="teacherName" class="u-input" placeholder="e.g. Mr. John Kamau" autocomplete="off"/>
         </div>
         <div>
-          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
-            Email Address <span style="color:red;">*</span>
-          </label>
-          <input type="email" id="teacherEmail"
-            placeholder="e.g. john.kamau@school.ac.ke"
-            style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;"/>
+          <label class="u-label" for="teacherEmail">Email Address <span style="color:red;">*</span></label>
+          <input type="email" id="teacherEmail" class="u-input" placeholder="e.g. john.kamau@school.ac.ke" autocomplete="off"/>
+          <p class="u-hint">The teacher signs in with this email.</p>
         </div>
         <div>
-          <label style="font-size:0.78rem;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:7px;">
-            Phone Number
-          </label>
-          <input type="tel" id="teacherPhone"
-            placeholder="e.g. 0712345678"
-            style="width:100%;padding:11px 14px;border:1.5px solid var(--border-input);border-radius:var(--radius-sm);font-size:0.875rem;font-family:var(--font-body);outline:none;"/>
+          <label class="u-label" for="teacherPhone">Phone Number</label>
+          <input type="tel" id="teacherPhone" class="u-input" placeholder="e.g. 0712345678" autocomplete="off"/>
         </div>
-        <div style="background:rgba(46,134,193,0.06);border:1px solid rgba(46,134,193,0.15);border-radius:8px;padding:12px;">
-          <p style="font-size:0.80rem;color:var(--text-mid);display:flex;align-items:flex-start;gap:8px;">
-            <i class="fas fa-circle-info" style="color:var(--primary-light);margin-top:2px;flex-shrink:0;"></i>
-            The teacher will receive an email with a link to set their own password and activate their account.
-          </p>
+        <div id="passwordGroup">
+          <label class="u-label" for="teacherPassword">Password</label>
+          <div class="u-pw-row">
+            <div class="u-pw-wrap">
+              <input type="password" id="teacherPassword" class="u-input" placeholder="Choose a password" autocomplete="new-password"/>
+              <button type="button" class="u-eye" id="eyeAdd" aria-label="Show or hide password"><i class="fas fa-eye"></i></button>
+            </div>
+            <button type="button" class="u-gen" id="genPasswordBtn"><i class="fas fa-wand-magic-sparkles"></i> Generate</button>
+          </div>
+          <p class="u-hint">At least 8 characters. Leave it blank and a strong password is generated for you.</p>
         </div>
+        <div class="u-error" id="teacherFormError"></div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" id="teacherModalCancel"><i class="fas fa-times"></i> Cancel</button>
-      <button class="btn-primary" id="saveTeacherBtn">
-        <i class="fas fa-paper-plane"></i>
-        <span id="saveTeacherText">Send Invite</span>
-        <span id="saveTeacherSpinner" style="display:none;"><i class="fas fa-spinner fa-spin"></i> Sending...</span>
-      </button>
+      <button class="btn-primary" id="saveTeacherBtn"><i class="fas fa-user-plus"></i> Create Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESET PASSWORD MODAL -->
+<div class="modal-overlay" id="resetModalOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Reset Password</h3>
+        <p class="modal-subtitle">For <strong id="resetName">--</strong></p>
+      </div>
+      <button class="modal-close" id="resetModalClose" aria-label="Close"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="u-stack">
+        <div>
+          <label class="u-label" for="resetPassword">New Password</label>
+          <div class="u-pw-row">
+            <div class="u-pw-wrap">
+              <input type="password" id="resetPassword" class="u-input" placeholder="Choose a new password" autocomplete="new-password"/>
+              <button type="button" class="u-eye" id="eyeReset" aria-label="Show or hide password"><i class="fas fa-eye"></i></button>
+            </div>
+            <button type="button" class="u-gen" id="genResetBtn"><i class="fas fa-wand-magic-sparkles"></i> Generate</button>
+          </div>
+          <p class="u-hint">At least 8 characters. Leave it blank and a strong password is generated for you.</p>
+        </div>
+        <div class="u-info">
+          <i class="fas fa-circle-info"></i>
+          <span>The old password stops working straight away. Passwords are stored encrypted, so they can't be viewed later &mdash; set a new one instead.</span>
+        </div>
+        <div class="u-error" id="resetFormError"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="resetModalCancel"><i class="fas fa-times"></i> Cancel</button>
+      <button class="btn-primary" id="saveResetBtn"><i class="fas fa-key"></i> Reset Password</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOGIN DETAILS (shown once) -->
+<div class="modal-overlay" id="credsModalOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title" id="credsTitle">Account ready</h3>
+        <p class="modal-subtitle">Give these login details to the teacher</p>
+      </div>
+      <button class="modal-close" id="credsModalClose" aria-label="Close"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="u-stack">
+        <div class="creds-box">
+          <div class="creds-row"><span>Teacher</span><span id="credsName">--</span></div>
+          <div class="creds-row"><span>Login page</span><span id="credsUrl">--</span></div>
+          <div class="creds-row"><span>Email</span><span id="credsEmail">--</span></div>
+          <div class="creds-row"><span>Password</span><span class="creds-pw" id="credsPassword">--</span></div>
+        </div>
+        <div class="u-info u-warn">
+          <i class="fas fa-triangle-exclamation"></i>
+          <span>This password is shown <strong>only once</strong>. If it gets lost, use the <strong>key</strong> button (Reset password) on the teacher's row to set a new one.</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="credsDoneBtn"><i class="fas fa-check"></i> Done</button>
+      <button class="btn-primary" id="copyCredsBtn"><i class="fas fa-copy"></i> Copy login details</button>
     </div>
   </div>
 </div>
