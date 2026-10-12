@@ -1294,6 +1294,15 @@ const buildReportCard = (r, s) => {
 
 /* ══════════════════════════════════════════════════════════
    12. BUILD CLASS RESULT SHEET  (Kaaboi table + Chebarus analysis, low ink)
+═
+/* ══════════════════════════════════════════════════════════
+   12. BUILD CLASS RESULT SHEET  (Kaaboi table + Chebarus analysis, low ink)
+   Page layout of the PDF / print:
+     Page 1+ : Class rankings
+     Page A  : Overall grade distribution + Subject-wise performance summary
+     Page B  : Top 3 learners per subject
+     Page C  : Gender performance analytics + Most improved learners
+   Each section keeps its own title bar and its own box.
 ══════════════════════════════════════════════════════════ */
 const buildClassSheet = (allResults, s) => {
   const { INK, LINE, MUTE } = PRINT;
@@ -1328,7 +1337,6 @@ const buildClassSheet = (allResults, s) => {
     [...new Set(Object.values(maps).map(m => m[normName(name)]).filter(Boolean))].map(tidyName).join(' / ');
 
   /* Subject averages, grade counts, top 3 */
-
   const subjectStats = subjectList.map(subj => {
     const scores = [];
     results.forEach(r => {
@@ -1537,7 +1545,11 @@ const buildClassSheet = (allResults, s) => {
 <div style="max-width:960px;background:#ffffff;border:2px solid ${LINE};font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${INK};margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
 
   <style>
-    @media print { tr, .keep { break-inside: avoid; page-break-inside: avoid; } thead { display: table-header-group; } }
+    @media print {
+      tr, .keep { break-inside: avoid; page-break-inside: avoid; }
+      thead { display: table-header-group; }
+      .pg { break-before: page; page-break-before: always; }
+    }
   </style>
 
   <!-- Header -->
@@ -1567,47 +1579,72 @@ const buildClassSheet = (allResults, s) => {
     Learner position is assigned using total marks. Performance level is calculated using average marks. Marks are rounded to the nearest whole number before the level is worked out.<br/><strong>Performance level:</strong> EE1, EE2 = Exceeding Expectation &nbsp;·&nbsp; ME1, ME2 = Meeting Expectation &nbsp;·&nbsp; AE1, AE2 = Approaching Expectation &nbsp;·&nbsp; BE1, BE2 = Below Expectation
   </div>
 
-  ${bar('Overall grade distribution')}
-  <div style="display:grid;grid-template-columns:repeat(${xCount > 0 ? 9 : 8},1fr);">${distCells}</div>
+  <!-- PAGE A: grade distribution + subject-wise summary (two separate boxes) -->
+  <div class="pg" style="padding:12px;">
 
-  ${bar('Subject-wise performance summary')}
-  <div style="overflow-x:auto;">
-    <table style="width:100%;border-collapse:collapse;">
-      <thead>
-        <tr>
-          ${th('Rank')}${th('Learning area', 'left')}${th('Avg mark')}${th('Avg pts')}${KJSEA.SCALE.map(g => th(g.grade)).join('')}${th('Subject teacher', 'left')}
-        </tr>
-      </thead>
-      <tbody>${summaryRows}</tbody>
-    </table>
-  </div>
+    <div class="sec" style="border:2px solid ${LINE};">
+      ${bar('Overall grade distribution')}
+      <div style="display:grid;grid-template-columns:repeat(${xCount > 0 ? 9 : 8},1fr);">${distCells}</div>
+    </div>
 
-  ${bar('Top 3 learners per subject')}
-  <div style="padding:12px;display:flex;flex-wrap:wrap;gap:10px;background:#ffffff;">${top3Cards}</div>
-
-  ${bar('Gender performance analytics')}
-  <div style="display:grid;grid-template-columns:1fr 2fr;">
-    <div style="padding:12px;border-right:1px solid ${LINE};font-size:11px;">
-      <div style="display:flex;gap:10px;margin-bottom:10px;">
-        <div style="flex:1;border:1.5px solid ${LINE};padding:8px;text-align:center;"><div style="font-size:15px;font-weight:800;">${males.length}</div><div style="font-size:9.5px;">Male | Avg ${males.length ? maleAvg + '%' : '—'}</div></div>
-        <div style="flex:1;border:1.5px solid ${LINE};padding:8px;text-align:center;"><div style="font-size:15px;font-weight:800;">${females.length}</div><div style="font-size:9.5px;">Female | Avg ${females.length ? femaleAvg + '%' : '—'}</div></div>
+    <div class="sec" style="border:2px solid ${LINE};margin-top:18px;">
+      ${bar('Subject-wise performance summary')}
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr>
+              ${th('Rank')}${th('Learning area', 'left')}${th('Avg mark')}${th('Avg pts')}${KJSEA.SCALE.map(g => th(g.grade)).join('')}${th('Subject teacher', 'left')}
+            </tr>
+          </thead>
+          <tbody>${summaryRows}</tbody>
+        </table>
       </div>
-      <strong>Better performing gender: ${betterGender}</strong><br/>Performance gap: ${genderGap}${genderGap === '—' ? '' : ' marks'}
     </div>
-    <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;">
-        <thead><tr>${th('Subject', 'left')}${th('Male')}${th('Female')}${th('Gap')}${th('Leader')}</tr></thead>
-        <tbody>${genderRows}</tbody>
-      </table>
-    </div>
+
   </div>
 
-  ${mostImproved.length ? `
-  ${bar('Most improved learners (VAP)')}
-  <table style="width:100%;border-collapse:collapse;">
-    <thead><tr>${th('Rank')}${th('Learner name', 'left')}${th('Prev points')}${th('Current points')}${th('VAP (+/-)')}</tr></thead>
-    <tbody>${improvedRows}</tbody>
-  </table>` : ''}
+  <!-- PAGE B: top 3 learners per subject -->
+  <div class="pg" style="padding:12px;">
+
+    <div class="sec" style="border:2px solid ${LINE};">
+      ${bar('Top 3 learners per subject')}
+      <div style="padding:12px;display:flex;flex-wrap:wrap;gap:10px;background:#ffffff;">${top3Cards}</div>
+    </div>
+
+  </div>
+
+  <!-- PAGE C: gender analytics + most improved (two separate boxes) -->
+  <div class="pg" style="padding:12px;">
+
+    <div class="sec" style="border:2px solid ${LINE};">
+      ${bar('Gender performance analytics')}
+      <div style="display:grid;grid-template-columns:1fr 2fr;">
+        <div style="padding:12px;border-right:1px solid ${LINE};font-size:11px;">
+          <div style="display:flex;gap:10px;margin-bottom:10px;">
+            <div style="flex:1;border:1.5px solid ${LINE};padding:8px;text-align:center;"><div style="font-size:15px;font-weight:800;">${males.length}</div><div style="font-size:9.5px;">Male | Avg ${males.length ? maleAvg + '%' : '—'}</div></div>
+            <div style="flex:1;border:1.5px solid ${LINE};padding:8px;text-align:center;"><div style="font-size:15px;font-weight:800;">${females.length}</div><div style="font-size:9.5px;">Female | Avg ${females.length ? femaleAvg + '%' : '—'}</div></div>
+          </div>
+          <strong>Better performing gender: ${betterGender}</strong><br/>Performance gap: ${genderGap}${genderGap === '—' ? '' : ' marks'}
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead><tr>${th('Subject', 'left')}${th('Male')}${th('Female')}${th('Gap')}${th('Leader')}</tr></thead>
+            <tbody>${genderRows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    ${mostImproved.length ? `
+    <div class="sec" style="border:2px solid ${LINE};margin-top:18px;">
+      ${bar('Most improved learners (VAP)')}
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr>${th('Rank')}${th('Learner name', 'left')}${th('Prev points')}${th('Current points')}${th('VAP (+/-)')}</tr></thead>
+        <tbody>${improvedRows}</tbody>
+      </table>
+    </div>` : ''}
+
+  </div>
 
   <!-- Signatures -->
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:3px solid ${LINE};margin-top:0;">
@@ -1624,12 +1661,6 @@ const buildClassSheet = (allResults, s) => {
 
 </div>`;
 };
-/* ═══════════════════════════════════════════════════════════
-   SECTIONS 13, 14 AND 15 OF js/reports.js — complete replacement
-   Delete your old sections 13, 14 and 15 (everything from
-   "13. BULK PREVIEW" down to just before "16. RECENT REPORTS")
-   and paste this whole file in their place.
-═══════════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════════
    13. BULK PREVIEW — All cards stacked (skips learners with no marks)
@@ -1675,8 +1706,10 @@ el.printBtn?.addEventListener('click', () => {
 
 /* ══════════════════════════════════════════════════════════
    15. PDF DOWNLOAD
-   Report card = always ONE page. Class sheet = landscape, cut
-   only between rows and sections, with page numbers.
+   Report card = always ONE page. Class sheet = landscape; a new
+   page ALWAYS starts at every ".pg" block (the analysis pages),
+   and otherwise is cut only between rows and sections, with
+   page numbers.
 ══════════════════════════════════════════════════════════ */
 el.downloadPdfBtn?.addEventListener('click', () => {
   state.activeTab === 'bulk' ? downloadBulkPDF() : downloadSinglePDF();
@@ -1697,7 +1730,8 @@ const safeFileText = (t, fallback) =>
   String(t || fallback).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '') || fallback;
 
 /* Draw html off-screen, measure where a page may be cut, and capture it.
-   breaks = y positions (CSS px from the top of the sheet) that are safe to cut at. */
+   breaks = y positions (CSS px from the top of the sheet) that are safe to cut at.
+   forced = y positions where a NEW page must start (every .pg block). */
 async function captureHTML(html, widthPx, maxScale) {
   if (document.fonts && document.fonts.ready) {
     try { await document.fonts.ready; } catch { /* ignore */ }
@@ -1714,13 +1748,17 @@ async function captureHTML(html, widthPx, maxScale) {
     const top  = box.top;
 
     const breaks = [];
-    root.querySelectorAll(':scope > *, tr, .keep').forEach(node => {
+    root.querySelectorAll(':scope > *, tr, .keep, .sec').forEach(node => {
       if (node.tagName === 'STYLE')                 return;
       if (node.classList.contains('bar'))           return;   // never cut right after a heading
       if (node.closest('thead'))                    return;   // never cut right after the table header
       breaks.push(node.getBoundingClientRect().bottom - top);
     });
     breaks.sort((a, b) => a - b);
+
+    /* positions where a new page MUST start (every .pg block) */
+    const forced = [...root.querySelectorAll('.pg')]
+      .map(n => n.getBoundingClientRect().top - top);
 
     /* keep very tall sheets under the browser's canvas size limit */
     const scale = Math.min(maxScale, 12000 / Math.max(box.height, 1));
@@ -1730,7 +1768,7 @@ async function captureHTML(html, widthPx, maxScale) {
       logging: false, windowWidth: widthPx, scrollX: 0, scrollY: 0,
     });
 
-    return { canvas, scale, breaks, cssW: canvas.width / scale, cssH: canvas.height / scale };
+    return { canvas, scale, breaks, forced, cssW: canvas.width / scale, cssH: canvas.height / scale };
   } finally {
     wrap.remove();
   }
@@ -1746,30 +1784,37 @@ function addCardOnePage(pdf, cap) {
   pdf.addImage(cap.canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (pw - w) / 2, PDF_MARGIN, w, h);
 }
 
-/* Where to cut: the last safe break that fits on the page */
-function planPageCuts(breaks, totalPx, pagePx) {
-  const cuts = [0];
-  let y = 0;
-  while (totalPx - y > pagePx) {
-    const limit = y + pagePx;
-    const minY  = y + pagePx * 0.4;                  // avoid tiny pages
-    const cut   = breaks.filter(b => b <= limit && b >= minY).pop() || limit;
-    cuts.push(cut);
-    y = cut;
+/* Where to cut: always at forced breaks, otherwise the last safe break that fits */
+function planPageCuts(breaks, totalPx, pagePx, forced = []) {
+  const stops  = forced.filter(f => f > 0 && f < totalPx).sort((a, b) => a - b);
+  const bounds = [0, ...stops, totalPx];
+  const cuts   = [0];
+
+  for (let s = 0; s < bounds.length - 1; s++) {
+    let y = bounds[s];
+    const end = bounds[s + 1];
+    while (end - y > pagePx) {
+      const limit = y + pagePx;
+      const minY  = y + pagePx * 0.4;                 // avoid tiny pages
+      const cut   = breaks.filter(b => b <= limit && b >= minY && b < end).pop() || limit;
+      cuts.push(cut);
+      y = cut;
+    }
+    cuts.push(end);
   }
-  cuts.push(totalPx);
   return cuts;
 }
 
-/* Class sheet: many pages, cut between rows and sections only */
+/* Class sheet: many pages, new page at every analysis block, cut between rows and sections only */
 function addSheetPaged(pdf, cap) {
   const pw = pdf.internal.pageSize.getWidth();
   const ph = pdf.internal.pageSize.getHeight();
   const usableW = pw - 2 * PDF_MARGIN;
   const usableH = ph - 2 * PDF_MARGIN - 4;           // 4 mm kept for the page number
   const mmPerPx = usableW / cap.cssW;
-  const cuts    = planPageCuts(cap.breaks, cap.cssH, usableH / mmPerPx);
+  const cuts    = planPageCuts(cap.breaks, cap.cssH, usableH / mmPerPx, cap.forced);
 
+  let first = true;
   for (let i = 0; i < cuts.length - 1; i++) {
     const y0 = Math.round(cuts[i] * cap.scale);
     const h  = Math.round(cuts[i + 1] * cap.scale) - y0;
@@ -1780,7 +1825,8 @@ function addSheetPaged(pdf, cap) {
     slice.height = h;
     slice.getContext('2d').drawImage(cap.canvas, 0, y0, cap.canvas.width, h, 0, 0, cap.canvas.width, h);
 
-    if (i > 0) pdf.addPage();
+    if (!first) pdf.addPage();
+    first = false;
     pdf.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG',
       PDF_MARGIN, PDF_MARGIN, usableW, (h / cap.scale) * mmPerPx);
   }
