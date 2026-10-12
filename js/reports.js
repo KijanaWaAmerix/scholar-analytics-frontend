@@ -1195,7 +1195,7 @@ const buildClassSheet = (allResults, s) => {
   const levelShort = (code) => code
     ? `<span style="font-size:12.5px;font-weight:800;letter-spacing:0.3px;">${escHtml(code)}</span>` : '—';
 
-  const bar = (t) => `<div class="bar" style="padding:5px 14px;background:#ffffff;color:${INK};font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border-top:3px solid ${LINE};border-bottom:2px solid ${LINE};">${t}</div>`;
+  const bar = (t) => `<div class="sa-bar" style="padding:5px 14px;background:#ffffff;color:${INK};font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border-top:3px solid ${LINE};border-bottom:2px solid ${LINE};">${t}</div>`;
   const th  = (label, align = 'center', title = '') => `<th ${title ? `title="${escHtml(title)}"` : ''} style="padding:6px 5px;text-align:${align};font-size:9px;font-weight:800;line-height:1.15;color:${INK};background:#ffffff;border-right:1px solid ${LINE};border-bottom:2px solid ${LINE};">${label}</th>`;
   const tdS = (extra = '') => `padding:4px 5px 6px;border-right:1px solid ${LINE};border-bottom:1px solid ${LINE};font-size:10.5px;line-height:1.3;color:${INK};background:#ffffff;${extra}`;
 
@@ -1301,7 +1301,7 @@ const buildClassSheet = (allResults, s) => {
 
   /* ── Top 3 per subject ── */
   const top3Cards = subjectStats.map(x => `
-    <div class="keep" style="flex:0 0 calc(25% - 7.5px);box-sizing:border-box;border:1.5px solid ${LINE};background:#ffffff;">
+    <div class="sa-keep" style="flex:0 0 calc(25% - 7.5px);box-sizing:border-box;border:1.5px solid ${LINE};background:#ffffff;">
       <div style="padding:5px 10px;border-bottom:1.5px solid ${LINE};">
         <div style="font-size:11px;font-weight:800;">${escHtml(x.name)}</div>
         <div style="font-size:9.5px;">Avg: ${x.avg}%</div>
@@ -1361,9 +1361,9 @@ const buildClassSheet = (allResults, s) => {
 
   <style>
     @media print {
-      tr, .keep { break-inside: avoid; page-break-inside: avoid; }
+      tr, .sa-keep { break-inside: avoid; page-break-inside: avoid; }
       thead { display: table-header-group; }
-      .pg { break-before: page; page-break-before: always; }
+      .sa-pg { break-before: page; page-break-before: always; }
     }
   </style>
 
@@ -1395,12 +1395,12 @@ const buildClassSheet = (allResults, s) => {
   </div>
 
   <!-- PAGE: distribution + subject summary -->
-  <div class="pg" style="padding:12px;">
-    <div class="sec" style="border:2px solid ${LINE};">
+  <div class="sa-pg" style="padding:12px;">
+    <div class="sa-sec" style="border:2px solid ${LINE};">
       ${bar('Overall grade distribution')}
       <div style="display:grid;grid-template-columns:repeat(${xCount > 0 ? 9 : 8},1fr);">${distCells}</div>
     </div>
-    <div class="sec" style="border:2px solid ${LINE};margin-top:18px;">
+    <div class="sa-sec" style="border:2px solid ${LINE};margin-top:18px;">
       ${bar('Subject-wise performance summary')}
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;">
@@ -1416,16 +1416,16 @@ const buildClassSheet = (allResults, s) => {
   </div>
 
   <!-- PAGE: top 3 per subject -->
-  <div class="pg" style="padding:12px;">
-    <div class="sec" style="border:2px solid ${LINE};">
+  <div class="sa-pg" style="padding:12px;">
+    <div class="sa-sec" style="border:2px solid ${LINE};">
       ${bar('Top 3 learners per subject')}
       <div style="padding:12px;display:flex;flex-wrap:wrap;gap:10px;background:#ffffff;">${top3Cards}</div>
     </div>
   </div>
 
   <!-- PAGE: gender analytics -->
-  <div class="pg" style="padding:12px;">
-    <div class="sec" style="border:2px solid ${LINE};">
+  <div class="sa-pg" style="padding:12px;">
+    <div class="sa-sec" style="border:2px solid ${LINE};">
       ${bar('Gender performance analytics')}
       <div style="display:grid;grid-template-columns:1fr 2fr;">
         <div style="padding:12px;border-right:1px solid ${LINE};font-size:11px;">
@@ -1447,8 +1447,8 @@ const buildClassSheet = (allResults, s) => {
 
   ${mostImproved.length ? `
   <!-- PAGE: most improved (own page) -->
-  <div class="pg" style="padding:12px;">
-    <div class="sec" style="border:2px solid ${LINE};">
+  <div class="sa-pg" style="padding:12px;">
+    <div class="sa-sec" style="border:2px solid ${LINE};">
       ${bar('Top 3 most improved learners (based on VAP)')}
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr>${th('Rank')}${th('Learner name', 'left')}${th('Class')}${th('Prev points')}${th('Current points')}${th('VAP (+)')}</tr></thead>
@@ -1546,6 +1546,7 @@ async function captureHTML(html, widthPx, maxScale) {
   }
 
   const wrap = document.createElement('div');
+  wrap.setAttribute('data-sa-capture', '1');
   wrap.style.cssText = `position:fixed;top:-99999px;left:-99999px;width:${widthPx}px;background:#fff;z-index:-9999;`;
   wrap.innerHTML = html;
   document.body.appendChild(wrap);
@@ -1556,9 +1557,9 @@ async function captureHTML(html, widthPx, maxScale) {
     const top  = box.top;
 
     const breaks = [];
-    root.querySelectorAll(':scope > *, tr, .keep').forEach(node => {
+    root.querySelectorAll(':scope > *, tr, .sa-keep').forEach(node => {
       if (node.tagName === 'STYLE')       return;
-      if (node.classList.contains('bar')) return;   // never cut right after a heading
+      if (node.classList.contains('sa-bar')) return;   // never cut right after a heading
       if (node.closest('thead'))          return;   // never cut right after the table header
       breaks.push(node.getBoundingClientRect().bottom - top);
     });
@@ -1569,7 +1570,15 @@ async function captureHTML(html, widthPx, maxScale) {
     const canvas = await html2canvas(wrap, {
       scale, useCORS: true, allowTaint: true, backgroundColor: '#ffffff',
       logging: false, windowWidth: widthPx, scrollX: 0, scrollY: 0,
+      onclone: (doc) => {
+        const w = doc.querySelector('[data-sa-capture]');
+        if (w) { w.style.left = '0px'; w.style.top = '0px'; }
+      },
     });
+
+    if (!canvas.width || !canvas.height || box.height < 10) {
+      throw new Error(`Capture failed: canvas ${canvas.width}x${canvas.height}, element height ${Math.round(box.height)}`);
+    }
 
     return { canvas, scale, breaks, cssW: canvas.width / scale, cssH: canvas.height / scale };
   } finally {
@@ -1648,7 +1657,7 @@ function sheetGroups(html) {
   const kids = [...root.children].filter(n => n.tagName !== 'STYLE');
   const groups = [[]];
   kids.forEach(n => {
-    if (n.classList.contains('pg')) groups.push([n]);
+    if (n.classList.contains('sa-pg')) groups.push([n]);
     else groups[groups.length - 1].push(n);
   });
   return groups
