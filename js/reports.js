@@ -1,22 +1,15 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Reports & PDFs
    File: js/reports.js
-   Version: 6.3
-   6.2: ONE class dropdown — Whole Grade, or any single class (East / West).
-        Exam names come from real exams; teacher names are saved per class.
-   Changes from 6.0:
-   • Pathway Summary follows the KNEC subject sets:
-       STEM            = Mathematics, Integrated Science, Pre-Technical, Agriculture
-       Creative Arts   = Creative Arts & Sports, English, Kiswahili
-       Social Sciences = Social Studies, CRE + the better of English / Kiswahili
-     Edit them in KJSEA.SUBJECT_SLOTS / KJSEA.PATHWAY_SUBJECTS.
-   • Report card gridlines are black and thicker.
-   • Subject teacher names can be typed on the Reports page, per
-     class (e.g. Grade 7 East / Grade 7 West) or per grade when
-     "Whole Grade" scope is used. Nothing is hard-coded: classes
-     and subjects come from the backend. Names are saved in this
-     browser and fill the TEACHER column on the report card.
-   • Class teacher / Principal names print above signature lines.
+   Version: 7.0 (clean single file)
+
+   Class result sheet pages (PDF and print):
+     1+ : Class rankings (continues onto more pages for big classes)
+     2  : Overall grade distribution + Subject-wise summary
+     3  : Top 3 learners per subject
+     4  : Gender performance analytics
+     5  : Most improved learners (top 3 by VAP) — own page
+   Report card = one page per learner.
 ═══════════════════════════════════════════════════════════ */
 
 /* ── Auth ─────────────────────────────────────────────────── */
@@ -30,30 +23,19 @@ initSidebar(user);
 const KJSEA = {
 
   SCALE: [
-    { grade:'EE1', label:'Exceeds Expectation',      measure:'Exceptional',    min:90, max:100, points:8, css:'ee1' },
-    { grade:'EE2', label:'Exceeds Expectation',      measure:'Very Good',      min:75, max:89,  points:7, css:'ee2' },
-    { grade:'ME1', label:'Meets Expectation',        measure:'Good',           min:58, max:74,  points:6, css:'me1' },
-    { grade:'ME2', label:'Meets Expectation',        measure:'Fair',           min:41, max:57,  points:5, css:'me2' },
-    { grade:'AE1', label:'Approaches Expectation',   measure:'Developing',     min:31, max:40,  points:4, css:'ae1' },
-    { grade:'AE2', label:'Approaches Expectation',   measure:'Improving',      min:21, max:30,  points:3, css:'ae2' },
-    { grade:'BE1', label:'Below Expectation',        measure:'Minimal',        min:11, max:20,  points:2, css:'be1' },
-    { grade:'BE2', label:'Below Expectation',        measure:'Below Minimal',  min:1,  max:10,  points:1, css:'be2' },
+    { grade:'EE1', label:'Exceeds Expectation',    full:'Exceeding Expectation',   measure:'Exceptional',   min:90, max:100, points:8, css:'ee1' },
+    { grade:'EE2', label:'Exceeds Expectation',    full:'Exceeding Expectation',   measure:'Very Good',     min:75, max:89,  points:7, css:'ee2' },
+    { grade:'ME1', label:'Meets Expectation',      full:'Meeting Expectation',     measure:'Good',          min:58, max:74,  points:6, css:'me1' },
+    { grade:'ME2', label:'Meets Expectation',      full:'Meeting Expectation',     measure:'Fair',          min:41, max:57,  points:5, css:'me2' },
+    { grade:'AE1', label:'Approaches Expectation', full:'Approaching Expectation', measure:'Developing',    min:31, max:40,  points:4, css:'ae1' },
+    { grade:'AE2', label:'Approaches Expectation', full:'Approaching Expectation', measure:'Improving',     min:21, max:30,  points:3, css:'ae2' },
+    { grade:'BE1', label:'Below Expectation',      full:'Below Expectation',       measure:'Minimal',       min:11, max:20,  points:2, css:'be1' },
+    { grade:'BE2', label:'Below Expectation',      full:'Below Expectation',       measure:'Below Minimal', min:0,  max:10,  points:1, css:'be2' },
   ],
 
-  /* ══════════════════════════════════════════════════════════
-     KNEC PATHWAY SUBJECTS
-     Which subjects count toward each pathway (as KNEC does it):
-       STEM            → Mathematics, Integrated Science,
-                         Pre-Technical, Agriculture
-       Creative Arts   → Creative Arts & Sports, English, Kiswahili
-       Social Sciences → Social Studies, Religious Education (CRE)
-                         + the BETTER of English or Kiswahili
-
-     A subject is recognised by its CODE or by the START of its
-     NAME (case-insensitive). Add extra codes/names below if yours
-     differ. In PATHWAY_SUBJECTS, a nested array like ['eng','kisw']
-     means "take whichever of these has the higher score".
-  ══════════════════════════════════════════════════════════ */
+  /* KNEC pathway subjects. A subject is recognised by its CODE or by the
+     START of its NAME (case-insensitive). A nested array such as
+     ['eng','kisw'] means "take whichever has the higher score". */
   SUBJECT_SLOTS: {
     math   : { label:'Mathematics',            codes:['MATH','MAT'],       names:['math'] },
     inter  : { label:'Integrated Science',     codes:['INTER','INT'],      names:['integrated science'] },
@@ -69,7 +51,7 @@ const KJSEA = {
   PATHWAY_SUBJECTS: {
     stem    : ['math', 'inter', 'pretech', 'agri'],
     creative: ['cas', 'eng', 'kisw'],
-    social  : ['sst', 'cre', ['eng', 'kisw']],   // better of English / Kiswahili
+    social  : ['sst', 'cre', ['eng', 'kisw']],
   },
 
   PATHWAYS: {
@@ -78,12 +60,17 @@ const KJSEA = {
     creative: { name:'Creative Arts',   col:'#6b21a8', bg:'#f3e8ff', border:'#a855f7', pillBg:'#e9d5ff', pillCol:'#581c87' },
   },
 
+  /* Marks are rounded to a whole number first, so 57.5 never falls between ranges */
   getGrade(score) {
-    if (score === null || score === undefined || score === '') return null;
-    return this.SCALE.find(s => Number(score) >= s.min && Number(score) <= s.max) || null;
+    if (score === null || score === undefined || score === '' || isNaN(Number(score))) return null;
+    const n = Math.round(Number(score));
+    return this.SCALE.find(s => n >= s.min && n <= s.max) || null;
   },
 
-  /* Does this subject result belong to the given slot (math, eng, …)? */
+  levelFull(code) {
+    return this.SCALE.find(s => s.grade === code)?.full || '';
+  },
+
   matchSlot(sub, slotKey) {
     const slot = this.SUBJECT_SLOTS[slotKey];
     if (!slot || !sub) return false;
@@ -92,16 +79,10 @@ const KJSEA = {
     return slot.codes.includes(code) || slot.names.some(k => name.startsWith(k));
   },
 
-  /* Pathway result per KNEC subject sets.
-       avg    = mean score % of the counted subjects
-       points = sum of their KJSEA points, out of 8 per subject
-     Subjects the learner has no score for (absent / not entered)
-     are left out, and the card says how many were counted. */
   computePathways(subjectResults) {
     const valid = s => s && s.score !== null && s.score !== undefined && !isNaN(Number(s.score));
     const scored = (subjectResults || []).filter(valid);
     const findSlot = key => scored.find(s => this.matchSlot(s, key)) || null;
-
     const out = {};
 
     Object.entries(this.PATHWAY_SUBJECTS).forEach(([key, slots]) => {
@@ -111,7 +92,7 @@ const KJSEA = {
         if (Array.isArray(slot)) {
           const cands = slot.map(findSlot).filter(Boolean);
           if (!cands.length) return;
-          const best = cands.reduce((a, b) => Number(b.score) > Number(a.score) ? b : a);
+          const best  = cands.reduce((a, b) => Number(b.score) > Number(a.score) ? b : a);
           const label = slot.map(k => this.SUBJECT_SLOTS[k]?.label || k).join(' / ');
           picked.push({ sub: best, note: `better of ${label}` });
         } else {
@@ -120,9 +101,9 @@ const KJSEA = {
         }
       });
 
-      const scores  = picked.map(p => Number(p.sub.score));
-      const avg     = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
-      const points  = picked.reduce((a, p) => a + (p.sub.points || 0), 0);
+      const scores    = picked.map(p => Number(p.sub.score));
+      const avg       = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+      const points    = picked.reduce((a, p) => a + (p.sub.points || 0), 0);
       const gradeInfo = avg === null ? null : this.getGrade(Math.round(avg));
 
       out[key] = {
@@ -170,15 +151,20 @@ const KJSEA = {
     }[grade] || `${first} is encouraged to work harder and engage more actively with the learning process.`;
   },
 
+  /* Remark matched to the level, so it never contradicts the Performance Level column */
   getSubjectRemark(score) {
-    if (score === null || score === undefined) return '—';
-    if (score >= 90) return 'Outstanding. Exceptional learner.';
-    if (score >= 75) return 'Very good. Keep it up.';
-    if (score >= 58) return 'Good. Needs more practice.';
-    if (score >= 41) return 'Fair. More effort required.';
-    if (score >= 31) return 'Approaching expectation.';
-    if (score >= 21) return 'Needs improvement urgently.';
-    return 'Below expectation. Seek help.';
+    const g = this.getGrade(score);
+    if (!g) return '—';
+    return {
+      EE1: 'Outstanding performance. Keep it up.',
+      EE2: 'Very good performance. Aim higher.',
+      ME1: 'Good performance. Next level is near.',
+      ME2: 'Meeting the standard. Keep practising.',
+      AE1: 'Close to the standard. Practise more.',
+      AE2: 'Approaching the standard. Needs support.',
+      BE1: 'Below the standard. Needs extra support.',
+      BE2: 'Well below the standard. Needs close support.',
+    }[g.grade];
   },
 
   ordinal(n) {
@@ -193,17 +179,19 @@ const KJSEA = {
 ══════════════════════════════════════════════════════════ */
 const state = {
   activeTab    : 'individual',
-  scope        : 'class', // 'class' (one class) | 'grade' (whole grade)
-  gradeValue   : '',      // e.g. "7" when scope === 'grade'
+  scope        : 'class',   // 'class' | 'grade'
+  gradeValue   : '',
   classes      : [],
   exams        : [],
-  subjects     : [],   // real per-class subject list from the last results call
-  results      : [],   // ranked learners for the currently selected class+exam (or grade+exam)
+  subjects     : [],
+  results      : [],
   paperSize    : 'A4',
   recentReports: [],
   context      : {},
   bulkCards    : [],
-  loadedKey    : null, // guards against stale results if selection changes after fetch
+  loadedKey    : null,
+  classInfo    : null,
+  examInfo     : null,
 };
 const CURRENT_YEAR = new Date().getFullYear().toString();
 
@@ -252,39 +240,65 @@ const el = {
 };
 
 /* ══════════════════════════════════════════════════════════
-   3b. SUBJECT TEACHERS
-   Teacher names are typed on the Reports page, one box per
-   subject, and are always saved PER CLASS (e.g. Grade 7 East and
-   Grade 7 West can have different teachers). They are stored in
-   this browser (localStorage).
-   • Single class selected  → one set of boxes.
-   • Whole Grade selected   → one set of boxes for EACH stream; every
-     learner's card shows the teachers of their own stream.
-   Classes and subjects come from the backend — nothing is hard-coded.
-
-   The panel is inserted right after the Principal field. If you
-   prefer a fixed spot, add <div id="teacherNamesWrap"></div> to
-   reports.html and the panel will render there instead.
+   3a. SHARED HELPERS
 ══════════════════════════════════════════════════════════ */
-const TEACHER_STORE_KEY = 'sa_report_subject_teachers_v1';
-
 const normName = (n) => String(n || '').trim().toLowerCase().replace(/\s+/g, ' ');
 const escHtml  = (t) => String(t ?? '')
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+/* Print-friendly style: white page, black text, gridlines only */
+const PRINT = { INK: '#000000', LINE: '#000000', MUTE: '#1f2937' };
+
+/* Fixed subject order: English, Maths, Kiswahili, Integrated Science,
+   Social Studies, CRE, Creative Arts & Sports, Agriculture, Pre-Technical.
+   Anything else goes last, in its original order. */
+const SUBJECT_ORDER = ['eng', 'math', 'kisw', 'inter', 'sst', 'cre', 'cas', 'agri', 'pretech'];
+
+const sortSubjects = (list) => (list || [])
+  .map((x, i) => {
+    const k = SUBJECT_ORDER.findIndex(key => KJSEA.matchSlot({ code: x.code, name: x.name }, key));
+    return { x, i, k: k < 0 ? 99 : k };
+  })
+  .sort((a, b) => (a.k - b.k) || (a.i - b.i))
+  .map(o => o.x);
+
+/* "7 EAST" -> "Grade 7 East" */
+const prettyClass = (name) => {
+  const t = String(name || '').trim();
+  if (!t) return '—';
+  const w = t.replace(/\w\S*/g, x => x[0].toUpperCase() + x.slice(1).toLowerCase());
+  return /^\d/.test(w) ? 'Grade ' + w : w;
+};
+
+/* "MR.ANDREW WAMACHO" -> "Mr. Andrew Wamacho" */
+const tidyName = (n) => String(n || '').trim()
+  .replace(/\.(?=[A-Za-z])/g, '. ').replace(/\s+/g, ' ').toLowerCase()
+  .replace(/(^|[\s-])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+
+/* Level in full: name on line one, bold code on line two */
+const levelBlock = (code) => {
+  const full = KJSEA.levelFull(code);
+  if (!code || !full) return '';
+  return `<div style="font-size:10px;font-weight:600;line-height:1.3;">${escHtml(full)}</div>` +
+         `<div style="font-size:11.5px;font-weight:800;line-height:1.3;">${escHtml(code)}</div>`;
+};
+
+/* ══════════════════════════════════════════════════════════
+   3b. SUBJECT TEACHERS (typed on the page, saved per class)
+══════════════════════════════════════════════════════════ */
+const TEACHER_STORE_KEY = 'sa_report_subject_teachers_v1';
 
 const getTeacherStore = () => {
   try { return JSON.parse(localStorage.getItem(TEACHER_STORE_KEY)) || {}; }
   catch { return {}; }
 };
 const saveTeacherStore = (store) => {
-  try { localStorage.setItem(TEACHER_STORE_KEY, JSON.stringify(store)); } catch { /* storage full/blocked */ }
+  try { localStorage.setItem(TEACHER_STORE_KEY, JSON.stringify(store)); } catch { /* storage blocked */ }
 };
 
-/* Classes in the current selection: 1 for a single class, N for a whole grade */
 const classesInScope = () => targetsOf(el.rptClass?.value);
 
-/* { 'Grade 7 East': { subjectName: teacher }, 'Grade 7 West': { … } } */
 const getTeacherMaps = () => {
   const store = getTeacherStore();
   const out = {};
@@ -331,7 +345,6 @@ const renderTeacherInputs = () => {
       </div>
     </div>`;
 
-  /* "Copy to other classes of this grade": from the first class in scope */
   const src   = classes[0];
   const dests = state.classes.filter(c => c.grade === src.grade && c._id !== src._id);
   const copyBtn = dests.length ? `
@@ -374,26 +387,13 @@ const renderTeacherInputs = () => {
     showToast(`Teacher names copied to ${dests.length} other class${dests.length === 1 ? '' : 'es'}.`, 'success');
   });
 };
-/* ══════════════════════════════════════════════════════════
-   /* ══════════════════════════════════════════════════════════
-   3c. SAVED SETTINGS — remembered on this device AND on the server
-   Paste this block straight AFTER section 3b (SUBJECT TEACHERS),
-   after renderTeacherInputs and before "4. CLASS / GRADE SELECTION".
-   (If you pasted the earlier, device-only version of this block,
-    delete it and use this one instead.)
 
-   What happens
-   • When the page opens it fills in what is saved: school name, motto,
-     principal, each class's teacher and each class's subject teachers.
-   • As you type, the change is kept on this device straight away and
-     sent to the server about 1.5 seconds after you stop typing.
-   • School name, motto and principal are sent to the server only when
-     an ADMIN types them. Teacher names are saved for everyone.
-   • If the server cannot be reached, nothing is lost: the names stay on
-     this device and are sent next time.
-   • Term closing date and next term opens are NOT saved (they change
-     every term).
-   Needs: api.js (Auth, API, showToast) and section 3b helpers.
+/* ══════════════════════════════════════════════════════════
+   3c. SAVED SETTINGS — remembered on this device AND on the server
+   • School name, motto, principal: sent to the server only when an ADMIN types them.
+   • Teacher names: saved for everyone, sent ~1.5 s after you stop typing.
+   • If the server is unreachable nothing is lost; names stay on this device.
+   • Closing date / next term are NOT saved (they change every term).
 ══════════════════════════════════════════════════════════ */
 const SETTINGS_KEY = 'sa_report_school_settings_v1';
 
@@ -405,7 +405,6 @@ const writeSavedSettings = (obj) => {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj)); } catch { /* storage blocked */ }
 };
 
-/* Run fn once, 1.5 s after the last call for the same key (keeps requests low) */
 const debounceByKey = (fn, ms = 1500) => {
   const timers = {};
   return (key) => {
@@ -425,7 +424,7 @@ const canEditSchool = () => {
   try { return Auth.isAdmin(); } catch { return false; }
 };
 
-/* ── School name, motto, principal ─────────────────────────── */
+/* ── School name, motto, principal ── */
 const schoolFields = [
   { key: 'schoolName',  input: el.rptSchoolName,  sendAs: 'schoolName'    },
   { key: 'schoolMotto', input: el.rptSchoolMotto, sendAs: 'schoolMotto'   },
@@ -447,7 +446,7 @@ const pushSchoolToServer = debounceByKey(async () => {
 schoolFields.forEach(({ key, input }) => {
   if (!input) return;
   const saved = readSavedSettings()[key];
-  if (saved) input.value = saved;                         // device copy, instantly
+  if (saved) input.value = saved;
   input.addEventListener('input', () => {
     input.dataset.touched = '1';
     const st = readSavedSettings();
@@ -471,15 +470,14 @@ const loadSchoolFromServer = async () => {
     const v = fromServer[key];
     if (!v) return;
     st[key] = v;
-    if (input && !input.dataset.touched) input.value = v;   // never overwrite what is being typed
+    if (input && !input.dataset.touched) input.value = v;
   });
   writeSavedSettings(st);
 };
 
-/* ── Class teacher (one name per class) ────────────────────── */
+/* ── Class teacher (one name per class) ── */
 const classTeacherKey = () => el.rptClass?.value ? `classTeacher:${el.rptClass.value}` : null;
 
-/* What to send to the server for one class */
 const teachersPayload = (classId) => ({
   classTeacherName: readSavedSettings()[`classTeacher:${classId}`] || '',
   subjectTeachers : Object.fromEntries(
@@ -496,7 +494,7 @@ el.rptClass?.addEventListener('change', () => {
   if (!el.rptTeacher) return;
   delete el.rptTeacher.dataset.touched;
   const k = classTeacherKey();
-  el.rptTeacher.value = k ? (readSavedSettings()[k] || '') : '';   // never carry one class's teacher to another
+  el.rptTeacher.value = k ? (readSavedSettings()[k] || '') : '';
 });
 
 el.rptTeacher?.addEventListener('input', () => {
@@ -509,14 +507,11 @@ el.rptTeacher?.addEventListener('input', () => {
   if (!isGradeValue(el.rptClass.value)) pushTeachersToServer(el.rptClass.value);
 });
 
-/* Subject-teacher boxes (built in section 3b) save to the device themselves;
-   here we only send the same change to the server. */
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t?.matches?.('input[data-subj][data-class]')) pushTeachersToServer(t.dataset.class);
 });
 
-/* "Copy names to other classes" button: send every class that now has names */
 document.addEventListener('click', (e) => {
   if (!e.target?.closest?.('#copyTeachersBtn')) return;
   const store = getTeacherStore();
@@ -525,7 +520,6 @@ document.addEventListener('click', (e) => {
   });
 });
 
-/* Load what the server has, merge with this device, upload anything the server lacks */
 const loadTeachersFromServer = async () => {
   const r = await API.get('/settings/class-teachers');
   if (!r?.ok || !Array.isArray(r.data?.classes)) return;
@@ -537,38 +531,32 @@ const loadTeachersFromServer = async () => {
   r.data.classes.forEach(c => {
     const key    = `class:${c._id}`;
     const server = c.subjectTeachers || {};
-    const merged = { ...(store[key] || {}), ...server };    // server wins, device fills the gaps
-    store[key]   = merged;
+    store[key]   = { ...(store[key] || {}), ...server };
 
     const ctKey = `classTeacher:${c._id}`;
     const ct    = c.classTeacherName || st[ctKey] || '';
     if (ct) st[ctKey] = ct;
 
-    const lacksOnServer = Object.keys(merged).some(k => !server[k]) || (!!st[ctKey] && !c.classTeacherName);
-    if (lacksOnServer) toPush.push(c._id);                  // first-time upload of names saved on this device
+    const lacksOnServer = Object.keys(store[key]).some(k => !server[k]) || (!!st[ctKey] && !c.classTeacherName);
+    if (lacksOnServer) toPush.push(c._id);
   });
 
   saveTeacherStore(store);
   writeSavedSettings(st);
   toPush.forEach(id => pushTeachersToServer(id));
 
-  /* Refresh what is on screen, unless someone is typing in it */
   const wrap = document.getElementById('teacherNamesWrap');
   if (wrap && wrap.innerHTML && !wrap.contains(document.activeElement)) renderTeacherInputs();
   const k = classTeacherKey();
   if (el.rptTeacher && !el.rptTeacher.dataset.touched && k && st[k]) el.rptTeacher.value = st[k];
 };
 
-/* Start: fetch in the background so the page never waits for a sleeping server */
 loadSchoolFromServer();
 loadTeachersFromServer();
+
 /* ══════════════════════════════════════════════════════════
    4. CLASS / GRADE SELECTION
-   ONE class dropdown with every choice:
-     • Whole Grade (all streams together)
-     • each single class (e.g. Grade 7 East, Grade 7 West)
-   The old "This Class / Whole Grade" toggle, the separate Grade
-   dropdown and the fixed exam-name dropdown are hidden.
+   ONE class dropdown: Whole Grade, or any single class.
 ══════════════════════════════════════════════════════════ */
 const streamLabel  = c => c.stream || c.name;
 const isGradeValue = v => String(v || '').startsWith('grade:');
@@ -635,8 +623,8 @@ const resetLearnerList = () => {
 
 /* ══════════════════════════════════════════════════════════
    5. LOAD EXAMS WHEN CLASS + TERM SELECTED
-   Single class  → option value = exam id
-   Whole grade   → option value = "year|exam name"
+   Single class → option value = exam id
+   Whole grade  → option value = "year|exam name"
 ══════════════════════════════════════════════════════════ */
 const loadExams = async () => {
   const value = el.rptClass?.value;
@@ -710,9 +698,6 @@ el.rptTerm?.addEventListener('change', () => {
 
 /* ══════════════════════════════════════════════════════════
    6. WHEN SELECTION IS COMPLETE — FETCH REAL RESULTS
-   This populates the Learner dropdown (individual tab) and
-   is reused directly when the user clicks "Preview Report",
-   so results are only fetched once per selection.
 ══════════════════════════════════════════════════════════ */
 el.rptExam?.addEventListener('change', fetchResults);
 
@@ -728,7 +713,6 @@ async function fetchResults() {
   if (state.scope === 'class') {
     apiUrl = `/results/class?classId=${classVal}&examId=${examVal}`;
     key    = `class:${classVal}:${examVal}`;
-
   } else {
     if (!term) return;
     const i        = examVal.indexOf('|');
@@ -755,7 +739,6 @@ async function fetchResults() {
   state.results   = computeResults(data.results || []);
   state.loadedKey = key;
 
-  /* Show the "Subject Teachers" boxes for the class(es) in scope */
   renderTeacherInputs();
 
   if (state.scope === 'class') {
@@ -787,27 +770,14 @@ const resetPreview = () => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   7. TRANSFORM API RESULTS INTO REPORT-CARD-READY SHAPE
-   The API (getClassResults) already ranks correctly — this
-   just adds the pathway breakdown the report card needs.
+   7. ADD PATHWAYS TO API RESULTS
 ══════════════════════════════════════════════════════════ */
-const computeResults = (apiResults) => {
-  return apiResults.map(r => {
-    const pathways = KJSEA.computePathways(r.subjectResults);
-    return {
-      ...r,
-      pathways,
-    };
-  });
-};
+const computeResults = (apiResults) =>
+  apiResults.map(r => ({ ...r, pathways: KJSEA.computePathways(r.subjectResults) }));
 
 /* ══════════════════════════════════════════════════════════
    8. TABS
 ══════════════════════════════════════════════════════════ */
-el.tabIndividual?.addEventListener('click', () => switchTab('individual'));
-el.tabClass?.addEventListener('click',      () => switchTab('class'));
-el.tabBulk?.addEventListener('click',       () => switchTab('bulk'));
-
 const switchTab = (tab) => {
   state.activeTab = tab;
 
@@ -816,16 +786,18 @@ const switchTab = (tab) => {
   el.tabBulk?.classList.toggle('active',       tab === 'bulk');
 
   if (el.rptLearnerField)
-    el.rptLearnerField.style.display  = tab === 'individual' ? 'flex' : 'none';
+    el.rptLearnerField.style.display = tab === 'individual' ? 'flex' : 'none';
   if (el.bulkInfoBanner)
-    el.bulkInfoBanner.style.display   = tab === 'bulk'       ? 'flex' : 'none';
+    el.bulkInfoBanner.style.display  = tab === 'bulk' ? 'flex' : 'none';
   if (el.generateBtnText)
-    el.generateBtnText.textContent    = tab === 'bulk'
-      ? 'Preview All Report Cards'
-      : 'Preview Report';
+    el.generateBtnText.textContent   = tab === 'bulk' ? 'Preview All Report Cards' : 'Preview Report';
 
   resetPreview();
 };
+
+el.tabIndividual?.addEventListener('click', () => switchTab('individual'));
+el.tabClass?.addEventListener('click',      () => switchTab('class'));
+el.tabBulk?.addEventListener('click',       () => switchTab('bulk'));
 
 /* ══════════════════════════════════════════════════════════
    9. PAPER SIZE TOGGLE
@@ -841,12 +813,22 @@ document.querySelectorAll('.rpt-toggle').forEach(btn => {
 /* ══════════════════════════════════════════════════════════
    10. GENERATE PREVIEW
 ══════════════════════════════════════════════════════════ */
+const flashMissing = (cls, term, exam) => {
+  [{ v:cls, id:'rptClass' }, { v:term, id:'rptTerm' }, { v:exam, id:'rptExam' }]
+    .forEach(({ v, id }) => {
+      if (!v) {
+        const e = document.getElementById(id);
+        if (e) { e.style.borderColor = '#e74c3c'; setTimeout(() => e.style.borderColor = '', 1400); }
+      }
+    });
+};
+
 el.generatePreviewBtn?.addEventListener('click', async () => {
   const term = el.rptTerm?.value;
 
   if (!term) {
     showToast('Please select a Term.', 'warning');
-    flashMissing(null, term, null);
+    flashMissing(el.rptClass?.value, term, el.rptExam?.value);
     return;
   }
 
@@ -867,15 +849,11 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
     return;
   }
 
-  /* Results should already be loaded from the selection-change handler,
-     but fetch fresh if for some reason they aren't. */
   const expectedKey = state.scope === 'class'
     ? `class:${cls}:${exam}`
     : `grade:${state.gradeValue}:${term}:${exam}`;
 
-  if (state.loadedKey !== expectedKey) {
-    await fetchResults();
-  }
+  if (state.loadedKey !== expectedKey) await fetchResults();
 
   if (!state.results.length) {
     showToast('No results found. Enter or import marks first.', 'error');
@@ -893,9 +871,9 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
   const settings = {
     schoolName   : el.rptSchoolName?.value  || 'Scholar Analytics Demo School',
     schoolMotto  : el.rptSchoolMotto?.value || 'Excellence Through Knowledge',
-    teacher      : (el.rptTeacher?.value   || '').trim(),   // class teacher (blank if not typed)
-    principal    : (el.rptPrincipal?.value || '').trim(),   // principal (blank if not typed)
-    teacherMaps  : getTeacherMaps(),                        // subject teachers, per class in scope
+    teacher      : (el.rptTeacher?.value   || '').trim(),
+    principal    : (el.rptPrincipal?.value || '').trim(),
+    teacherMaps  : getTeacherMaps(),
     closingDate  : el.rptClosingDate?.value || 'To Be Announced',
     nextTerm     : el.rptNextTerm?.value    || 'To Be Announced',
     cls: className, term, exam: examName,
@@ -910,10 +888,8 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
     const learner = state.results.find(r => r.studentId === el.rptLearner?.value);
     if (!learner) { showToast('Learner not found.', 'error'); return; }
     html = buildReportCard(learner, settings);
-
   } else if (state.activeTab === 'class') {
     html = buildClassSheet(state.results, settings);
-
   } else {
     html = buildBulkPreview(state.results, settings);
   }
@@ -926,160 +902,18 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
   if (el.previewLabel) {
     const labels = {
       individual: state.results.find(r => r.studentId === el.rptLearner?.value)?.fullName || 'Preview',
-      class      : `${className} — ${examName}`,
-      bulk       : `All ${state.results.length} Learners — ${className}`,
+      class     : `${className} — ${examName}`,
+      bulk      : `All ${state.results.length} Learners — ${className}`,
     };
-    el.previewLabel.innerHTML =
-      `<i class="fas fa-file-pdf"></i> ${labels[state.activeTab]}`;
+    el.previewLabel.innerHTML = `<i class="fas fa-file-pdf"></i> ${escHtml(labels[state.activeTab])}`;
   }
 
   addToRecent(settings);
   showToast(
-    state.activeTab === 'bulk'
-      ? `${state.results.length} report cards ready!`
-      : 'Preview ready.',
+    state.activeTab === 'bulk' ? `${state.results.length} report cards ready!` : 'Preview ready.',
     'success'
   );
 });
-
-const flashMissing = (cls, term, exam) => {
-  const clsId  = 'rptClass';
-  const examId = 'rptExam';
-  [{ v:cls, id:clsId }, {v:term, id:'rptTerm'}, {v:exam, id:examId}]
-    .forEach(({v, id}) => {
-      if (!v) {
-        const e = document.getElementById(id);
-        if (e) { e.style.borderColor='#e74c3c'; setTimeout(()=>e.style.borderColor='',1400); }
-      }
-    });
-};
-/* ═══════════════════════════════════════════════════════════
-/* ═══════════════════════════════════════════════════════════
-   reports_fixes.js  — drop-in replacement for sections 11 and 12
-   of js/reports.js (buildReportCard and buildClassSheet).
-
-   HOW TO USE
-   1. In reports.js DELETE the old "11. BUILD INDIVIDUAL REPORT CARD"
-      (const buildReportCard = …) and "12. BUILD CLASS RESULT SHEET"
-      (const buildClassSheet = …) blocks completely.
-   2. Paste this whole file in their place (between sections 10 and 13).
-   3. Make the two small edits in section 10 listed in the notes.
-
-   Nothing else in reports.js is touched. Pathway calculations
-   (KJSEA.computePathways) are unchanged.
-═══════════════════════════════════════════════════════════ */
-/* ═══════════════════════════════════════════════════════════
-   reports_fixes.js  — drop-in replacement for sections 11 and 12
-   of js/reports.js (buildReportCard and buildClassSheet).
-
-   HOW TO USE
-   1. In reports.js DELETE the old "11. BUILD INDIVIDUAL REPORT CARD"
-      (const buildReportCard = …) and "12. BUILD CLASS RESULT SHEET"
-      (const buildClassSheet = …) blocks completely.
-   2. Paste this whole file in their place (between sections 10 and 13).
-   3. Make the two small edits in section 10 listed in the notes.
-
-   Nothing else in reports.js is touched. Pathway calculations
-   (KJSEA.computePathways) are unchanged.
-═══════════════════════════════════════════════════════════ */
-
-/* ── A. Grading scale: full level names, 0 covered, whole-number rounding ──
-   These lines REPLACE the old KJSEA.SCALE / getGrade / getSubjectRemark.
-   /* ═══════════════════════════════════════════════════════════
-   reports_fixes.js  — drop-in replacement for sections 11 and 12
-   of js/reports.js (buildReportCard and buildClassSheet).
-
-   HOW TO USE
-   1. In reports.js DELETE the old "11. BUILD INDIVIDUAL REPORT CARD"
-      (const buildReportCard = …) and "12. BUILD CLASS RESULT SHEET"
-      (const buildClassSheet = …) blocks completely.
-   2. Paste this whole file in their place (between sections 10 and 13).
-   3. Make the two small edits in section 10 listed in the notes.
-
-   Nothing else in reports.js is touched. Pathway calculations
-   (KJSEA.computePathways) are unchanged.
-═══════════════════════════════════════════════════════════ */
-
-/* ── A. Grading scale: full level names, 0 covered, whole-number rounding ──
-   These lines REPLACE the old KJSEA.SCALE / getGrade / getSubjectRemark.
-   (They run after the KJSEA object exists, so the old copies are simply
-   overridden; you can delete the old ones later if you like.) */
-KJSEA.SCALE = [
-  { grade:'EE1', label:'Exceeds Expectation',    full:'Exceeding Expectation',   measure:'Exceptional',   min:90, max:100, points:8, css:'ee1' },
-  { grade:'EE2', label:'Exceeds Expectation',    full:'Exceeding Expectation',   measure:'Very Good',     min:75, max:89,  points:7, css:'ee2' },
-  { grade:'ME1', label:'Meets Expectation',      full:'Meeting Expectation',     measure:'Good',          min:58, max:74,  points:6, css:'me1' },
-  { grade:'ME2', label:'Meets Expectation',      full:'Meeting Expectation',     measure:'Fair',          min:41, max:57,  points:5, css:'me2' },
-  { grade:'AE1', label:'Approaches Expectation', full:'Approaching Expectation', measure:'Developing',    min:31, max:40,  points:4, css:'ae1' },
-  { grade:'AE2', label:'Approaches Expectation', full:'Approaching Expectation', measure:'Improving',     min:21, max:30,  points:3, css:'ae2' },
-  { grade:'BE1', label:'Below Expectation',      full:'Below Expectation',       measure:'Minimal',       min:11, max:20,  points:2, css:'be1' },
-  { grade:'BE2', label:'Below Expectation',      full:'Below Expectation',       measure:'Below Minimal', min:0,  max:10,  points:1, css:'be2' },
-];
-
-/* Marks are rounded to a whole number first, so 57.5 never falls between ranges */
-KJSEA.getGrade = function (score) {
-  if (score === null || score === undefined || score === '' || isNaN(Number(score))) return null;
-  const n = Math.round(Number(score));
-  return this.SCALE.find(s => n >= s.min && n <= s.max) || null;
-};
-
-KJSEA.levelFull = function (code) {
-  return this.SCALE.find(s => s.grade === code)?.full || '';
-};
-
-/* Remark matched to the level, so it can never contradict the Performance Level column */
-KJSEA.getSubjectRemark = function (score) {
-  const g = this.getGrade(score);
-  if (!g) return '—';
-  return {
-    EE1: 'Outstanding performance. Keep it up.',
-    EE2: 'Very good performance. Aim higher.',
-    ME1: 'Good performance. Next level is near.',
-    ME2: 'Meeting the standard. Keep practising.',
-    AE1: 'Close to the standard. Practise more.',
-    AE2: 'Approaching the standard. Needs support.',
-    BE1: 'Below the standard. Needs extra support.',
-    BE2: 'Well below the standard. Needs close support.',
-  }[g.grade];
-};
-
-/* ── B. Shared print-friendly style: white page, black text, gridlines only ── */
-const PRINT = { INK: '#000000', LINE: '#000000', MUTE: '#1f2937' };
-
-/* Fixed subject order for every result sheet and report card:
-   English, Maths, Kiswahili, Integrated Science, Social Studies, CRE,
-   Creative Arts & Sports, Agriculture, Pre-Technical.
-   Subjects are recognised by code or name (see KJSEA.SUBJECT_SLOTS);
-   anything not in the list goes last, in its original order. */
-const SUBJECT_ORDER = ['eng', 'math', 'kisw', 'inter', 'sst', 'cre', 'cas', 'agri', 'pretech'];
-
-const sortSubjects = (list) => (list || [])
-  .map((x, i) => {
-    const k = SUBJECT_ORDER.findIndex(key => KJSEA.matchSlot({ code: x.code, name: x.name }, key));
-    return { x, i, k: k < 0 ? 99 : k };
-  })
-  .sort((a, b) => (a.k - b.k) || (a.i - b.i))
-  .map(o => o.x);
-
-/* "7 EAST" -> "Grade 7 East";  "Grade 7 East" stays as it is */
-const prettyClass = (name) => {
-  const t = String(name || '').trim();
-  if (!t) return '—';
-  const w = t.replace(/\w\S*/g, x => x[0].toUpperCase() + x.slice(1).toLowerCase());
-  return /^\d/.test(w) ? 'Grade ' + w : w;
-};
-
-/* "MR.ANDREW WAMACHO" -> "Mr. Andrew Wamacho" */
-const tidyName = (n) => String(n || '').trim()
-  .replace(/\.(?=[A-Za-z])/g, '. ').replace(/\s+/g, ' ').toLowerCase()
-  .replace(/(^|[\s-])([a-z])/g, (m, a, b) => a + b.toUpperCase());
-
-/* Level in full: name on line one, bold code on line two (no box, no colour) */
-const levelBlock = (code) => {
-  const full = KJSEA.levelFull(code);
-  if (!code || !full) return '';
-  return `<div style="font-size:10px;font-weight:600;line-height:1.3;">${escHtml(full)}</div>` +
-         `<div style="font-size:11.5px;font-weight:800;line-height:1.3;">${escHtml(code)}</div>`;
-};
 
 /* ══════════════════════════════════════════════════════════
    11. BUILD INDIVIDUAL REPORT CARD  (7 columns, low ink)
@@ -1098,7 +932,6 @@ const buildReportCard = (r, s) => {
   const td = (extra = '') =>
     `padding:4px 6px 7px;line-height:1.3;background:#ffffff;border-right:2px solid ${LINE};border-bottom:2px solid ${LINE};vertical-align:middle;${extra}`;
 
-  /* ── Derived values ─────────────────────────────────────── */
   const maxTotal  = r.subjectCount * 100;
   const maxPoints = r.subjectCount * 8;
 
@@ -1107,14 +940,13 @@ const buildReportCard = (r, s) => {
 
   const gender = r.gender ? r.gender.charAt(0).toUpperCase() + r.gender.slice(1) : '';
 
-  /* Teacher for a subject: name typed for THIS learner's class, else the backend's, else blank */
   const maps = s.teacherMaps || {};
   const teacherMap =
     maps[r.streamName] ||
     (Object.keys(maps).length === 1 ? Object.values(maps)[0] : null) || {};
   const teacherFor = (sub) => tidyName(teacherMap[normName(sub.name)] || sub.teacherName || '');
 
-  /* ── Subject rows ───────────────────────────────────────── */
+  /* ── Subject rows ── */
   const subjectRows = sortSubjects(r.subjectResults).map((sub, i) => {
     const isOut    = sub.absent || sub.notEntered;
     const code     = sub.grade || '';
@@ -1138,7 +970,7 @@ const buildReportCard = (r, s) => {
     </tr>`;
   }).join('');
 
-  /* ── Learner details grid ───────────────────────────────── */
+  /* ── Learner details grid ── */
   const cell = (label, value, { span = 1, last = false, bottom = true } = {}) => `
     <div style="grid-column:span ${span};padding:5px 12px 8px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}${bottom ? `border-bottom:2px solid ${LINE};` : ''}">
       <div style="font-size:9px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">${label}</div>
@@ -1155,7 +987,7 @@ const buildReportCard = (r, s) => {
       ${cell('Academic year',  escHtml(s.year),                       { bottom: false, span: 2, last: true })}
     </div>`;
 
-  /* ── Summary strip: average + overall performance level only ── */
+  /* ── Summary strip ── */
   const stat = (label, value, last = false) => `
     <div style="padding:7px 12px;text-align:center;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
       <div style="font-size:9px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">${label}</div>
@@ -1168,7 +1000,7 @@ const buildReportCard = (r, s) => {
       ${stat('Overall performance level', `${escHtml(KJSEA.levelFull(r.meanGrade))} &nbsp;${escHtml(r.meanGrade || '')}`, true)}
     </div>`;
 
-  /* ── Pathway summary (calculations unchanged; no bars, no colour) ── */
+  /* ── Pathway summary ── */
   const pathwayKeys = ['stem', 'social', 'creative'];
 
   const pathwayCells = pathwayKeys.map((key, i) => {
@@ -1192,7 +1024,7 @@ const buildReportCard = (r, s) => {
       </div>`;
   }).join('');
 
-  /* ── Comments + sign-off ────────────────────────────────── */
+  /* ── Comments + sign-off ── */
   const signBlock = (title, comment, person, personLabel, last = false) => `
     <div style="padding:8px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
       <div style="font-size:9px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">${title}</div>
@@ -1210,7 +1042,7 @@ const buildReportCard = (r, s) => {
       <div style="font-size:12px;font-weight:800;color:${INK};min-height:15px;">${value ? escHtml(value) : '..............................'}</div>
     </div>`;
 
-  /* ── Grading key: code, full name, range, points ────────── */
+  /* ── Grading key ── */
   const keyCells = KJSEA.SCALE.map((g, i) => `
     <div style="padding:5px 4px;text-align:center;background:#ffffff;${i < KJSEA.SCALE.length - 1 ? `border-right:2px solid ${LINE};` : ''}">
       <div style="font-size:11px;font-weight:800;color:${INK};">${g.grade}</div>
@@ -1219,7 +1051,6 @@ const buildReportCard = (r, s) => {
       <div style="font-size:8.5px;color:${INK};">${g.points} pts</div>
     </div>`).join('');
 
-  /* ── Page ───────────────────────────────────────────────── */
   return `
 <div style="width:100%;max-width:754px;box-sizing:border-box;background:#ffffff;color-scheme:light;-webkit-print-color-adjust:exact;print-color-adjust:exact;border:3px solid ${LINE};border-radius:6px;overflow:hidden;font-family:'DM Sans','Segoe UI',Arial,sans-serif;font-size:11px;color:${INK};margin:0 auto;font-variant-numeric:tabular-nums;">
 
@@ -1293,26 +1124,18 @@ const buildReportCard = (r, s) => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   12. BUILD CLASS RESULT SHEET  (Kaaboi table + Chebarus analysis, low ink)
-═
-/* ══════════════════════════════════════════════════════════
-   12. BUILD CLASS RESULT SHEET  (Kaaboi table + Chebarus analysis, low ink)
-   Page layout of the PDF / print:
-     Page 1+ : Class rankings
-     Page A  : Overall grade distribution + Subject-wise performance summary
-     Page B  : Top 3 learners per subject
-     Page C  : Gender performance analytics + Most improved learners
-   Each section keeps its own title bar and its own box.
+   12. BUILD CLASS RESULT SHEET
+   Pages: 1+ Rankings | 2 Distribution + Subject summary |
+          3 Top 3 per subject | 4 Gender | 5 Most improved (VAP)
 ══════════════════════════════════════════════════════════ */
 const buildClassSheet = (allResults, s) => {
-  const { INK, LINE, MUTE } = PRINT;
-  const results = allResults.filter(r => r.subjectCount > 0);    // learners with marks
-  const noMarks = allResults.filter(r => !(r.subjectCount > 0));  // shown as X, not ranked
+  const { INK, LINE } = PRINT;
+  const results = allResults.filter(r => r.subjectCount > 0);
+  const noMarks = allResults.filter(r => !(r.subjectCount > 0));
   const n = results.length;
   const div = (a, b) => b ? a / b : 0;
 
-  /* One subject list for the whole sheet. Subjects are matched by NAME, because East and West
-     keep separate subject records (different ids) for the same subject. */
+  /* Subjects are matched by NAME, because East and West keep separate subject records */
   const subjectList = [...(state.subjects || [])];
   allResults.forEach(r => (r.subjectResults || []).forEach(x => {
     if (x.name && !subjectList.some(sj => normName(sj.name) === normName(x.name)))
@@ -1321,22 +1144,19 @@ const buildClassSheet = (allResults, s) => {
   subjectList.splice(0, subjectList.length, ...sortSubjects(subjectList));
   const sameSubj = (x, subj) => normName(x.name) === normName(subj.name);
 
-  const avg      = div(results.reduce((a, r) => a + r.avgScore, 0), n).toFixed(1);
-  const meanPts  = div(results.reduce((a, r) => a + r.avgPoints, 0), n).toFixed(2);
+  const avg       = div(results.reduce((a, r) => a + r.avgScore, 0), n).toFixed(1);
+  const meanPts   = div(results.reduce((a, r) => a + r.avgPoints, 0), n).toFixed(2);
   const classCode = KJSEA.getGrade(Math.round(Number(avg)))?.grade || '';
 
-  /* Overall grade distribution */
   const dist = {};
   KJSEA.SCALE.forEach(g => dist[g.grade] = 0);
   const xCount = noMarks.length;
   results.forEach(r => { if (r.meanGrade && dist[r.meanGrade] !== undefined) dist[r.meanGrade]++; });
 
-  /* Teachers for a subject (one class -> one name; whole grade -> names joined) */
   const maps = s.teacherMaps || {};
   const teachersOf = (name) =>
     [...new Set(Object.values(maps).map(m => m[normName(name)]).filter(Boolean))].map(tidyName).join(' / ');
 
-  /* Subject averages, grade counts, top 3 */
   const subjectStats = subjectList.map(subj => {
     const scores = [];
     results.forEach(r => {
@@ -1344,15 +1164,12 @@ const buildClassSheet = (allResults, s) => {
       if (sr && !sr.absent && !sr.notEntered && sr.score !== null && sr.score !== undefined)
         scores.push({ fullName: r.fullName, score: sr.score, grade: sr.grade, points: sr.points || 0 });
     });
-
     const cnt    = scores.length;
     const avgM   = cnt ? parseFloat((scores.reduce((a, x) => a + x.score, 0) / cnt).toFixed(1)) : 0;
     const avgPts = cnt ? parseFloat((scores.reduce((a, x) => a + x.points, 0) / cnt).toFixed(2)) : 0;
-
     const subDist = {};
     KJSEA.SCALE.forEach(g => subDist[g.grade] = 0);
     scores.forEach(x => { if (x.grade && subDist[x.grade] !== undefined) subDist[x.grade]++; });
-
     const top3 = [...scores].sort((a, b) => b.score - a.score).slice(0, 3);
     return { ...subj, avg: avgM, avgPts, subDist, top3, count: cnt };
   });
@@ -1360,19 +1177,21 @@ const buildClassSheet = (allResults, s) => {
   const ranked = [...subjectStats].sort((a, b) => b.avg - a.avg).map((x, i) => ({ ...x, rank: i + 1 }));
   const statOf = (subj) => subjectStats.find(x => normName(x.name) === normName(subj.name));
 
-  /* Gender analytics */
-  const males     = results.filter(r => r.gender === 'male'   && r.subjectCount > 0);
-  const females   = results.filter(r => r.gender === 'female' && r.subjectCount > 0);
+  /* Gender */
+  const males     = results.filter(r => r.gender === 'male');
+  const females   = results.filter(r => r.gender === 'female');
   const maleAvg   = males.length   ? parseFloat((males.reduce((a, r) => a + r.avgScore, 0) / males.length).toFixed(1))   : 0;
   const femaleAvg = females.length ? parseFloat((females.reduce((a, r) => a + r.avgScore, 0) / females.length).toFixed(1)) : 0;
   const betterGender = (!males.length || !females.length) ? 'Not enough data' : (femaleAvg >= maleAvg ? 'Female' : 'Male');
   const genderGap    = (!males.length || !females.length) ? '—' : Math.abs(maleAvg - femaleAvg).toFixed(2);
 
-  /* Most improved (VAP) */
-  const mostImproved = results.filter(r => r.vap !== null && r.vap !== undefined && r.vap > 0)
-    .sort((a, b) => b.vap - a.vap).slice(0, 5);
+  /* Most improved: TOP 3 by VAP (change .slice(0, 3) to show more) */
+  const mostImproved = results
+    .filter(r => r.vap !== null && r.vap !== undefined && Number(r.vap) > 0)
+    .sort((a, b) => Number(b.vap) - Number(a.vap))
+    .slice(0, 3);
 
-  /* ── Style helpers: white, black text, 1px gridlines ── */
+  /* ── Style helpers ── */
   const levelShort = (code) => code
     ? `<span style="font-size:12.5px;font-weight:800;letter-spacing:0.3px;">${escHtml(code)}</span>` : '—';
 
@@ -1380,11 +1199,10 @@ const buildClassSheet = (allResults, s) => {
   const th  = (label, align = 'center', title = '') => `<th ${title ? `title="${escHtml(title)}"` : ''} style="padding:6px 5px;text-align:${align};font-size:9px;font-weight:800;line-height:1.15;color:${INK};background:#ffffff;border-right:1px solid ${LINE};border-bottom:2px solid ${LINE};">${label}</th>`;
   const tdS = (extra = '') => `padding:4px 5px 6px;border-right:1px solid ${LINE};border-bottom:1px solid ${LINE};font-size:10.5px;line-height:1.3;color:${INK};background:#ffffff;${extra}`;
 
-  /* ── Merit table (Kaaboi style: mark + level in one cell) ── */
-  /* Whole-grade sheets: which class each learner is in, and their position within that class */
+  /* ── Rankings table ── */
   const multi = new Set(allResults.map(r => r.streamName).filter(Boolean)).size > 1;
   const extra = multi ? 2 : 0;
-  const shortClass = (n) => prettyClass(n).replace(/^Grade\s+/, '');
+  const shortClass = (nm) => prettyClass(nm).replace(/^Grade\s+/, '');
   const streamPos = results.map(() => 0);
   const tally = {};
   results.forEach((r, i) => {
@@ -1406,9 +1224,7 @@ const buildClassSheet = (allResults, s) => {
       if (sr && !sr.notEntered) txt = sr.absent ? 'ABS' : `${sr.score ?? '—'}${sr.grade ? ' ' + sr.grade : ''}`;
       return `<td style="${tdS('text-align:center;white-space:nowrap;font-weight:600;')}">${escHtml(txt)}</td>`;
     }).join('');
-
     const vapText = r.vap !== null && r.vap !== undefined ? (r.vap > 0 ? `+${r.vap}` : `${r.vap}`) : '—';
-
     return `
       <tr>
         <td style="${tdS('text-align:center;font-weight:800;')}">${r.position}</td>
@@ -1439,7 +1255,6 @@ const buildClassSheet = (allResults, s) => {
         <td style="${tdS('text-align:center;border-right:none;')}">—</td>
       </tr>`).join('');
 
-  /* Bottom rows: subject average marks, and average points with level (as in Kaaboi) */
   const avgMarksRow = `
     <tr>
       <td colspan="${3 + extra}" style="${tdS(`font-weight:800;border-top:3px double ${LINE};`)}">AVG. MARKS</td>
@@ -1463,7 +1278,7 @@ const buildClassSheet = (allResults, s) => {
     </tr>`;
 
   /* ── Grade distribution ── */
-  const distCells = KJSEA.SCALE.map((g, i) => `
+  const distCells = KJSEA.SCALE.map(g => `
     <div style="text-align:center;padding:7px 4px;background:#ffffff;border-right:1px solid ${LINE};">
       <div style="font-size:10px;font-weight:800;">${g.grade}</div>
       <div style="font-size:14px;font-weight:800;">${dist[g.grade]}</div>
@@ -1473,7 +1288,7 @@ const buildClassSheet = (allResults, s) => {
       <div style="font-size:14px;font-weight:800;">${xCount}</div>
     </div>` : '');
 
-  /* ── Subject-wise summary, with teacher ── */
+  /* ── Subject summary ── */
   const summaryRows = ranked.map(x => `
     <tr>
       <td style="${tdS('text-align:center;font-weight:800;')}">${x.rank}</td>
@@ -1502,7 +1317,7 @@ const buildClassSheet = (allResults, s) => {
       </div>
     </div>`).join('');
 
-  /* ── Gender, per subject ── */
+  /* ── Gender per subject ── */
   const genderRows = subjectList.map(subj => {
     const pick = (list) => list.map(r => r.subjectResults?.find(x => sameSubj(x, subj)))
       .filter(x => x && !x.absent && !x.notEntered && x.score !== null && x.score !== undefined).map(x => x.score);
@@ -1526,7 +1341,8 @@ const buildClassSheet = (allResults, s) => {
     <tr>
       <td style="${tdS('text-align:center;font-weight:800;')}">${i + 1}</td>
       <td style="${tdS('font-weight:700;')}">${escHtml(r.fullName)}</td>
-      <td style="${tdS('text-align:center;')}">${r.prevPoints || '—'}</td>
+      <td style="${tdS('text-align:center;')}">${escHtml(shortClass(r.streamName || ''))}</td>
+      <td style="${tdS('text-align:center;')}">${r.prevPoints ?? '—'}</td>
       <td style="${tdS('text-align:center;')}">${r.avgPoints}</td>
       <td style="${tdS('text-align:center;font-weight:800;border-right:none;')}">+${r.vap}</td>
     </tr>`).join('');
@@ -1540,7 +1356,6 @@ const buildClassSheet = (allResults, s) => {
 
   const generated = new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
 
-  /* ════════════ FULL HTML ════════════ */
   return `
 <div style="max-width:960px;background:#ffffff;border:2px solid ${LINE};font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${INK};margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
 
@@ -1576,17 +1391,15 @@ const buildClassSheet = (allResults, s) => {
     </table>
   </div>
   <div style="padding:5px 14px;font-size:9px;border-top:1px solid ${LINE};">
-    Learner position is assigned using total marks. Performance level is calculated using average marks. Marks are rounded to the nearest whole number before the level is worked out.<br/><strong>Performance level:</strong> EE1, EE2 = Exceeding Expectation &nbsp;·&nbsp; ME1, ME2 = Meeting Expectation &nbsp;·&nbsp; AE1, AE2 = Approaching Expectation &nbsp;·&nbsp; BE1, BE2 = Below Expectation
+    Learner position is assigned using total marks. Performance level is calculated using average marks. Marks are rounded to the nearest whole number before the level is worked out. VAP = change in average points since the previous exam.<br/><strong>Performance level:</strong> EE1, EE2 = Exceeding Expectation &nbsp;·&nbsp; ME1, ME2 = Meeting Expectation &nbsp;·&nbsp; AE1, AE2 = Approaching Expectation &nbsp;·&nbsp; BE1, BE2 = Below Expectation
   </div>
 
-  <!-- PAGE A: grade distribution + subject-wise summary (two separate boxes) -->
+  <!-- PAGE: distribution + subject summary -->
   <div class="pg" style="padding:12px;">
-
     <div class="sec" style="border:2px solid ${LINE};">
       ${bar('Overall grade distribution')}
       <div style="display:grid;grid-template-columns:repeat(${xCount > 0 ? 9 : 8},1fr);">${distCells}</div>
     </div>
-
     <div class="sec" style="border:2px solid ${LINE};margin-top:18px;">
       ${bar('Subject-wise performance summary')}
       <div style="overflow-x:auto;">
@@ -1600,22 +1413,18 @@ const buildClassSheet = (allResults, s) => {
         </table>
       </div>
     </div>
-
   </div>
 
-  <!-- PAGE B: top 3 learners per subject -->
+  <!-- PAGE: top 3 per subject -->
   <div class="pg" style="padding:12px;">
-
     <div class="sec" style="border:2px solid ${LINE};">
       ${bar('Top 3 learners per subject')}
       <div style="padding:12px;display:flex;flex-wrap:wrap;gap:10px;background:#ffffff;">${top3Cards}</div>
     </div>
-
   </div>
 
-  <!-- PAGE C: gender analytics + most improved (two separate boxes) -->
+  <!-- PAGE: gender analytics -->
   <div class="pg" style="padding:12px;">
-
     <div class="sec" style="border:2px solid ${LINE};">
       ${bar('Gender performance analytics')}
       <div style="display:grid;grid-template-columns:1fr 2fr;">
@@ -1634,20 +1443,23 @@ const buildClassSheet = (allResults, s) => {
         </div>
       </div>
     </div>
-
-    ${mostImproved.length ? `
-    <div class="sec" style="border:2px solid ${LINE};margin-top:18px;">
-      ${bar('Most improved learners (VAP)')}
-      <table style="width:100%;border-collapse:collapse;">
-        <thead><tr>${th('Rank')}${th('Learner name', 'left')}${th('Prev points')}${th('Current points')}${th('VAP (+/-)')}</tr></thead>
-        <tbody>${improvedRows}</tbody>
-      </table>
-    </div>` : ''}
-
   </div>
 
+  ${mostImproved.length ? `
+  <!-- PAGE: most improved (own page) -->
+  <div class="pg" style="padding:12px;">
+    <div class="sec" style="border:2px solid ${LINE};">
+      ${bar('Top 3 most improved learners (based on VAP)')}
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr>${th('Rank')}${th('Learner name', 'left')}${th('Class')}${th('Prev points')}${th('Current points')}${th('VAP (+)')}</tr></thead>
+        <tbody>${improvedRows}</tbody>
+      </table>
+      <div style="padding:5px 14px;font-size:9px;border-top:1px solid ${LINE};">VAP (Value Added Points) = current average points minus previous exam's average points.</div>
+    </div>
+  </div>` : ''}
+
   <!-- Signatures -->
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:3px solid ${LINE};margin-top:0;">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:3px solid ${LINE};">
     ${sigBlock('Class teacher', s.teacher, 'Signature &amp; date: .....................')}
     ${sigBlock('Dean of studies', '', 'Signature &amp; date: .....................')}
     ${sigBlock('Principal / Headteacher', s.principal, 'Signature, stamp &amp; date: .....................', true)}
@@ -1663,7 +1475,7 @@ const buildClassSheet = (allResults, s) => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   13. BULK PREVIEW — All cards stacked (skips learners with no marks)
+   13. BULK PREVIEW — all cards stacked (skips learners with no marks)
 ══════════════════════════════════════════════════════════ */
 const buildBulkPreview = (results, settings) => {
   state.bulkCards = [];
@@ -1686,7 +1498,7 @@ const buildBulkPreview = (results, settings) => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   14. PRINT  (unchanged)
+   14. PRINT
 ══════════════════════════════════════════════════════════ */
 el.printBtn?.addEventListener('click', () => {
   if (!el.previewPaper?.innerHTML.trim()) {
@@ -1706,10 +1518,9 @@ el.printBtn?.addEventListener('click', () => {
 
 /* ══════════════════════════════════════════════════════════
    15. PDF DOWNLOAD
-   Report card = always ONE page. Class sheet = landscape; a new
-   page ALWAYS starts at every ".pg" block (the analysis pages),
-   and otherwise is cut only between rows and sections, with
-   page numbers.
+   Report card = ONE page. Class sheet = landscape; each page group
+   is captured as its own canvas, so every analysis page starts on a
+   fresh page and nothing depends on cut maths.
 ══════════════════════════════════════════════════════════ */
 el.downloadPdfBtn?.addEventListener('click', () => {
   state.activeTab === 'bulk' ? downloadBulkPDF() : downloadSinglePDF();
@@ -1721,17 +1532,14 @@ const setDownloadLoading = (loading) => {
   if (el.downloadBtnSpinner) el.downloadBtnSpinner.style.display = loading ? 'inline' : 'none';
 };
 
-const PDF_MARGIN = 6;   // mm, on every side
+const PDF_MARGIN = 6;   // mm
 
-/* ── helpers ──────────────────────────────────────────────── */
 const pdfFormat = () => state.paperSize === 'Letter' ? 'letter' : 'a4';
 
 const safeFileText = (t, fallback) =>
   String(t || fallback).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '') || fallback;
 
-/* Draw html off-screen, measure where a page may be cut, and capture it.
-   breaks = y positions (CSS px from the top of the sheet) that are safe to cut at.
-   forced = y positions where a NEW page must start (every .pg block). */
+/* Draw html off-screen, measure safe cut points, capture it */
 async function captureHTML(html, widthPx, maxScale) {
   if (document.fonts && document.fonts.ready) {
     try { await document.fonts.ready; } catch { /* ignore */ }
@@ -1748,19 +1556,14 @@ async function captureHTML(html, widthPx, maxScale) {
     const top  = box.top;
 
     const breaks = [];
-    root.querySelectorAll(':scope > *, tr, .keep, .sec').forEach(node => {
-      if (node.tagName === 'STYLE')                 return;
-      if (node.classList.contains('bar'))           return;   // never cut right after a heading
-      if (node.closest('thead'))                    return;   // never cut right after the table header
+    root.querySelectorAll(':scope > *, tr, .keep').forEach(node => {
+      if (node.tagName === 'STYLE')       return;
+      if (node.classList.contains('bar')) return;   // never cut right after a heading
+      if (node.closest('thead'))          return;   // never cut right after the table header
       breaks.push(node.getBoundingClientRect().bottom - top);
     });
     breaks.sort((a, b) => a - b);
 
-    /* positions where a new page MUST start (every .pg block) */
-    const forced = [...root.querySelectorAll('.pg')]
-      .map(n => n.getBoundingClientRect().top - top);
-
-    /* keep very tall sheets under the browser's canvas size limit */
     const scale = Math.min(maxScale, 12000 / Math.max(box.height, 1));
 
     const canvas = await html2canvas(wrap, {
@@ -1768,7 +1571,7 @@ async function captureHTML(html, widthPx, maxScale) {
       logging: false, windowWidth: widthPx, scrollX: 0, scrollY: 0,
     });
 
-    return { canvas, scale, breaks, forced, cssW: canvas.width / scale, cssH: canvas.height / scale };
+    return { canvas, scale, breaks, cssW: canvas.width / scale, cssH: canvas.height / scale };
   } finally {
     wrap.remove();
   }
@@ -1784,62 +1587,76 @@ function addCardOnePage(pdf, cap) {
   pdf.addImage(cap.canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (pw - w) / 2, PDF_MARGIN, w, h);
 }
 
-/* Where to cut: always at forced breaks, otherwise the last safe break that fits */
-function planPageCuts(breaks, totalPx, pagePx, forced = []) {
-  const stops  = forced.filter(f => f > 0 && f < totalPx).sort((a, b) => a - b);
-  const bounds = [0, ...stops, totalPx];
-  const cuts   = [0];
-
-  for (let s = 0; s < bounds.length - 1; s++) {
-    let y = bounds[s];
-    const end = bounds[s + 1];
-    while (end - y > pagePx) {
-      const limit = y + pagePx;
-      const minY  = y + pagePx * 0.4;                 // avoid tiny pages
-      const cut   = breaks.filter(b => b <= limit && b >= minY && b < end).pop() || limit;
-      cuts.push(cut);
-      y = cut;
-    }
-    cuts.push(end);
+/* Where to cut: the last safe break that fits on the page */
+function planPageCuts(breaks, totalPx, pagePx) {
+  const cuts = [0];
+  let y = 0;
+  while (totalPx - y > pagePx) {
+    const limit = y + pagePx;
+    const minY  = y + pagePx * 0.4;                 // avoid tiny pages
+    const cut   = breaks.filter(b => b <= limit && b >= minY).pop() || limit;
+    cuts.push(cut);
+    y = cut;
   }
+  cuts.push(totalPx);
   return cuts;
 }
 
-/* Class sheet: many pages, new page at every analysis block, cut between rows and sections only */
-function addSheetPaged(pdf, cap) {
+/* Draw one page group; a tall group (the rankings) continues onto more pages */
+function addGroupPages(pdf, cap, startNewPage) {
   const pw = pdf.internal.pageSize.getWidth();
   const ph = pdf.internal.pageSize.getHeight();
   const usableW = pw - 2 * PDF_MARGIN;
   const usableH = ph - 2 * PDF_MARGIN - 4;           // 4 mm kept for the page number
   const mmPerPx = usableW / cap.cssW;
-  const cuts    = planPageCuts(cap.breaks, cap.cssH, usableH / mmPerPx, cap.forced);
+  const cuts    = planPageCuts(cap.breaks, cap.cssH, usableH / mmPerPx);
 
-  let first = true;
   for (let i = 0; i < cuts.length - 1; i++) {
     const y0 = Math.round(cuts[i] * cap.scale);
     const h  = Math.round(cuts[i + 1] * cap.scale) - y0;
     if (h <= 0) continue;
 
     const slice = document.createElement('canvas');
-    slice.width = cap.canvas.width;
+    slice.width  = cap.canvas.width;
     slice.height = h;
     slice.getContext('2d').drawImage(cap.canvas, 0, y0, cap.canvas.width, h, 0, 0, cap.canvas.width, h);
 
-    if (!first) pdf.addPage();
-    first = false;
+    if (startNewPage || i > 0) pdf.addPage();
+    startNewPage = false;
     pdf.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG',
       PDF_MARGIN, PDF_MARGIN, usableW, (h / cap.scale) * mmPerPx);
   }
+}
 
+const numberPages = (pdf) => {
+  const pw = pdf.internal.pageSize.getWidth();
+  const ph = pdf.internal.pageSize.getHeight();
   const total = pdf.getNumberOfPages();
   for (let p = 1; p <= total; p++) {
     pdf.setPage(p);
     pdf.setFontSize(8);
     pdf.text(`Page ${p} of ${total}`, pw / 2, ph - 3, { align: 'center' });
   }
+};
+
+/* Split the class sheet into page groups:
+   [header + rankings] [.pg] [.pg] ... (signatures + footer join the last group) */
+function sheetGroups(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const root = tmp.firstElementChild;
+  const kids = [...root.children].filter(n => n.tagName !== 'STYLE');
+  const groups = [[]];
+  kids.forEach(n => {
+    if (n.classList.contains('pg')) groups.push([n]);
+    else groups[groups.length - 1].push(n);
+  });
+  return groups
+    .filter(g => g.length)
+    .map(g => `<div style="max-width:960px;background:#fff;border:2px solid #000;margin:0 auto;font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:#000;">${g.map(n => n.outerHTML).join('')}</div>`);
 }
 
-/* ── Single card / class sheet PDF ────────────────────────── */
+/* ── Single card / class sheet PDF ── */
 async function downloadSinglePDF() {
   if (!el.previewPaper?.innerHTML.trim()) {
     showToast('Generate a preview first.', 'warning');
@@ -1856,10 +1673,17 @@ async function downloadSinglePDF() {
       unit: 'mm', format: pdfFormat(),
     });
 
-    const cap = await captureHTML(el.previewPaper.innerHTML, isSheet ? 960 : 794, isSheet ? 1.6 : 2);
-
-    if (isSheet) addSheetPaged(pdf, cap);
-    else         addCardOnePage(pdf, cap);
+    if (isSheet) {
+      const groups = sheetGroups(el.previewPaper.innerHTML);
+      for (let i = 0; i < groups.length; i++) {
+        const cap = await captureHTML(groups[i], 960, 1.6);
+        addGroupPages(pdf, cap, i > 0);
+      }
+      numberPages(pdf);
+    } else {
+      const cap = await captureHTML(el.previewPaper.innerHTML, 794, 2);
+      addCardOnePage(pdf, cap);
+    }
 
     const ctx  = state.context;
     const date = new Date().toISOString().split('T')[0];
@@ -1867,14 +1691,13 @@ async function downloadSinglePDF() {
 
     if (state.activeTab === 'individual') {
       const lrn = state.results.find(r => r.studentId === el.rptLearner?.value);
-      fn = `Report_Card_${safeFileText(lrn?.fullName, 'Learner')}_T${ctx.term}_${ctx.exam}_${date}.pdf`;
+      fn = `Report_Card_${safeFileText(lrn?.fullName, 'Learner')}_T${ctx.term}_${safeFileText(ctx.exam, 'Exam')}_${date}.pdf`;
     } else {
-      fn = `Class_Results_${safeFileText(ctx.cls, 'Class')}_T${ctx.term}_${ctx.exam}_${date}.pdf`;
+      fn = `Class_Results_${safeFileText(ctx.cls, 'Class')}_T${ctx.term}_${safeFileText(ctx.exam, 'Exam')}_${date}.pdf`;
     }
 
     pdf.save(fn);
     showToast('PDF downloaded!', 'success');
-    addToRecent(ctx);
 
   } catch (err) {
     console.error(err);
@@ -1884,7 +1707,7 @@ async function downloadSinglePDF() {
   }
 }
 
-/* ── Bulk PDF: one report card per page, all learners in one file ── */
+/* ── Bulk PDF: one report card per page ── */
 async function downloadBulkPDF() {
   if (!state.bulkCards.length) {
     showToast('Generate bulk preview first.', 'warning');
@@ -1905,7 +1728,7 @@ async function downloadBulkPDF() {
       if (el.bulkProgressFill) el.bulkProgressFill.style.width = Math.round(((i + 1) / total) * 100) + '%';
       if (el.bulkProgressText) el.bulkProgressText.textContent = `Generating ${i + 1} of ${total} — ${learner.fullName}`;
 
-      await new Promise(r => setTimeout(r, 20));          // let the progress bar repaint
+      await new Promise(r => setTimeout(r, 20));
 
       const cap = await captureHTML(html, 794, 1.5);
       if (i > 0) pdf.addPage();
@@ -1914,9 +1737,8 @@ async function downloadBulkPDF() {
 
     const ctx  = state.context;
     const date = new Date().toISOString().split('T')[0];
-    pdf.save(`All_Report_Cards_${safeFileText(ctx.cls, 'Class')}_T${ctx.term}_${ctx.exam}_${date}.pdf`);
+    pdf.save(`All_Report_Cards_${safeFileText(ctx.cls, 'Class')}_T${ctx.term}_${safeFileText(ctx.exam, 'Exam')}_${date}.pdf`);
     showToast(`${total} report cards downloaded!`, 'success');
-    addToRecent(ctx);
 
   } catch (err) {
     console.error(err);
@@ -1927,6 +1749,7 @@ async function downloadBulkPDF() {
     if (el.bulkProgressFill) el.bulkProgressFill.style.width  = '0%';
   }
 }
+
 /* ══════════════════════════════════════════════════════════
    16. RECENT REPORTS
 ══════════════════════════════════════════════════════════ */
@@ -1962,8 +1785,8 @@ const renderRecentReports = () => {
         <i class="fas ${icons[r.type] || 'fa-file'}"></i>
       </div>
       <div class="recent-report-info">
-        <p class="recent-report-name">${r.name}</p>
-        <p class="recent-report-meta">${r.meta} &bull; ${r.time}</p>
+        <p class="recent-report-name">${escHtml(r.name)}</p>
+        <p class="recent-report-meta">${escHtml(r.meta)} &bull; ${escHtml(r.time)}</p>
       </div>
       <div class="recent-report-actions">
         <button class="recent-report-btn print"    onclick="reprintLast()"    title="Print"><i class="fas fa-print"></i></button>
@@ -1975,7 +1798,9 @@ const renderRecentReports = () => {
 
 window.reprintLast = () => {
   if (el.previewPaper?.innerHTML) {
-    el.printArea.innerHTML = el.previewPaper.innerHTML;
+    el.printArea.innerHTML = state.activeTab === 'bulk'
+      ? state.bulkCards.map(({ html }) => html).join('')
+      : el.previewPaper.innerHTML;
     window.print();
   } else showToast('Regenerate the report first.', 'warning');
 };
@@ -1991,6 +1816,5 @@ window.redownloadLast = () => {
 ══════════════════════════════════════════════════════════ */
 switchTab('individual');
 renderRecentReports();
-
 hideLegacyControls();
 loadClasses();
