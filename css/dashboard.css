@@ -671,6 +671,11 @@
   gap           : 18px;
 }
 
+/* Children must keep their natural height. Without this, cards with
+   overflow:hidden (the students table, etc.) get squashed to fit the
+   screen and the page can never scroll. */
+.page-content > * { flex-shrink: 0; }
+
 /* ══════════════════════════════════════════════════════════
    6. SUBSCRIPTION BANNER  v6.1
    ─────────────────────────────────────────────────────────
