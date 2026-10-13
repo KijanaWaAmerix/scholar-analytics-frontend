@@ -468,7 +468,7 @@
     <div class="modal-header">
       <div>
         <h3 class="modal-title">Blank Class Sheet</h3>
-        <p class="modal-subtitle">Printable PDF for teachers to fill in marks by hand</p>
+        <p class="modal-subtitle">Learners A–Z with the 9 subject columns, for teachers to fill in</p>
       </div>
       <button class="modal-close" data-close-modal="blankSheetModal">
         <i class="fas fa-times"></i>
@@ -501,11 +501,14 @@
         <input type="text" id="blankSheetExam" class="input" autocomplete="off"/>
       </div>
       <p style="font-size:var(--text-sm);color:var(--text-soft);margin-top:14px;line-height:1.5;">
-        Learners are listed A&ndash;Z with the 9 subject columns left empty.
+        Learners are listed A&ndash;Z with the 9 subject columns left empty. Print the PDF, or fill in the Excel file and upload it later on the Import Marks page.
       </p>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" data-close-modal="blankSheetModal">Cancel</button>
+      <button class="btn-secondary" id="blankSheetXlsx">
+        <i class="fas fa-file-excel"></i> Download Excel
+      </button>
       <button class="btn-primary" id="blankSheetGo">
         <i class="fas fa-file-pdf"></i> Download PDF
       </button>

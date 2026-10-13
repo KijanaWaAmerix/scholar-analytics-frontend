@@ -791,6 +791,237 @@ importEl.confirm?.addEventListener('click', async () => {
 });
 
 /* ══════════════════════════════════════════════════════════
+   BLANK CLASS SHEET (PDF)
+   Learners A–Z with the 9 subject columns empty, so teachers
+   can write marks by hand first. Drawn directly with jsPDF,
+   so the text is sharp and rows never split across pages.
+══════════════════════════════════════════════════════════ */
+const SHEET_SUBJECTS = [
+  ['ENG', 'English'], ['MAT', 'Mathematics'], ['KISW', 'Kiswahili'],
+  ['INTER', 'Integrated Sci.'], ['SST', 'Social Studies'], ['CRE', 'Religious Ed.'],
+  ['CAS', 'Creative Arts'], ['AGN', 'Agriculture'], ['PRE-TECH', 'Pre-Technical'],
+];
+
+document.getElementById('blankSheetBtn')?.addEventListener('click', () => {
+  const sel = document.getElementById('blankSheetClass');
+  if (sel) {
+    sel.innerHTML = '<option value="">-- Select Class --</option>' +
+      state.classes.map(c => `<option value="${c._id}">${escapeHtml(c.name)}</option>`).join('');
+    if (state.filters.class) sel.value = state.filters.class;   // use the class already chosen in the filter
+  }
+  const yr = document.getElementById('blankSheetYear');
+  if (yr && !yr.value) yr.value = String(new Date().getFullYear());
+  openModal('blankSheetModalOverlay');
+});
+
+const fetchAllLearners = async (classId) => {
+  const all = [];
+  for (let page = 1; page <= 20; page++) {
+    const params = new URLSearchParams({ page, limit: 200, class: classId, status: 'active' });
+    const r = await API.get(`/students?${params}`);
+    if (!r?.ok) throw new Error(r?.data?.message || 'Could not load learners.');
+    all.push(...(r.data.students || []));
+    if (page >= (r.data.pagination?.pages || 1)) break;
+  }
+  return all;
+};
+
+/* Load the class, then make the sheet in the chosen format */
+const makeBlankSheet = async (kind) => {
+  const classId = document.getElementById('blankSheetClass')?.value;
+  if (!classId) { showToast('Please select a class.', 'warning'); return; }
+  if (kind === 'pdf'  && !window.jspdf?.jsPDF)  { showToast('PDF library did not load. Please refresh the page.', 'error'); return; }
+  if (kind === 'xlsx' && typeof XLSX === 'undefined') { showToast('Excel library did not load. Please refresh the page.', 'error'); return; }
+
+  const buttons = ['blankSheetGo', 'blankSheetXlsx'].map(id => document.getElementById(id));
+  buttons.forEach(b => { if (b) b.disabled = true; });
+
+  try {
+    const cls = state.classes.find(c => c._id === classId);
+    const learners = (await fetchAllLearners(classId))
+      .sort((a, b) => a.fullName.trim().localeCompare(b.fullName.trim(), 'en', { sensitivity: 'base' }));
+
+    if (!learners.length) {
+      showToast('That class has no learners yet. Import them first.', 'warning');
+      return;
+    }
+
+    let school = { schoolName: '', schoolMotto: '' };
+    try {
+      const sr = await API.get('/settings');
+      if (sr?.ok && sr.data?.school) school = sr.data.school;
+    } catch { /* the sheet still works without it */ }
+
+    const info = {
+      schoolName: school.schoolName || '',
+      className : cls?.name || '',
+      term: document.getElementById('blankSheetTerm')?.value,
+      exam: document.getElementById('blankSheetExam')?.value.trim(),
+      year: document.getElementById('blankSheetYear')?.value.trim(),
+      learners,
+    };
+
+    if (kind === 'xlsx') drawBlankClassExcel(info);
+    else                 drawBlankClassSheet(info);
+
+    closeModal('blankSheetModal');
+    showToast(kind === 'xlsx' ? 'Excel class sheet downloaded.' : 'PDF class sheet downloaded.', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || 'Could not create the class sheet.', 'error');
+  } finally {
+    buttons.forEach(b => { if (b) b.disabled = false; });
+  }
+};
+
+document.getElementById('blankSheetGo')?.addEventListener('click', () => makeBlankSheet('pdf'));
+document.getElementById('blankSheetXlsx')?.addEventListener('click', () => makeBlankSheet('xlsx'));
+
+/* Excel version: same layout as a broad sheet (names in column A, then the 9 subjects),
+   so a teacher can fill it in and it can be uploaded straight back on the Import Marks page. */
+function drawBlankClassExcel({ schoolName, className, term, exam, year, learners }) {
+  const meta = [className && `CLASS: ${className}`, term && `TERM ${term}`, exam && `EXAM: ${exam}`, year && `YEAR: ${year}`]
+    .filter(Boolean).join('   |   ');
+
+  const header = ['NAMES OF STUDENTS', ...SHEET_SUBJECTS.map(([code]) => code), 'ADM NO'];
+  const aoa = [
+    [(schoolName || 'SCHOOL').toUpperCase()],
+    ['CLASS MARKS SHEET — ' + meta],
+    [],
+    [],
+    header,
+    ...learners.map(l => [
+      l.fullName.replace(/\s+/g, ' ').trim().toUpperCase(),
+      ...SHEET_SUBJECTS.map(() => ''),
+      l.admissionNo || '',
+    ]),
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 34 }, ...SHEET_SUBJECTS.map(() => ({ wch: 9 })), { wch: 12 }];
+  ws['!freeze'] = { xSplit: 1, ySplit: 5 };
+  ws['!views'] = [{ state: 'frozen', xSplit: 1, ySplit: 5 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, String(className || 'Class').replace(/[\\/?*[\]:]/g, '').slice(0, 31) || 'Class');
+
+  const safe = (t) => String(t || '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+  XLSX.writeFile(wb, `Class_Sheet_${safe(className) || 'Class'}${term ? '_T' + term : ''}_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+function drawBlankClassSheet({ schoolName, className, term, exam, year, learners }) {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const PW = pdf.internal.pageSize.getWidth();
+  const PH = pdf.internal.pageSize.getHeight();
+  const M  = 10;
+
+  const colNo = 9, colName = 62, colAdm = 22;
+  const subjW = (PW - 2 * M - colNo - colName - colAdm) / SHEET_SUBJECTS.length;
+  const headH = 11, rowH = 7.4, headerBlockH = 24, footerH = 8;
+  const tableTop = M + headerBlockH;
+  const rowsPerPage = Math.floor((PH - M - footerH - tableTop - headH) / rowH);
+
+  const xs = [M, M + colNo, M + colNo + colName, M + colNo + colName + colAdm];
+  SHEET_SUBJECTS.forEach((_, i) => xs.push(xs[3] + subjW * (i + 1)));
+  const right = xs[xs.length - 1];
+
+  const meta = [
+    className && `CLASS: ${className}`,
+    term && `TERM: ${term}`,
+    exam && `EXAM: ${exam}`,
+    year && `YEAR: ${year}`,
+  ].filter(Boolean).join('   |   ');
+
+  const pages = Math.ceil(learners.length / rowsPerPage);
+  /* one extra line for the teacher's signatures on the last page */
+  const sigOnLast = (learners.length - (pages - 1) * rowsPerPage) < rowsPerPage;
+  const totalPages = sigOnLast ? pages : pages + 1;
+
+  pdf.setDrawColor(0); pdf.setTextColor(0);
+
+  const drawHeader = () => {
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(14);
+    pdf.text((schoolName || 'SCHOOL').toUpperCase(), M, M + 5);
+    pdf.setFontSize(10);
+    pdf.text('CLASS MARKS SHEET', PW - M, M + 5, { align: 'right' });
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9.5);
+    pdf.text(meta, M, M + 12);
+    pdf.text('Class teacher: ................................................', PW - M, M + 12, { align: 'right' });
+    pdf.setLineWidth(0.5); pdf.line(M, M + 15, PW - M, M + 15);
+
+    /* table header */
+    const y = tableTop;
+    pdf.setLineWidth(0.3);
+    pdf.rect(M, y, right - M, headH);
+    xs.slice(1, -1).forEach(x => pdf.line(x, y, x, y + headH));
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8);
+    pdf.text('NO', xs[0] + colNo / 2, y + 6.5, { align: 'center' });
+    pdf.text('LEARNER NAME', xs[1] + 2, y + 6.5);
+    pdf.text('ADM NO', xs[2] + colAdm / 2, y + 6.5, { align: 'center' });
+    SHEET_SUBJECTS.forEach(([code, full], i) => {
+      const cx = xs[3 + i] + subjW / 2;
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8.5);
+      pdf.text(code, cx, y + 4.6, { align: 'center' });
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(5.8);
+      pdf.text(full, cx, y + 8.4, { align: 'center' });
+    });
+  };
+
+  const drawRowLines = (y, label) => {
+    pdf.setLineWidth(0.2);
+    pdf.rect(M, y, right - M, rowH);
+    xs.slice(1, -1).forEach(x => pdf.line(x, y, x, y + rowH));
+    if (label) {
+      pdf.setFont('helvetica', 'italic'); pdf.setFontSize(7.5);
+      pdf.text(label, xs[1] + 2, y + rowH / 2 + 1.1);
+    }
+  };
+
+  for (let p = 0; p < pages; p++) {
+    if (p > 0) pdf.addPage();
+    drawHeader();
+    const chunk = learners.slice(p * rowsPerPage, (p + 1) * rowsPerPage);
+    chunk.forEach((l, i) => {
+      const y = tableTop + headH + i * rowH;
+      drawRowLines(y);
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8.5);
+      pdf.text(String(p * rowsPerPage + i + 1), xs[0] + colNo / 2, y + rowH / 2 + 1.1, { align: 'center' });
+      let name = l.fullName.replace(/\s+/g, ' ').trim().toUpperCase();
+      while (pdf.getTextWidth(name) > colName - 4 && name.length > 4) name = name.slice(0, -1);
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9);
+      pdf.text(name, xs[1] + 2, y + rowH / 2 + 1.2);
+      if (l.admissionNo) {
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8);
+        pdf.text(String(l.admissionNo), xs[2] + colAdm / 2, y + rowH / 2 + 1.1, { align: 'center' });
+      }
+    });
+
+    /* teacher signature row, directly under the last learner */
+    if (p === pages - 1 && sigOnLast) {
+      drawRowLines(tableTop + headH + chunk.length * rowH, 'Subject teacher (name & sign)');
+    }
+  }
+
+  if (!sigOnLast) {
+    pdf.addPage();
+    drawHeader();
+    drawRowLines(tableTop + headH, 'Subject teacher (name & sign)');
+  }
+
+  /* page numbers */
+  for (let p = 1; p <= totalPages; p++) {
+    pdf.setPage(p);
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8);
+    pdf.text(`Page ${p} of ${totalPages}`, PW / 2, PH - 5, { align: 'center' });
+    pdf.text(`${learners.length} learners`, M, PH - 5);
+  }
+
+  const safe = (t) => String(t || '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+  pdf.save(`Blank_Class_Sheet_${safe(className) || 'Class'}${term ? '_T' + term : ''}_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+/* ══════════════════════════════════════════════════════════
    EXPORT CSV
 ══════════════════════════════════════════════════════════ */
 el.exportBtn?.addEventListener('click', async () => {
