@@ -211,9 +211,9 @@ const renderTable = () => {
           </div>
         </td>
 
-        <!-- UPI -->
-        <td>
-          <span class="upi-code">${s.upiNumber || '<span style="color:var(--text-light);">Not set</span>'}</span>
+        <!-- Admission No -->
+        <td style="font-size:var(--text-sm);color:var(--text-mid);">
+          ${s.admissionNo || '<span style="color:var(--text-light);">—</span>'}
         </td>
 
         <!-- Assessment No -->
@@ -382,6 +382,7 @@ window.openEdit = async (id) => {
   set('studentGender',      s.gender);
   set('studentDOB',         s.dateOfBirth ? s.dateOfBirth.split('T')[0] : '');
   set('studentUPI',         s.upiNumber);
+  set('studentAdmissionNo', s.admissionNo);
   set('studentAssessmentNo',s.assessmentNo);
   set('studentClass',       s.class?._id || '');
   set('studentParentName',  s.parentName);
@@ -395,7 +396,7 @@ window.openEdit = async (id) => {
 
 const clearStudentForm = () => {
   ['studentFullName','studentGender','studentDOB','studentUPI',
-   'studentAssessmentNo','studentClass','studentParentName',
+   'studentAdmissionNo','studentAssessmentNo','studentClass','studentParentName',
    'studentParentPhone','studentStatus'].forEach(id => {
     const e = document.getElementById(id);
     if (e) e.value = '';
@@ -409,6 +410,7 @@ async function saveStudent() {
   const gender       = document.getElementById('studentGender')?.value;
   const dateOfBirth  = document.getElementById('studentDOB')?.value;
   const upiNumber    = document.getElementById('studentUPI')?.value.trim();
+  const admissionNo  = document.getElementById('studentAdmissionNo')?.value.trim();
   const assessmentNo = document.getElementById('studentAssessmentNo')?.value.trim();
   const classId      = document.getElementById('studentClass')?.value;
   const parentName   = document.getElementById('studentParentName')?.value.trim();
@@ -431,6 +433,7 @@ const payload = {
   gender,
   dateOfBirth,
   upiNumber    : upiNumber?.trim()    || undefined,
+  admissionNo  : admissionNo || '',
   assessmentNo : assessmentNo?.trim() || undefined,
   classId,
   parentName,
@@ -491,109 +494,300 @@ document.getElementById('confirmDeleteBtn')?.addEventListener('click', async () 
 });
 
 /* ══════════════════════════════════════════════════════════
-   EXCEL IMPORT
+   EXCEL / CSV IMPORT
+   One class at a time. Columns: Full Name, Gender (required),
+   Admission No, Assessment No (optional). Learners are shown
+   A–Z, and learners already in the class are skipped.
 ══════════════════════════════════════════════════════════ */
-el.importBtn?.addEventListener('click', () => {
-  openModal('importModalOverlay');
-});
+const IMPORT_TEMPLATE_HEADERS = ['Full Name', 'Gender', 'Admission No', 'Assessment No'];
 
-document.getElementById('importFileInput')?.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
+const importEl = {
+  drop   : document.getElementById('dropZone'),
+  input  : document.getElementById('importFileInput'),
+  bar    : document.getElementById('fileInfoBar'),
+  name   : document.getElementById('fileInfoName'),
+  size   : document.getElementById('fileInfoSize'),
+  remove : document.getElementById('fileRemoveBtn'),
+  count  : document.getElementById('importCount'),
+  preview: document.getElementById('importPreviewTable'),
+  note   : document.getElementById('importFooterNote'),
+  confirm: document.getElementById('confirmImportBtn'),
+  text   : document.getElementById('confirmImportText'),
+  spin   : document.getElementById('confirmImportSpinner'),
+  cls    : document.getElementById('importClass'),
+};
+
+const normKey = (k) => String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
+const COLS = {
+  fullName    : ['fullname', 'name', 'names', 'namesofstudents', 'namesofstudent', 'namesoflearners', 'namesoflearner',
+                 'nameofstudent', 'nameoflearner', 'learnername', 'learnernames', 'studentname', 'studentsname', 'studentnames',
+                 'pupilname', 'pupil', 'candidatename', 'learner', 'learners', 'student', 'students'],
+  gender      : ['gender', 'sex', 'g'],
+  admissionNo : ['admissionno', 'admissionnumber', 'admno', 'admission', 'adm', 'adno'],
+  assessmentNo: ['assessmentno', 'assessmentnumber', 'assessment', 'assno', 'assessmentnum', 'assnumber'],
+};
+
+const FOOTER_NAMES = /^(total|totals|mean|average|avg|sum|grand total|mean score|class mean|rank|position|subject|subjects|key|signature)$/i;
+
+const cellText = (v) => (v === undefined || v === null ? '' : String(v).trim());
+
+const toGender = (g) => {
+  const v = String(g || '').trim().toLowerCase();
+  if (['male', 'm', 'boy', 'b'].includes(v))    return 'male';
+  if (['female', 'f', 'girl', 'g'].includes(v)) return 'female';
+  return null;
+};
+
+const escapeHtml = (t) => String(t ?? '').replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* Find the header row anywhere in the first rows (school titles above it are fine),
+   then read the name / gender / admission / assessment columns. Marks, totals and
+   ranks in the file are simply ignored. */
+const parseImportSheet = (aoa) => {
+  let headerRow = -1, nameCol = -1;
+  for (let r = 0; r < Math.min(aoa.length, 40) && headerRow < 0; r++) {
+    for (let c = 0; c < (aoa[r] || []).length; c++) {
+      if (COLS.fullName.includes(normKey(cellText(aoa[r][c])))) { headerRow = r; nameCol = c; break; }
+    }
+  }
+
+  const findCol = (names) => {
+    if (headerRow < 0) return -1;
+    return (aoa[headerRow] || []).findIndex(h => names.includes(normKey(cellText(h))));
+  };
+
+  /* No recognisable header: treat column A as the names */
+  if (headerRow < 0) { nameCol = 0; }
+  const genderCol = findCol(COLS.gender);
+  const admCol    = findCol(COLS.admissionNo);
+  const assCol    = findCol(COLS.assessmentNo);
+
+  const rows = [];
+  for (let r = headerRow + 1; r < aoa.length; r++) {
+    const line = aoa[r] || [];
+    const fullName = cellText(line[nameCol]).replace(/[`´]/g, '').replace(/\s+/g, ' ').trim();
+    if (!fullName) continue;
+    if (FOOTER_NAMES.test(fullName)) continue;
+    if (/^[\d.\s-]+$/.test(fullName)) continue;           // a number is not a name
+
+    const genderIn = genderCol >= 0 ? cellText(line[genderCol]) : '';
+    const gender   = toGender(genderIn);
+    let problem = '', note = '';
+
+    if (genderCol >= 0) {
+      /* the file has a Gender column, so every learner needs a valid one */
+      if (!genderIn)     problem = 'Gender is missing';
+      else if (!gender)  problem = 'Gender must be Male or Female';
+    } else {
+      note = 'No gender in file — add later';
+    }
+
+    rows.push({
+      line: r + 1, fullName, gender: gender || '',
+      admissionNo : admCol >= 0 ? cellText(line[admCol]) : '',
+      assessmentNo: assCol >= 0 ? cellText(line[assCol]) : '',
+      problem, note,
+    });
+  }
+
+  rows.sort((a, b) => a.fullName.localeCompare(b.fullName, 'en', { sensitivity: 'base' }));
+  return { rows, hasGender: genderCol >= 0, foundHeader: headerRow >= 0 };
+};
+
+const resetImport = () => {
+  state.importing = [];
+  if (importEl.input)   importEl.input.value = '';
+  if (importEl.bar)     importEl.bar.style.display = 'none';
+  if (importEl.drop)    importEl.drop.style.display = '';
+  if (importEl.count)   importEl.count.textContent = '';
+  if (importEl.preview) importEl.preview.innerHTML = '';
+  if (importEl.note)    importEl.note.style.display = 'none';
+  if (importEl.confirm) importEl.confirm.disabled = true;
+  if (importEl.text)    importEl.text.style.display = '';
+  if (importEl.spin)    importEl.spin.style.display = 'none';
+};
+
+const renderImportPreview = () => {
+  const rows  = state.importing;
+  const bad   = rows.filter(r => r.problem).length;
+  const good  = rows.length - bad;
+
+  if (importEl.count) {
+    importEl.count.innerHTML =
+      `<strong>${good}</strong> learner${good === 1 ? '' : 's'} ready to import (A–Z)` +
+      (state.importMeta && !state.importMeta.hasGender && good ? ` &nbsp;·&nbsp; <span style="color:#b9770e;">no Gender column found — learners are added without gender (set it later)</span>` : '') +
+      (bad ? ` &nbsp;·&nbsp; <span style="color:#c0392b;"><strong>${bad}</strong> need attention and will be skipped</span>` : '');
+  }
+
+  const th = 'padding:6px 10px;color:rgba(255,255,255,0.85);text-align:left;font-size:10px;text-transform:uppercase;';
+  const td = 'padding:6px 10px;color:#2c3e50;border-bottom:1px solid #e2e8f0;';
+  if (importEl.preview) {
+    importEl.preview.innerHTML = `
+      <div style="max-height:260px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead style="position:sticky;top:0;"><tr style="background:#0d3349;">
+          <th style="${th}">#</th><th style="${th}">Full name</th><th style="${th}">Gender</th>
+          <th style="${th}">Admission no</th><th style="${th}">Assessment no</th><th style="${th}"></th>
+        </tr></thead>
+        <tbody>${rows.map((r, i) => `
+          <tr style="background:${r.problem ? '#fdecea' : (i % 2 ? '#f8fafc' : '#ffffff')};">
+            <td style="${td}">${i + 1}</td>
+            <td style="${td}font-weight:600;">${escapeHtml(r.fullName) || '—'}</td>
+            <td style="${td}text-transform:capitalize;">${r.gender || '—'}</td>
+            <td style="${td}">${escapeHtml(r.admissionNo) || '—'}</td>
+            <td style="${td}">${escapeHtml(r.assessmentNo) || '—'}</td>
+            <td style="${td}color:${r.problem ? '#c0392b' : '#b9770e'};font-weight:600;">${escapeHtml(r.problem || r.note || '')}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+  }
+
+  if (importEl.note)    importEl.note.style.display = bad ? '' : 'none';
+  if (importEl.confirm) importEl.confirm.disabled = good === 0;
+};
+
+const handleImportFile = (file) => {
   if (!file) return;
 
-  /* Check SheetJS is loaded */
   if (typeof XLSX === 'undefined') {
-    showToast('Excel library not loaded. Please refresh.', 'error');
+    showToast('Excel reader did not load. Please refresh the page.', 'error');
+    return;
+  }
+  if (!/\.(xlsx|xls|csv)$/i.test(file.name)) {
+    showToast('Please choose an .xlsx, .xls or .csv file.', 'warning');
     return;
   }
 
   const reader = new FileReader();
   reader.onload = (ev) => {
     try {
-      const wb   = XLSX.read(ev.target.result, { type:'binary' });
-      const ws   = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(ws);
+      const wb  = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
+            /* use the first sheet that actually holds learners */
+      let parsed = { rows: [] };
+      for (const name of wb.SheetNames) {
+        const aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: false, blankrows: false });
+        const p = parseImportSheet(aoa);
+        if (p.rows.length) { parsed = p; break; }
+      }
+      const rows = parsed.rows;
+      state.importMeta = { hasGender: parsed.hasGender };
 
-      if (!data.length) {
-        showToast('No data found in the Excel file.', 'warning');
+      if (!rows.length) {
+        showToast('No learners found in that file.', 'warning');
         return;
       }
 
-      state.importing = data;
-      renderImportPreview(data);
-
+      state.importing = rows;
+      if (importEl.name) importEl.name.textContent = file.name;
+      if (importEl.size) importEl.size.textContent = (file.size / 1024).toFixed(1) + ' KB';
+      if (importEl.bar)  importEl.bar.style.display = 'flex';
+      if (importEl.drop) importEl.drop.style.display = 'none';
+      renderImportPreview();
     } catch (err) {
-      showToast('Failed to read Excel file.', 'error');
+      console.error(err);
+      showToast('Could not read that file. Is it a valid Excel or CSV file?', 'error');
     }
   };
-
-  reader.readAsBinaryString(file);
-});
-
-const renderImportPreview = (data) => {
-  const preview = document.getElementById('importPreviewTable');
-  const count   = document.getElementById('importCount');
-
-  if (count) count.textContent = `${data.length} rows found`;
-
-  if (!preview) return;
-
-  const headers = Object.keys(data[0]).slice(0, 6);
-
-  preview.innerHTML = `
-    <table style="width:100%;border-collapse:collapse;font-size:11px;">
-      <thead>
-        <tr style="background:#0d3349;">
-          ${headers.map(h => `<th style="padding:6px 10px;color:rgba(255,255,255,0.80);text-align:left;font-size:10px;text-transform:uppercase;">${h}</th>`).join('')}
-        </tr>
-      </thead>
-      <tbody>
-        ${data.slice(0,5).map((row,i) => `
-          <tr style="background:${i%2===0?'#ffffff':'#f8fafc'};border-bottom:1px solid #e2e8f0;">
-            ${headers.map(h => `<td style="padding:6px 10px;color:#2c3e50;">${row[h]||'—'}</td>`).join('')}
-          </tr>`
-        ).join('')}
-        ${data.length > 5 ? `<tr><td colspan="${headers.length}" style="padding:8px 10px;color:var(--text-soft);font-style:italic;">...and ${data.length - 5} more rows</td></tr>` : ''}
-      </tbody>
-    </table>`;
+  reader.readAsArrayBuffer(file);
 };
 
-document.getElementById('confirmImportBtn')?.addEventListener('click', async () => {
-  const classId = document.getElementById('importClass')?.value;
+/* Open the picker, drag & drop, change, remove */
+importEl.drop?.addEventListener('click', () => importEl.input?.click());
+['dragenter', 'dragover'].forEach(ev => importEl.drop?.addEventListener(ev, (e) => {
+  e.preventDefault(); importEl.drop.classList.add('drag-over');
+}));
+['dragleave', 'drop'].forEach(ev => importEl.drop?.addEventListener(ev, (e) => {
+  e.preventDefault(); importEl.drop.classList.remove('drag-over');
+}));
+importEl.drop?.addEventListener('drop', (e) => handleImportFile(e.dataTransfer?.files?.[0]));
+importEl.input?.addEventListener('change', (e) => handleImportFile(e.target.files[0]));
+importEl.remove?.addEventListener('click', resetImport);
+
+el.importBtn?.addEventListener('click', () => {
+  resetImport();
+  openModal('importModalOverlay');
+});
+
+/* Blank template with the right columns */
+document.getElementById('downloadTemplateBtn')?.addEventListener('click', () => {
+  const clsName = importEl.cls?.selectedOptions?.[0]?.textContent?.trim();
+  const base = 'Learners_Import_Template' + (clsName && !clsName.startsWith('--') ? '_' + clsName.replace(/\s+/g, '_') : '');
+  if (typeof XLSX !== 'undefined') {
+    const ws = XLSX.utils.aoa_to_sheet([IMPORT_TEMPLATE_HEADERS]);
+    ws['!cols'] = [{ wch: 30 }, { wch: 10 }, { wch: 16 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Learners');
+    XLSX.writeFile(wb, base + '.xlsx');
+  } else {
+    const blob = new Blob(['﻿' + IMPORT_TEMPLATE_HEADERS.join(',') + '\n'], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = base + '.csv'; a.click();
+    URL.revokeObjectURL(a.href);
+  }
+});
+
+importEl.confirm?.addEventListener('click', async () => {
+  const classId = importEl.cls?.value;
 
   if (!classId) {
-    showToast('Please select a class for import.', 'warning');
+    showToast('Please select the class first.', 'warning');
+    importEl.cls?.focus();
     return;
   }
 
-  if (!state.importing.length) {
-    showToast('No data to import.', 'warning');
+  const good = state.importing.filter(r => !r.problem);
+  if (!good.length) {
+    showToast('There are no valid learners to import.', 'warning');
     return;
   }
 
-  const btn = document.getElementById('confirmImportBtn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Importing...'; }
+  importEl.confirm.disabled = true;
+  if (importEl.text) importEl.text.style.display = 'none';
+  if (importEl.spin) importEl.spin.style.display = 'inline';
 
   const result = await API.post('/students/bulk-import', {
-    students: state.importing,
     classId,
+    students: good.map(r => ({
+      fullName: r.fullName, gender: r.gender || '',
+      admissionNo: r.admissionNo, assessmentNo: r.assessmentNo,
+    })),
   });
 
-  if (btn) { btn.disabled = false; btn.textContent = 'Confirm Import'; }
+  if (importEl.text) importEl.text.style.display = '';
+  if (importEl.spin) importEl.spin.style.display = 'none';
 
   if (!result?.ok) {
+    importEl.confirm.disabled = false;
     showToast(result?.data?.message || 'Import failed.', 'error');
     return;
   }
 
-  showToast(result.data.message, 'success');
-  closeModal('importModal');
-  state.importing = [];
-
-  const fileInput = document.getElementById('importFileInput');
-  if (fileInput) fileInput.value = '';
-
+  const r = result.data.results || {};
+  const skipped = r.skippedNames || [];
+  const errors  = r.errors || [];
+  showToast(result.data.message, errors.length ? 'warning' : 'success');
   loadStudents(1);
+
+  if (!skipped.length && !errors.length) {
+    closeModal('importModal');
+    resetImport();
+    return;
+  }
+
+  /* Show what was skipped, so nothing disappears silently */
+  if (importEl.count) importEl.count.innerHTML = `<strong>${r.created || 0}</strong> imported. Details below:`;
+  if (importEl.preview) {
+    importEl.preview.innerHTML = `
+      <div style="max-height:260px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:12px;line-height:1.7;">
+        ${skipped.length ? `<p style="font-weight:700;margin:0 0 4px;">Already in the class — skipped (${skipped.length})</p>
+          <p style="margin:0 0 10px;">${skipped.map(escapeHtml).join(', ')}</p>` : ''}
+        ${errors.length ? `<p style="font-weight:700;margin:0 0 4px;color:#c0392b;">Could not import (${errors.length})</p>
+          <p style="margin:0;">${errors.map(e => escapeHtml(e.row) + ' — ' + escapeHtml(e.error)).join('<br/>')}</p>` : ''}
+      </div>`;
+  }
+  state.importing = [];
+  importEl.confirm.disabled = true;
 });
 
 /* ══════════════════════════════════════════════════════════
@@ -607,10 +801,11 @@ el.exportBtn?.addEventListener('click', async () => {
 
   const rows = state.students.map(s => ({
     'Full Name'     : s.fullName,
-    'UPI Number'    : s.upiNumber    || '',
+    'Gender'        : s.gender,
+    'Admission No'  : s.admissionNo  || '',
     'Assessment No' : s.assessmentNo || '',
     'Class'         : s.class?.name  || '',
-    'Gender'        : s.gender,
+    'UPI Number'    : s.upiNumber    || '',
     'Date of Birth' : s.dateOfBirth
       ? new Date(s.dateOfBirth).toLocaleDateString('en-KE')
       : '',

@@ -507,16 +507,19 @@
           </p>
           <div class="template-tags">
             <span class="tmpl-tag required">Full Name *</span>
-            <span class="tmpl-tag required">Gender *</span>
+            <span class="tmpl-tag optional">Gender</span>
             <span class="tmpl-tag optional">Admission No</span>
             <span class="tmpl-tag optional">Assessment No</span>
           </div>
           <p class="template-note">
             <i class="fas fa-circle-info"></i>
-            Gender: <strong>Male</strong> or <strong>Female</strong>
-            &nbsp;&bull;&nbsp;
-            Class: e.g. <strong>Grade 7 East</strong>
+            Gender: <strong>Male</strong> or <strong>Female</strong> (if your file has a Gender column, every learner needs one).
+            Admission No and Assessment No can be left blank. A broad sheet works too &mdash; only the names are read.
+            Learners already in the class are skipped, and the list is arranged A&ndash;Z.
           </p>
+          <button type="button" class="btn-secondary" id="downloadTemplateBtn" style="margin-top:10px;">
+            <i class="fas fa-download"></i> Download blank template
+          </button>
         </div>
       </div>
 
