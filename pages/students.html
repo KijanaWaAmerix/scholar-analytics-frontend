@@ -172,6 +172,10 @@
             <i class="fas fa-download"></i>
             <span>Export CSV</span>
           </button>
+          <button class="btn-secondary" id="blankSheetBtn">
+            <i class="fas fa-table-list"></i>
+            <span>Class Sheet</span>
+          </button>
           <button class="btn-import" id="importExcelBtn">
             <i class="fas fa-file-excel"></i>
             <span>Import Excel</span>
@@ -455,6 +459,60 @@
 </div>
 
 
+
+<!-- ══════════════════════════════════════════════════════
+     BLANK CLASS SHEET MODAL
+══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="blankSheetModalOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Blank Class Sheet</h3>
+        <p class="modal-subtitle">Printable PDF for teachers to fill in marks by hand</p>
+      </div>
+      <button class="modal-close" data-close-modal="blankSheetModal">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:14px;">
+        <label>Class <span class="required">*</span></label>
+        <select id="blankSheetClass" class="input">
+          <option value="">-- Select Class --</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Term <span class="label-hint">(optional)</span></label>
+          <select id="blankSheetTerm" class="input">
+            <option value="">—</option>
+            <option value="1">Term 1</option>
+            <option value="2">Term 2</option>
+            <option value="3">Term 3</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Year</label>
+          <input type="text" id="blankSheetYear" class="input" autocomplete="off"/>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:14px;">
+        <label>Exam <span class="label-hint">(optional, e.g. Mid-term)</span></label>
+        <input type="text" id="blankSheetExam" class="input" autocomplete="off"/>
+      </div>
+      <p style="font-size:var(--text-sm);color:var(--text-soft);margin-top:14px;line-height:1.5;">
+        Learners are listed A&ndash;Z with the 9 subject columns left empty.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" data-close-modal="blankSheetModal">Cancel</button>
+      <button class="btn-primary" id="blankSheetGo">
+        <i class="fas fa-file-pdf"></i> Download PDF
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════════════════════════════════════════════
      EXCEL IMPORT MODAL
 ══════════════════════════════════════════════════════ -->
@@ -593,6 +651,7 @@
   </div><!-- end modal -->
 </div><!-- end import modal overlay -->
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/students.js"></script>
 </body>
