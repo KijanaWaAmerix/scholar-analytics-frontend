@@ -1581,7 +1581,7 @@ const buildClassSheet = (allResults, s) => {
 <div style="max-width:960px;background:#ffffff;border:2px solid ${LINE};font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${INK};margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
 
   <style>
-    @media print { tr, .keep { break-inside: avoid; page-break-inside: avoid; } thead { display: table-header-group; } .pgstart { break-before: page; page-break-before: always; } }
+    @media print { tr, .keep { break-inside: avoid; page-break-inside: avoid; } .bar { break-after: avoid; page-break-after: avoid; } thead { display: table-header-group; } .pgstart { break-before: page; page-break-before: always; } }
   </style>
 
   <!-- Header -->
@@ -1700,6 +1700,58 @@ const buildBulkPreview = (results, settings) => {
 /* ══════════════════════════════════════════════════════════
    14. PRINT  (unchanged)
 ══════════════════════════════════════════════════════════ */
+/* Browser print. Report cards: every card is scaled to fit EXACTLY one A4 portrait page (a
+   card that is too tall is shrunk, never cut). Class sheet: A4 landscape, split only between
+   rows and sections. The page size/orientation is set here, because the stylesheet only knows
+   portrait. */
+const PX_PER_MM = 96 / 25.4;
+
+const printPages = (htmls, landscape) => {
+  const margin = 8;                                                    // mm
+  const pageW  = Math.floor(((landscape ? 297 : 210) - 2 * margin) * PX_PER_MM);
+  const pageH  = Math.floor(((landscape ? 210 : 297) - 2 * margin) * PX_PER_MM) - 4;
+
+  let st = document.getElementById('printPageStyle');
+  if (!st) { st = document.createElement('style'); st.id = 'printPageStyle'; document.head.appendChild(st); }
+  st.textContent = `@page { size: A4 ${landscape ? 'landscape' : 'portrait'}; margin: ${margin}mm; }`;
+
+  if (landscape) {                                    // class sheet: flows over pages by itself
+    el.printArea.innerHTML = htmls.join('');
+    window.print();
+    return;
+  }
+
+  /* cards: measure each at the page width, shrink to fit one page */
+  const probe = document.createElement('div');
+  probe.style.cssText = `position:fixed;left:-99999px;top:0;width:${pageW}px;background:#fff;`;
+  document.body.appendChild(probe);
+
+  const heightAt = (html, width) => {
+    probe.style.width = width + 'px';
+    probe.innerHTML = html;
+    return (probe.firstElementChild || probe).getBoundingClientRect().height;
+  };
+
+  const pages = htmls.map((html, i) => {
+    let k = 1;
+    const h1 = heightAt(html, pageW);
+    if (h1 > pageH) k = (pageH / h1) * 0.99;
+    let inner = pageW / k;                                       // wider box -> same size after scaling
+    if (k < 1) {
+      const h2 = heightAt(html, inner);
+      if (h2 * k > pageH) k = (pageH / h2) * 0.99, inner = pageW / k;
+    }
+    const last = i === htmls.length - 1;
+    return `<div style="width:${pageW}px;height:${pageH}px;overflow:hidden;box-sizing:border-box;` +
+           `${last ? '' : 'break-after:page;page-break-after:always;'}">` +
+           `<div style="width:${inner}px;transform:scale(${k});transform-origin:top left;">${html}</div></div>`;
+  });
+
+  probe.remove();
+  el.printArea.innerHTML = pages.join('');
+  window.print();
+};
+
 el.printBtn?.addEventListener('click', () => {
   if (!el.previewPaper?.innerHTML.trim()) {
     showToast('Generate a preview first.', 'warning');
@@ -1707,13 +1759,13 @@ el.printBtn?.addEventListener('click', () => {
   }
 
   if (state.activeTab === 'bulk') {
-    el.printArea.innerHTML = state.bulkCards.map(({ html }) => html).join('');
     showToast(`Sending ${state.bulkCards.length} report cards to printer...`, 'info');
+    printPages(state.bulkCards.map(({ html }) => html), false);
+  } else if (state.activeTab === 'class') {
+    printPages([el.previewPaper.innerHTML], true);
   } else {
-    el.printArea.innerHTML = el.previewPaper.innerHTML;
+    printPages([el.previewPaper.innerHTML], false);
   }
-
-  window.print();
 });
 
 /* ══════════════════════════════════════════════════════════
@@ -1985,10 +2037,8 @@ const renderRecentReports = () => {
 };
 
 window.reprintLast = () => {
-  if (el.previewPaper?.innerHTML) {
-    el.printArea.innerHTML = el.previewPaper.innerHTML;
-    window.print();
-  } else showToast('Regenerate the report first.', 'warning');
+  if (el.previewPaper?.innerHTML) el.printBtn?.click();
+  else showToast('Regenerate the report first.', 'warning');
 };
 
 window.redownloadLast = () => {
