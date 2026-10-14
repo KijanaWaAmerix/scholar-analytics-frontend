@@ -20,6 +20,15 @@ input, select, textarea {
 
 
 /* ═══════════════════════════════════════════════════════════
+   RESULTS PAGE HIDDEN
+   Every link to the Results page (sidebar, dashboard, imports,
+   analytics) is hidden; teachers use Reports instead. The page itself
+   still exists. To bring it back, delete this one rule.
+═══════════════════════════════════════════════════════════ */
+a[href="results.html"] { display: none !important; }
+
+
+/* ═══════════════════════════════════════════════════════════
    ALL SCREENS — pieces that had no styling anywhere
 ═══════════════════════════════════════════════════════════ */
 
