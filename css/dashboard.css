@@ -206,12 +206,50 @@
 /* ── Nav ──────────────────────────────────────────────── */
 .sidebar-nav {
   flex           : 1;
+  min-height     : 0;
   padding        : 8px 0 4px;
   overflow-y     : auto;
-  scrollbar-width: none;
+  /* style.css sets a thin scrollbar on every element, which switches off the custom one below */
+  scrollbar-width: auto;
+  scrollbar-color: auto;
 }
 
-.sidebar-nav::-webkit-scrollbar { display: none; }
+/* Menu scrollbar: light track, dark rounded thumb, small arrow buttons at both ends
+   (same look as the KNEC CBA portal menu). Shown on the sidebar menu only. */
+.sidebar-nav::-webkit-scrollbar { width: 14px; }
+.sidebar-nav::-webkit-scrollbar-track {
+  background   : #f1f3f5;
+  border-radius: 2px;
+}
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background     : #454b54;
+  border         : 3px solid #f1f3f5;     /* leaves a light rim, so the thumb looks inset and round */
+  border-radius  : 9px;
+  min-height     : 40px;
+}
+.sidebar-nav::-webkit-scrollbar-thumb:hover  { background: #2f343b; }
+.sidebar-nav::-webkit-scrollbar-thumb:active { background: #1f2329; }
+.sidebar-nav::-webkit-scrollbar-button:single-button {
+  display        : block;
+  height         : 14px;
+  width          : 14px;
+  background-color: #f1f3f5;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 8px 8px;
+}
+.sidebar-nav::-webkit-scrollbar-button:single-button:vertical:decrement {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M4 2L7.5 6.5H.5z' fill='%23454b54'/%3E%3C/svg%3E");
+}
+.sidebar-nav::-webkit-scrollbar-button:single-button:vertical:increment {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M4 6L.5 1.5h7z' fill='%23454b54'/%3E%3C/svg%3E");
+}
+.sidebar-nav::-webkit-scrollbar-button:single-button:hover { background-color: #dfe3e8; }
+
+/* Firefox has no arrow buttons; it gets the same colours. */
+@supports not selector(::-webkit-scrollbar) {
+  .sidebar-nav { scrollbar-width: auto; scrollbar-color: #454b54 #f1f3f5; }
+}
 
 .nav-section-label {
   font-size     : 0.58rem;
