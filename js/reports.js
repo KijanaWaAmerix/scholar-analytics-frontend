@@ -457,6 +457,14 @@ schoolFields.forEach(({ key, input }) => {
   });
 });
 
+/* Postal address, phone and (optional) email come from Settings -> School Profile.
+   Kept in this browser too, so the header is right even before the server answers. */
+const schoolContact = {
+  address: readSavedSettings().schoolAddress || '',
+  phone  : readSavedSettings().schoolPhone   || '',
+  email  : readSavedSettings().schoolEmail   || '',
+};
+
 const loadSchoolFromServer = async () => {
   const r = await API.get('/settings');
   if (!r?.ok || !r.data?.school) return;
@@ -467,6 +475,12 @@ const loadSchoolFromServer = async () => {
     principal  : sch.principal?.name,
   };
   const st = readSavedSettings();
+  schoolContact.address = (sch.schoolAddress || '').trim();
+  schoolContact.phone   = (sch.schoolPhone   || '').trim();
+  schoolContact.email   = (sch.schoolEmail   || '').trim();
+  st.schoolAddress = schoolContact.address;
+  st.schoolPhone   = schoolContact.phone;
+  st.schoolEmail   = schoolContact.email;
   schoolFields.forEach(({ key, input }) => {
     const v = fromServer[key];
     if (!v) return;
@@ -560,7 +574,7 @@ const loadTeachersFromServer = async () => {
 };
 
 /* Start: fetch in the background so the page never waits for a sleeping server */
-loadSchoolFromServer();
+const schoolLoaded = loadSchoolFromServer();
 loadTeachersFromServer();
 /* ══════════════════════════════════════════════════════════
    4. CLASS / GRADE SELECTION
@@ -893,6 +907,9 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
   const settings = {
     schoolName   : el.rptSchoolName?.value  || 'Scholar Analytics Demo School',
     schoolMotto  : el.rptSchoolMotto?.value || 'Excellence Through Knowledge',
+    address      : schoolContact.address,                   // from Settings -> School Profile
+    phone        : schoolContact.phone,
+    email        : schoolContact.email,                     // optional
     teacher      : (el.rptTeacher?.value   || '').trim(),   // class teacher (blank if not typed)
     principal    : (el.rptPrincipal?.value || '').trim(),   // principal (blank if not typed)
     teacherMaps  : getTeacherMaps(),                        // subject teachers, per class in scope
@@ -1081,6 +1098,34 @@ const levelBlock = (code) => {
          `<div style="font-size:11.5px;font-weight:800;line-height:1.3;">${escHtml(code)}</div>`;
 };
 
+/* School name block for the top of every report card and class sheet.
+   Official letterhead style, light on ink: a medium-weight serif name, then one line with the
+   postal address, phone and (optional) email, then the motto in italics. Only what the school
+   has filled in is printed, so there are never blank gaps. The name steps down in size when
+   it is long, so it always stays tidy. */
+const schoolHeader = (s, size = 16) => {
+  const name = String(s.schoolName || '').trim().toUpperCase();
+  const fs   = name.length > 42 ? size - 4 : name.length > 34 ? size - 2.5 : name.length > 27 ? size - 1.2 : size;
+
+  const parts = [];
+  if (s.address) parts.push(escHtml(s.address));
+  if (s.phone)   parts.push('Tel: ' + escHtml(s.phone));
+
+  const small = 'font-size:9.5px;font-weight:500;line-height:1.5;';
+  const details =
+    (parts.length
+      ? `<div style="${small}margin-top:3px;">${parts.map((x, i) =>
+          `<span style="display:inline-block;white-space:nowrap;${i ? 'border-left:1px solid #000;padding-left:7px;margin-left:7px;' : ''}">${x}</span>`).join('')}</div>`
+      : '') +
+    (s.email ? `<div style="${small}${parts.length ? '' : 'margin-top:3px;'}">${escHtml(s.email)}</div>` : '');
+  const motto = String(s.schoolMotto || '').trim()
+    ? `<div style="font-size:10.5px;font-style:italic;margin-top:2px;">&ldquo;${escHtml(String(s.schoolMotto).trim())}&rdquo;</div>` : '';
+  const fallback = !details && !motto
+    ? '<div style="font-size:10px;margin-top:3px;">Junior Secondary School</div>' : '';
+
+  return `<div style="font-family:'Playfair Display',Georgia,'Times New Roman',serif;font-size:${fs}px;font-weight:700;letter-spacing:0.6px;line-height:1.15;">${escHtml(name)}</div>${details}${motto}${fallback}`;
+};
+
 /* ══════════════════════════════════════════════════════════
    11. BUILD INDIVIDUAL REPORT CARD  (7 columns, low ink)
 ══════════════════════════════════════════════════════════ */
@@ -1227,8 +1272,7 @@ const buildReportCard = (r, s) => {
   <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:#ffffff;border-bottom:3px solid ${LINE};">
     <div style="width:50px;height:50px;background:#ffffff;color:${INK};border:2px solid ${LINE};border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800;letter-spacing:1px;flex-shrink:0;">${escHtml(initials)}</div>
     <div style="flex:1;min-width:0;">
-      <div style="font-size:17px;font-weight:800;color:${INK};letter-spacing:0.4px;line-height:1.15;">${escHtml(String(s.schoolName).toUpperCase())}</div>
-      <div style="font-size:10px;color:${INK};margin-top:3px;">Junior Secondary School &nbsp;&bull;&nbsp; <em>${escHtml(s.schoolMotto)}</em></div>
+      ${schoolHeader(s, 16)}
     </div>
     <div style="text-align:right;flex-shrink:0;">
       <div style="font-size:12.5px;font-weight:800;letter-spacing:1.2px;color:${INK};">LEARNER PROGRESS REPORT</div>
@@ -1543,8 +1587,7 @@ const buildClassSheet = (allResults, s) => {
   <!-- Header -->
   <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:14px;padding:14px 18px;border-bottom:3px solid ${LINE};">
     <div>
-      <div style="font-size:16px;font-weight:800;letter-spacing:0.4px;">${escHtml(String(s.schoolName).toUpperCase())}</div>
-      <div style="font-size:10px;margin-top:2px;">Junior Secondary School &nbsp;|&nbsp; <em>${escHtml(s.schoolMotto)}</em></div>
+      ${schoolHeader(s, 16)}
     </div>
     <div style="text-align:right;">
       <div style="font-size:12.5px;font-weight:800;letter-spacing:1px;">ASSESSMENT RESULTS</div>
@@ -1961,4 +2004,34 @@ switchTab('individual');
 renderRecentReports();
 
 hideLegacyControls();
-loadClasses();
+
+/* Opened from the Results page ("Download Class Sheet"): the link carries the class, term and
+   exam, so select them here, load the results and show the class sheet preview. */
+async function applyDeepLink() {
+  const q = new URLSearchParams(location.search);
+  const cls = q.get('cls'), term = q.get('term'), exam = q.get('exam');
+  if (!cls || !term || !exam || !el.rptClass || !el.rptTerm || !el.rptExam) return;
+  if (![...el.rptClass.options].some(o => o.value === cls)) return;
+
+  try {
+    switchTab('class');
+    el.rptTerm.value  = term;
+    el.rptClass.value = cls;
+    state.scope      = isGradeValue(cls) ? 'grade' : 'class';
+    state.gradeValue = isGradeValue(cls) ? cls.slice(6) : '';
+
+    await loadExams();
+    if (![...el.rptExam.options].some(o => o.value === exam)) return;
+    el.rptExam.value = exam;
+
+    await fetchResults();
+    try { await schoolLoaded; } catch { /* use what is saved on this device */ }
+    el.generatePreviewBtn?.click();
+    history.replaceState(null, '', location.pathname);          // so a refresh starts clean
+    setTimeout(() => el.previewFrameWrapper?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
+  } catch (err) {
+    console.error('Could not open the class sheet', err);
+  }
+}
+
+loadClasses().then(applyDeepLink);
