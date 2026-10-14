@@ -6,6 +6,29 @@
 
 const API_BASE_URL = 'https://scholar-analytics-api.onrender.com/api';
 
+
+/* ══════════════════════════════════════════════════════════
+   SERVER WAKE-UP (Render free hosting sleeps when idle)
+══════════════════════════════════════════════════════════ */
+const WAKE_RETRIES = 9;   // ~1 minute of patience
+const WAKE_DELAY   = () => window.SA_WAKE_DELAY || 6000;
+
+const showWakeBanner = (on) => {
+  let bar = document.getElementById('saWakeBanner');
+  if (!on) { if (bar) bar.remove(); return; }
+  if (bar || !document.body) return;
+  bar = document.createElement('div');
+  bar.id = 'saWakeBanner';
+  bar.setAttribute('role', 'status');
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;padding:10px 16px;' +
+    'background:#0d2848;color:#fff;font:600 13px/1.4 "DM Sans",Arial,sans-serif;text-align:center;';
+  bar.textContent = 'Waking up the server… this can take up to a minute. Please wait.';
+  document.body.appendChild(bar);
+};
+
+/* Start waking the server as soon as any page opens, so it is ready by the time you need it */
+try { fetch(`${API_BASE_URL}/health`, { method: 'GET', cache: 'no-store' }).catch(() => {}); } catch { /* ignore */ }
+
 /* ══════════════════════════════════════════════════════════
    TOKEN HELPERS
 ══════════════════════════════════════════════════════════ */
@@ -92,15 +115,42 @@ const apiFetch = async (endpoint, options = {}) => {
 
   try {
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
+    /* Render's free server sleeps when idle and takes up to a minute to wake.
+       Reads (and login) are retried while it wakes up, with a friendly notice. */
+    const canRetry = (options.method || 'GET') === 'GET' || endpoint.startsWith('/auth/login');
+    const maxRetries = canRetry ? WAKE_RETRIES : 0;
+    const wakeTimer = setTimeout(() => showWakeBanner(true), 4000);
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...config,
-      signal: controller.signal,
-    });
+    let response = null;
+    let lastError = null;
 
-    clearTimeout(timeout);
+    try {
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
+        try {
+          response = await fetch(`${API_BASE_URL}${endpoint}`, { ...config, signal: controller.signal });
+          clearTimeout(timeout);
+          lastError = null;
+          /* 502/503/504 = the server is still starting */
+          if ([502, 503, 504].includes(response.status) && attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, WAKE_DELAY()));
+            continue;
+          }
+          break;
+        } catch (err) {
+          clearTimeout(timeout);
+          lastError = err;
+          if (attempt >= maxRetries) break;
+          await new Promise(r => setTimeout(r, WAKE_DELAY()));
+        }
+      }
+    } finally {
+      clearTimeout(wakeTimer);
+      showWakeBanner(false);
+    }
+
+    if (lastError) throw lastError;
 
     let data = {};
 
@@ -150,7 +200,7 @@ const apiFetch = async (endpoint, options = {}) => {
         success: false,
         message: error.name === 'AbortError'
           ? 'Request timed out. Please try again.'
-          : 'Cannot connect to server. Make sure backend is running.',
+          : 'The server is starting up. Please wait a moment and try again.',
       },
     };
   }
