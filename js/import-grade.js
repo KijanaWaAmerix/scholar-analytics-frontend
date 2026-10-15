@@ -30,7 +30,7 @@
   };
   if (!el.bar || !el.grade) return;
 
-  const state = { rows: [], fileName: '', resolutions: {}, createMissing: true, last: null, busy: false };
+  const state = { rows: [], fileName: '', resolutions: {}, createMissing: true, last: null, busy: false, autoExam: false };
 
   /* ── mode switch ─────────────────────────────────────── */
   el.bar.style.display = 'flex';
@@ -41,6 +41,7 @@
     el.modeSingle.className = g ? 'btn-secondary' : 'btn-primary';
     el.modeGrade.className  = g ? 'btn-primary' : 'btn-secondary';
   };
+  setMode('grade');                                  // the filled broad sheet is the main way to import
   el.modeSingle.addEventListener('click', () => setMode('single'));
   el.modeGrade.addEventListener('click',  () => setMode('grade'));
   if (el.gYear) el.gYear.value = String(new Date().getFullYear());
@@ -97,6 +98,32 @@
     return { rows, slots: Object.values(cols) };
   };
 
+  /* The title rows above the table usually say it all, e.g. "BROAD SHEET END TERM 1 GRADE 9 ASSESSMENT".
+     Fill Grade, Term and Exam name from it, so the teacher only checks them. */
+  const detectMeta = (aoa) => {
+    let hr = 0;
+    for (let r = 0; r < Math.min(aoa.length, 40); r++) {
+      if ((aoa[r] || []).some(c => NAME_HEADERS.includes(norm(c)))) { hr = r; break; }
+    }
+    const text = aoa.slice(0, hr).map(row => (row || []).filter(c => typeof c === 'string').join(' ')).join(' ')
+      .replace(/\s+/g, ' ');
+    const out = {};
+    let m = text.match(/grade\s*([6-9])\b/i);                 if (m) out.grade = m[1];
+    m = text.match(/term\s*([123])\b/i) || text.match(/\bt\s*([123])\b/i); if (m) out.term = m[1];
+    if (/end\s*-?\s*(of\s*)?term|\beot\b/i.test(text)) out.exam = 'End Term';
+    else if (/mid\s*-?\s*term/i.test(text))               out.exam = 'Mid-term';
+    else if (/opener|opening/i.test(text))                  out.exam = 'Opener';
+    return out;
+  };
+
+  const applyMeta = (meta) => {
+    const bits = [];
+    if (meta.grade && [...el.gGrade.options].some(o => o.value === meta.grade)) { el.gGrade.value = meta.grade; bits.push('Grade ' + meta.grade); }
+    if (meta.term) { el.gTerm.value = meta.term; bits.push('Term ' + meta.term); }
+    if (meta.exam && (!el.gExam.value.trim() || state.autoExam)) { el.gExam.value = meta.exam; state.autoExam = true; bits.push(meta.exam); }
+    if (bits.length) toast('Read from the sheet: ' + bits.join(', ') + '. Change them above if that is wrong.', 'info');
+  };
+
   const readFile = (file) => {
     if (!file) return;
     if (typeof XLSX === 'undefined') return toast('Excel reader did not load. Please refresh the page.', 'error');
@@ -110,7 +137,7 @@
         for (const sn of wb.SheetNames) {
           const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '', raw: true, blankrows: false });
           const p = parseSheet(aoa);
-          if (p.rows && p.rows.length) { parsed = p; break; }
+          if (p.rows && p.rows.length) { parsed = p; applyMeta(detectMeta(aoa)); break; }
           if (p.error) parsed.error = p.error;
         }
         if (!parsed.rows.length) return toast(parsed.error || 'No learners found in that file.', 'warning');
@@ -320,4 +347,5 @@
   /* changing the exam settings after a file is loaded re-checks it */
   [el.gGrade, el.gTerm].forEach(e => e.addEventListener('change', () => { state.resolutions = {}; runPreview(); }));
   [el.gExam, el.gYear].forEach(e => e.addEventListener('change', () => runPreview()));
+  el.gExam.addEventListener('input', () => { state.autoExam = false; });
 })();

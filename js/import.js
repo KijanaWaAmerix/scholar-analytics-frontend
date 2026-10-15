@@ -161,9 +161,18 @@ const readExcelFile = (file) => {
   reader.onload = (ev) => {
     try {
       const wb       = XLSX.read(ev.target.result, { type: 'binary' });
-      const sheetName= wb.SheetNames[0];
-      const ws       = wb.Sheets[sheetName];
-      const rawRows  = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      /* Find the real header row (the one with "Names of students" and the subject names).
+         Broad sheets start with the school name and a title, which are not column headings. */
+      let ws = wb.Sheets[wb.SheetNames[0]];
+      let headerRow = 0;
+      for (const sn of wb.SheetNames) {
+        const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
+        const at = aoa.slice(0, 40).findIndex(row =>
+          row.filter(c => SUBJECT_MAP[String(c).trim().toUpperCase()] !== undefined).length >= 2);
+        if (at >= 0) { ws = wb.Sheets[sn]; headerRow = at; break; }
+      }
+      const rawRows  = XLSX.utils.sheet_to_json(ws, { defval: '', range: headerRow });
 
       if (!rawRows.length) {
         showToast('No data found in the file.', 'warning');
@@ -183,6 +192,7 @@ const readExcelFile = (file) => {
       dataRows = rawRows.filter(row => {
         const name = String(row[state.nameCol] || '').trim();
         return name.length > 2 &&
+               !/^(total|totals|mean|average|avg|sum|grand total|mean score|rank|position)$/i.test(name) &&
                !name.toUpperCase().includes('SCHOOL') &&
                !name.toUpperCase().includes('BROAD SHEET') &&
                !name.toUpperCase().includes('ASSESSMENT') &&
