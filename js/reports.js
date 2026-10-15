@@ -1103,7 +1103,7 @@ const levelBlock = (code) => {
    postal address, phone and (optional) email, then the motto in italics. Only what the school
    has filled in is printed, so there are never blank gaps. The name steps down in size when
    it is long, so it always stays tidy. */
-const schoolHeader = (s, size = 16) => {
+const schoolHeader = (s, size = 17) => {
   const name = String(s.schoolName || '').trim().toUpperCase();
   const fs   = name.length > 42 ? size - 4 : name.length > 34 ? size - 2.5 : name.length > 27 ? size - 1.2 : size;
 
@@ -1123,7 +1123,7 @@ const schoolHeader = (s, size = 16) => {
   const fallback = !details && !motto
     ? '<div style="font-size:10px;margin-top:3px;">Junior Secondary School</div>' : '';
 
-  return `<div style="font-family:'Playfair Display',Georgia,'Times New Roman',serif;font-size:${fs}px;font-weight:700;letter-spacing:0.6px;line-height:1.15;">${escHtml(name)}</div>${details}${motto}${fallback}`;
+  return `<div style="font-family:'Playfair Display',Georgia,'Times New Roman',serif;font-size:${fs}px;font-weight:800;letter-spacing:0.5px;line-height:1.15;color:#000;">${escHtml(name)}</div>${details}${motto}${fallback}`;
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -1272,7 +1272,7 @@ const buildReportCard = (r, s) => {
   <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:#ffffff;border-bottom:3px solid ${LINE};">
     <div style="width:50px;height:50px;background:#ffffff;color:${INK};border:2px solid ${LINE};border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800;letter-spacing:1px;flex-shrink:0;">${escHtml(initials)}</div>
     <div style="flex:1;min-width:0;">
-      ${schoolHeader(s, 16)}
+      ${schoolHeader(s, 17)}
     </div>
     <div style="text-align:right;flex-shrink:0;">
       <div style="font-size:12.5px;font-weight:800;letter-spacing:1.2px;color:${INK};">LEARNER PROGRESS REPORT</div>
@@ -1713,7 +1713,9 @@ const printPages = (htmls, landscape) => {
 
   let st = document.getElementById('printPageStyle');
   if (!st) { st = document.createElement('style'); st.id = 'printPageStyle'; document.head.appendChild(st); }
-  st.textContent = `@page { size: A4 ${landscape ? 'landscape' : 'portrait'}; margin: ${margin}mm; }`;
+  st.textContent = `@page { size: A4 ${landscape ? 'landscape' : 'portrait'}; margin: ${margin}mm; }` +
+    `@media print { html, body, #printArea, .print-area { background:#fff !important; } ` +
+    `* { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`;
 
   if (landscape) {                                    // class sheet: flows over pages by itself
     el.printArea.innerHTML = htmls.join('');
@@ -1732,6 +1734,7 @@ const printPages = (htmls, landscape) => {
     return (probe.firstElementChild || probe).getBoundingClientRect().height;
   };
 
+  const useZoom = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('zoom', '0.5');
   const pages = htmls.map((html, i) => {
     let k = 1;
     const h1 = heightAt(html, pageW);
@@ -1744,7 +1747,9 @@ const printPages = (htmls, landscape) => {
     const last = i === htmls.length - 1;
     return `<div style="width:${pageW}px;height:${pageH}px;overflow:hidden;box-sizing:border-box;` +
            `${last ? '' : 'break-after:page;page-break-after:always;'}">` +
-           `<div style="width:${inner}px;transform:scale(${k});transform-origin:top left;">${html}</div></div>`;
+           (useZoom
+             ? `<div style="width:${inner}px;zoom:${k};">${html}</div></div>`
+             : `<div style="width:${inner}px;transform:scale(${k});transform-origin:top left;">${html}</div></div>`);
   });
 
   probe.remove();
