@@ -75,7 +75,7 @@ const KJSEA = {
   PATHWAYS: {
     stem    : { name:'STEM',            col:'#1d4ed8', bg:'#dbeafe', border:'#3b82f6', pillBg:'#bfdbfe', pillCol:'#1e3a8a' },
     social  : { name:'Social Sciences', col:'#166534', bg:'#dcfce7', border:'#22c55e', pillBg:'#bbf7d0', pillCol:'#14532d' },
-    creative: { name:'Creative Arts',   col:'#6b21a8', bg:'#f3e8ff', border:'#a855f7', pillBg:'#e9d5ff', pillCol:'#581c87' },
+    creative: { name:'Creative Arts & Sports', col:'#6b21a8', bg:'#f3e8ff', border:'#a855f7', pillBg:'#e9d5ff', pillCol:'#581c87' },
   },
 
   getGrade(score) {
@@ -1312,7 +1312,7 @@ ${dot('top:-6px;left:-6px;')}${dot('top:-6px;right:-6px;')}${dot('bottom:-6px;le
   ${sectionBar('Comments')}
   <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid ${LINE};">
     ${signBlock("Class teacher's comment", KJSEA.getTeacherComment(r.meanGrade), s.teacher, 'Class teacher &mdash; signature')}
-    ${signBlock("Principal's comment",     KJSEA.getPrincipalComment(r, r.meanGrade), s.principal, 'Principal &mdash; signature &amp; stamp', true)}
+    ${signBlock("Principal / Head of Institution's comment",     KJSEA.getPrincipalComment(r, r.meanGrade), s.principal, 'Principal / HOI &mdash; signature &amp; stamp', true)}
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid ${LINE};">
@@ -1660,7 +1660,7 @@ const buildClassSheet = (allResults, s) => {
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:3px solid ${LINE};margin-top:0;">
     ${sigBlock('Class teacher', s.teacher, 'Signature &amp; date: .....................')}
     ${sigBlock('Dean of studies', '', 'Signature &amp; date: .....................')}
-    ${sigBlock('Principal / Headteacher', s.principal, 'Signature, stamp &amp; date: .....................', true)}
+    ${sigBlock('Principal / Head of Institution (HOI)', s.principal, 'Signature, stamp &amp; date: .....................', true)}
   </div>
 
   <!-- Footer -->
