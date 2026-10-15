@@ -47,20 +47,22 @@ const renderStats = () => {
   };
 
   set('totalClasses',    state.classes.length);
-  set('grade7Count',     state.classes.filter(c => c.grade === 7).length);
-  set('grade8Count',     state.classes.filter(c => c.grade === 8).length);
-  set('grade9Count',     state.classes.filter(c => c.grade === 9).length);
+  const grades = [...new Set(state.classes.map(c => c.grade))].sort((a, b) => a - b);
+  set('gradesList',      grades.length ? grades.join(' · ') : '--');
   set('totalStudentsAll',state.classes.reduce((sum, c) => sum + (c.studentCount || 0), 0));
 };
 
 /* ══════════════════════════════════════════════════════════
    RENDER GRID
 ══════════════════════════════════════════════════════════ */
-const gradeColours = {
-  7: { bg:'rgba(52,152,219,0.08)', border:'rgba(52,152,219,0.20)', colour:'#2e86c1', icon:'#3498db' },
-  8: { bg:'rgba(39,174,96,0.08)',  border:'rgba(39,174,96,0.20)',  colour:'#1e8449', icon:'#27ae60' },
-  9: { bg:'rgba(142,68,173,0.08)', border:'rgba(142,68,173,0.20)',colour:'#7d3c98', icon:'#8e44ad' },
-};
+const GRADE_PALETTE = [
+  { bg:'rgba(52,152,219,0.08)', border:'rgba(52,152,219,0.20)', colour:'#2e86c1', icon:'#3498db' },
+  { bg:'rgba(39,174,96,0.08)',  border:'rgba(39,174,96,0.20)',  colour:'#1e8449', icon:'#27ae60' },
+  { bg:'rgba(142,68,173,0.08)', border:'rgba(142,68,173,0.20)', colour:'#7d3c98', icon:'#8e44ad' },
+  { bg:'rgba(230,126,34,0.08)', border:'rgba(230,126,34,0.22)', colour:'#b9610f', icon:'#e67e22' },
+];
+/* any grade gets a colour: the same grade always has the same one */
+const colourForGrade = (g) => GRADE_PALETTE[((Number(g) || 0) % GRADE_PALETTE.length + GRADE_PALETTE.length) % GRADE_PALETTE.length];
 
 const renderGrid = () => {
   const grid = document.getElementById('classesGrid');
@@ -84,7 +86,7 @@ const renderGrid = () => {
   }
 
   grid.innerHTML = state.classes.map(cls => {
-    const col = gradeColours[cls.grade] || gradeColours[7];
+    const col = colourForGrade(cls.grade);
     const pct = cls.capacity
       ? Math.min(100, Math.round(((cls.studentCount||0)/cls.capacity)*100))
       : 0;
@@ -216,13 +218,12 @@ const openAddModal = () => {
   state.editingId = null;
   document.getElementById('classModalTitle').textContent = 'Add New Class';
   document.getElementById('saveClassText').textContent   = 'Save Class';
-  document.getElementById('className').value    = '';
   document.getElementById('classGrade').value   = '';
   document.getElementById('classStream').value  = '';
-  document.getElementById('classCapacity').value= '45';
+  updateClassPreview();
   document.getElementById('classModalOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
-  document.getElementById('className').focus();
+  document.getElementById('classGrade').focus();
 };
 
 const openEditModal = async (id) => {
@@ -232,10 +233,9 @@ const openEditModal = async (id) => {
   state.editingId = id;
   document.getElementById('classModalTitle').textContent = 'Edit Class';
   document.getElementById('saveClassText').textContent   = 'Update Class';
-  document.getElementById('className').value    = cls.name;
   document.getElementById('classGrade').value   = cls.grade;
   document.getElementById('classStream').value  = cls.stream || '';
-  document.getElementById('classCapacity').value= cls.capacity || 45;
+  updateClassPreview();
   document.getElementById('classModalOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 };
@@ -246,27 +246,45 @@ const closeClassModal = () => {
   state.editingId = null;
 };
 
-const saveClass = async () => {
-  const name     = document.getElementById('className').value.trim();
-  const grade    = document.getElementById('classGrade').value;
-  const stream   = document.getElementById('classStream').value.trim();
-  const capacity = document.getElementById('classCapacity').value;
+/* "east" / "EAST" / "north east" -> "East" / "East" / "North East" */
+const tidyStream = (t) => String(t || '').trim().replace(/\s+/g, ' ')
+  .toLowerCase().replace(/(^|[\s-])([a-z])/g, (m, a, b) => a + b.toUpperCase());
 
-  if (!name) {
-    showToast('Class name is required.', 'warning');
-    document.getElementById('className').focus();
-    return;
-  }
+const classNameFrom = (grade, stream) => `Grade ${grade}${stream ? ' ' + stream : ''}`;
+
+/* shows the name the class will get, while typing */
+const updateClassPreview = () => {
+  const box = document.getElementById('classPreview');
+  if (!box) return;
+  const g = document.getElementById('classGrade')?.value.trim();
+  const s = tidyStream(document.getElementById('classStream')?.value);
+  box.textContent = g ? `Class will be named: ${classNameFrom(g, s)}` : '';
+};
+document.getElementById('classGrade')?.addEventListener('input', updateClassPreview);
+document.getElementById('classStream')?.addEventListener('input', updateClassPreview);
+
+const saveClass = async () => {
+  const grade    = document.getElementById('classGrade').value.trim();
+  const stream   = tidyStream(document.getElementById('classStream').value);
 
   if (!grade) {
-    showToast('Please select a grade.', 'warning');
+    showToast('Type the grade first, e.g. 7.', 'warning');
+    document.getElementById('classGrade').focus();
     return;
   }
+
+  if (!/^\d{1,2}$/.test(grade) || Number(grade) < 1 || Number(grade) > 12) {
+    showToast('The grade must be a whole number from 1 to 12.', 'warning');
+    document.getElementById('classGrade').focus();
+    return;
+  }
+
+  const name = classNameFrom(Number(grade), stream);
 
   const btn = document.getElementById('saveClassBtn');
   if (btn) btn.disabled = true;
 
-  const payload = { name, grade: Number(grade), stream, capacity: Number(capacity) };
+  const payload = { name, grade: Number(grade), stream };
 
   let result;
   if (state.editingId) {

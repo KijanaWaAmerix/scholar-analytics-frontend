@@ -108,7 +108,7 @@
     const text = aoa.slice(0, hr).map(row => (row || []).filter(c => typeof c === 'string').join(' ')).join(' ')
       .replace(/\s+/g, ' ');
     const out = {};
-    let m = text.match(/grade\s*([6-9])\b/i);                 if (m) out.grade = m[1];
+    let m = text.match(/grade\s*(\d{1,2})\b/i);              if (m) out.grade = m[1];
     m = text.match(/term\s*([123])\b/i) || text.match(/\bt\s*([123])\b/i); if (m) out.term = m[1];
     if (/end\s*-?\s*(of\s*)?term|\beot\b/i.test(text)) out.exam = 'End Term';
     else if (/mid\s*-?\s*term/i.test(text))               out.exam = 'Mid-term';
@@ -174,7 +174,21 @@
     resolutions: state.resolutions,
   });
 
+  /* The grade list comes from the classes the school has made (no fixed Grade 7-9) */
+  const loadGrades = async () => {
+    const r = await API.get('/classes');
+    const grades = [...new Set((r?.ok ? (r.data.classes || []) : []).map(c => Number(c.grade)).filter(Boolean))]
+      .sort((a, b) => a - b);
+    const keep = el.gGrade.value;
+    el.gGrade.innerHTML = '<option value="">-- Grade --</option>' +
+      grades.map(g => `<option value="${g}">Grade ${g}</option>`).join('');
+    if (keep && grades.includes(Number(keep))) el.gGrade.value = keep;
+  };
+  el.gGrade.innerHTML = '<option value="">-- Grade --</option>';        // no preset grade
+  loadGrades();
+
   const validSettings = () => {
+    if (!el.gGrade.value) { toast('Choose the grade first.', 'warning'); el.gGrade.focus(); return false; }
     if (!el.gExam.value.trim()) { toast('Type the exam name first (e.g. Mid-term).', 'warning'); el.gExam.focus(); return false; }
     return true;
   };
