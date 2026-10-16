@@ -802,11 +802,34 @@ const SHEET_SUBJECTS = [
   ['CAS', 'Creative Arts'], ['AGN', 'Agriculture'], ['PRE-TECH', 'Pre-Technical'],
 ];
 
+const streamLabelOf = (c) => c.stream || c.name;
+
+/* "grade:7" = every class of Grade 7 together (only offered when a grade has 2+ classes) */
+const blankSheetTargets = (value) => {
+  if (String(value || '').startsWith('grade:')) {
+    const g = value.slice(6);
+    return state.classes.filter(c => String(c.grade) === g);
+  }
+  const one = state.classes.find(c => c._id === value);
+  return one ? [one] : [];
+};
+
 document.getElementById('blankSheetBtn')?.addEventListener('click', () => {
   const sel = document.getElementById('blankSheetClass');
   if (sel) {
+    const byGrade = {};
+    state.classes.forEach(c => {
+      if (c.grade === undefined || c.grade === null) return;
+      (byGrade[c.grade] = byGrade[c.grade] || []).push(c);
+    });
+    const whole = Object.entries(byGrade)
+      .filter(([, list]) => list.length > 1)
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .map(([g, list]) =>
+        `<option value="grade:${escapeHtml(g)}">Grade ${escapeHtml(g)} — Whole Grade (${escapeHtml(list.map(streamLabelOf).join(' + '))})</option>`).join('');
     sel.innerHTML = '<option value="">-- Select Class --</option>' +
-      state.classes.map(c => `<option value="${c._id}">${escapeHtml(c.name)}</option>`).join('');
+      (whole ? `<optgroup label="Whole grade (all streams on one sheet)">${whole}</optgroup>` : '') +
+      `<optgroup label="Single class">${state.classes.map(c => `<option value="${c._id}">${escapeHtml(c.name)}</option>`).join('')}</optgroup>`;
     if (state.filters.class) sel.value = state.filters.class;   // use the class already chosen in the filter
   }
   const yr = document.getElementById('blankSheetYear');
@@ -837,9 +860,16 @@ const makeBlankSheet = async (kind) => {
   buttons.forEach(b => { if (b) b.disabled = true; });
 
   try {
-    const cls = state.classes.find(c => c._id === classId);
-    const learners = (await fetchAllLearners(classId))
-      .sort((a, b) => a.fullName.trim().localeCompare(b.fullName.trim(), 'en', { sensitivity: 'base' }));
+    const targets = blankSheetTargets(classId);
+    if (!targets.length) { showToast('Class not found. Please select again.', 'warning'); return; }
+    const multi = targets.length > 1;
+    const grade = multi ? String(targets[0].grade) : '';
+
+    const learners = [];
+    for (const c of targets) {
+      (await fetchAllLearners(c._id)).forEach(l => learners.push({ ...l, streamName: streamLabelOf(c) }));
+    }
+    learners.sort((a, b) => a.fullName.trim().localeCompare(b.fullName.trim(), 'en', { sensitivity: 'base' }));
 
     if (!learners.length) {
       showToast('That class has no learners yet. Import them first.', 'warning');
@@ -854,7 +884,8 @@ const makeBlankSheet = async (kind) => {
 
     const info = {
       schoolName: school.schoolName || '',
-      className : cls?.name || '',
+      className : multi ? `Grade ${grade} (${targets.map(streamLabelOf).join(' + ')})` : (targets[0].name || ''),
+      multi,
       term: document.getElementById('blankSheetTerm')?.value,
       exam: document.getElementById('blankSheetExam')?.value.trim(),
       year: document.getElementById('blankSheetYear')?.value.trim(),
@@ -879,11 +910,11 @@ document.getElementById('blankSheetXlsx')?.addEventListener('click', () => makeB
 
 /* Excel version: same layout as a broad sheet (names in column A, then the 9 subjects),
    so a teacher can fill it in and it can be uploaded straight back on the Import Marks page. */
-function drawBlankClassExcel({ schoolName, className, term, exam, year, learners }) {
+function drawBlankClassExcel({ schoolName, className, term, exam, year, learners, multi }) {
   const meta = [className && `CLASS: ${className}`, term && `TERM ${term}`, exam && `EXAM: ${exam}`, year && `YEAR: ${year}`]
     .filter(Boolean).join('   |   ');
 
-  const header = ['NAMES OF STUDENTS', ...SHEET_SUBJECTS.map(([code]) => code), 'ADM NO'];
+  const header = ['NAMES OF STUDENTS', ...SHEET_SUBJECTS.map(([code]) => code), 'ADM NO', ...(multi ? ['CLASS'] : [])];
   const aoa = [
     [(schoolName || 'SCHOOL').toUpperCase()],
     ['CLASS MARKS SHEET — ' + meta],
@@ -894,11 +925,12 @@ function drawBlankClassExcel({ schoolName, className, term, exam, year, learners
       l.fullName.replace(/\s+/g, ' ').trim().toUpperCase(),
       ...SHEET_SUBJECTS.map(() => ''),
       l.admissionNo || '',
+      ...(multi ? [String(l.streamName || '').toUpperCase()] : []),
     ]),
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 34 }, ...SHEET_SUBJECTS.map(() => ({ wch: 9 })), { wch: 12 }];
+  ws['!cols'] = [{ wch: 34 }, ...SHEET_SUBJECTS.map(() => ({ wch: 9 })), { wch: 12 }, ...(multi ? [{ wch: 12 }] : [])];
   ws['!freeze'] = { xSplit: 1, ySplit: 5 };
   ws['!views'] = [{ state: 'frozen', xSplit: 1, ySplit: 5 }];
 
@@ -909,22 +941,32 @@ function drawBlankClassExcel({ schoolName, className, term, exam, year, learners
   XLSX.writeFile(wb, `Class_Sheet_${safe(className) || 'Class'}${term ? '_T' + term : ''}_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
-function drawBlankClassSheet({ schoolName, className, term, exam, year, learners }) {
+function drawBlankClassSheet({ schoolName, className, term, exam, year, learners, multi }) {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const PW = pdf.internal.pageSize.getWidth();
   const PH = pdf.internal.pageSize.getHeight();
   const M  = 10;
 
-  const colNo = 9, colName = 62, colAdm = 22;
-  const subjW = (PW - 2 * M - colNo - colName - colAdm) / SHEET_SUBJECTS.length;
+  const colNo = 9, colAdm = 22, colCls = multi ? 20 : 0;
+  const colName = multi ? 56 : 62;
+  const subjW = (PW - 2 * M - colNo - colName - colCls - colAdm) / SHEET_SUBJECTS.length;
   const headH = 11, rowH = 7.4, headerBlockH = 24, footerH = 8;
-  const tableTop = M + headerBlockH;
-  const rowsPerPage = Math.floor((PH - M - footerH - tableTop - headH) / rowH);
 
-  const xs = [M, M + colNo, M + colNo + colName, M + colNo + colName + colAdm];
-  SHEET_SUBJECTS.forEach((_, i) => xs.push(xs[3] + subjW * (i + 1)));
+  /* The school name and details are printed on the first page only; later pages carry just the
+     table header, so more learners fit per page. */
+  const topFirst = M + headerBlockH;
+  const topNext  = M;
+  const capFirst = Math.floor((PH - M - footerH - topFirst - headH) / rowH);
+  const capNext  = Math.floor((PH - M - footerH - topNext  - headH) / rowH);
+
+  const xs = [M, M + colNo, M + colNo + colName];
+  if (multi) xs.push(xs[2] + colCls);
+  xs.push(xs[xs.length - 1] + colAdm);
+  const subjStart = xs.length - 1;
+  SHEET_SUBJECTS.forEach((_, i) => xs.push(xs[subjStart] + subjW * (i + 1)));
   const right = xs[xs.length - 1];
+  const xAdm = multi ? xs[3] : xs[2];
 
   const meta = [
     className && `CLASS: ${className}`,
@@ -933,39 +975,52 @@ function drawBlankClassSheet({ schoolName, className, term, exam, year, learners
     year && `YEAR: ${year}`,
   ].filter(Boolean).join('   |   ');
 
-  const pages = Math.ceil(learners.length / rowsPerPage);
-  /* one extra line for the teacher's signatures on the last page */
-  const sigOnLast = (learners.length - (pages - 1) * rowsPerPage) < rowsPerPage;
-  const totalPages = sigOnLast ? pages : pages + 1;
+  /* split learners into pages; the signature row needs one free line after the last learner */
+  const pageRows = [];
+  let rest = learners.slice(), first = true;
+  while (rest.length) {
+    const cap = first ? capFirst : capNext;
+    pageRows.push(rest.splice(0, cap));
+    first = false;
+  }
+  if (!pageRows.length) pageRows.push([]);
+  const lastCap = pageRows.length === 1 ? capFirst : capNext;
+  const sigOnLast = pageRows[pageRows.length - 1].length < lastCap;
+  if (!sigOnLast) pageRows.push([]);
+  const totalPages = pageRows.length;
 
   pdf.setDrawColor(0); pdf.setTextColor(0);
 
-  const drawHeader = () => {
-    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(14);
-    pdf.text((schoolName || 'SCHOOL').toUpperCase(), M, M + 5);
-    pdf.setFontSize(10);
-    pdf.text('CLASS MARKS SHEET', PW - M, M + 5, { align: 'right' });
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9.5);
-    pdf.text(meta, M, M + 12);
-    pdf.text('Class teacher: ................................................', PW - M, M + 12, { align: 'right' });
-    pdf.setLineWidth(0.5); pdf.line(M, M + 15, PW - M, M + 15);
+  const drawHeader = (isFirst) => {
+    if (isFirst) {
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(14);
+      pdf.text((schoolName || 'SCHOOL').toUpperCase(), M, M + 5);
+      pdf.setFontSize(10);
+      pdf.text('CLASS MARKS SHEET', PW - M, M + 5, { align: 'right' });
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9.5);
+      pdf.text(meta, M, M + 12);
+      pdf.text('Class teacher: ................................................', PW - M, M + 12, { align: 'right' });
+      pdf.setLineWidth(0.5); pdf.line(M, M + 15, PW - M, M + 15);
+    }
 
     /* table header */
-    const y = tableTop;
+    const y = isFirst ? topFirst : topNext;
     pdf.setLineWidth(0.3);
     pdf.rect(M, y, right - M, headH);
     xs.slice(1, -1).forEach(x => pdf.line(x, y, x, y + headH));
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8);
     pdf.text('NO', xs[0] + colNo / 2, y + 6.5, { align: 'center' });
     pdf.text('LEARNER NAME', xs[1] + 2, y + 6.5);
-    pdf.text('ADM NO', xs[2] + colAdm / 2, y + 6.5, { align: 'center' });
+    if (multi) pdf.text('CLASS', xs[2] + colCls / 2, y + 6.5, { align: 'center' });
+    pdf.text('ADM NO', xAdm + colAdm / 2, y + 6.5, { align: 'center' });
     SHEET_SUBJECTS.forEach(([code, full], i) => {
-      const cx = xs[3 + i] + subjW / 2;
+      const cx = xs[subjStart + i] + subjW / 2;
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8.5);
       pdf.text(code, cx, y + 4.6, { align: 'center' });
       pdf.setFont('helvetica', 'normal'); pdf.setFontSize(5.8);
       pdf.text(full, cx, y + 8.4, { align: 'center' });
     });
+    return y + headH;
   };
 
   const drawRowLines = (y, label) => {
@@ -978,36 +1033,32 @@ function drawBlankClassSheet({ schoolName, className, term, exam, year, learners
     }
   };
 
-  for (let p = 0; p < pages; p++) {
+  let numbered = 0;
+  pageRows.forEach((chunk, p) => {
     if (p > 0) pdf.addPage();
-    drawHeader();
-    const chunk = learners.slice(p * rowsPerPage, (p + 1) * rowsPerPage);
+    const y0 = drawHeader(p === 0);
     chunk.forEach((l, i) => {
-      const y = tableTop + headH + i * rowH;
+      const y = y0 + i * rowH;
       drawRowLines(y);
       pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8.5);
-      pdf.text(String(p * rowsPerPage + i + 1), xs[0] + colNo / 2, y + rowH / 2 + 1.1, { align: 'center' });
+      pdf.text(String(++numbered), xs[0] + colNo / 2, y + rowH / 2 + 1.1, { align: 'center' });
       let name = l.fullName.replace(/\s+/g, ' ').trim().toUpperCase();
       while (pdf.getTextWidth(name) > colName - 4 && name.length > 4) name = name.slice(0, -1);
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9);
       pdf.text(name, xs[1] + 2, y + rowH / 2 + 1.2);
+      if (multi) {
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8);
+        pdf.text(String(l.streamName || '').toUpperCase(), xs[2] + colCls / 2, y + rowH / 2 + 1.1, { align: 'center' });
+      }
       if (l.admissionNo) {
         pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8);
-        pdf.text(String(l.admissionNo), xs[2] + colAdm / 2, y + rowH / 2 + 1.1, { align: 'center' });
+        pdf.text(String(l.admissionNo), xAdm + colAdm / 2, y + rowH / 2 + 1.1, { align: 'center' });
       }
     });
 
     /* teacher signature row, directly under the last learner */
-    if (p === pages - 1 && sigOnLast) {
-      drawRowLines(tableTop + headH + chunk.length * rowH, 'Subject teacher (name & sign)');
-    }
-  }
-
-  if (!sigOnLast) {
-    pdf.addPage();
-    drawHeader();
-    drawRowLines(tableTop + headH, 'Subject teacher (name & sign)');
-  }
+    if (p === totalPages - 1) drawRowLines(y0 + chunk.length * rowH, 'Subject teacher (name & sign)');
+  });
 
   /* page numbers */
   for (let p = 1; p <= totalPages; p++) {
