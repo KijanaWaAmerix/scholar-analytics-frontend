@@ -355,7 +355,7 @@ const saveExam = async () => {
   const name   = (document.getElementById('examName').value || '').trim().replace(/\s+/g, ' ');
   const target = document.getElementById('examClass').value;
   const term   = document.getElementById('examTerm').value;
-  const year   = document.getElementById('examYear').value || '2024';
+  const year   = document.getElementById('examYear').value || defaultExamYear();
 
   if (!name || !target || !term) {
     showToast('Please fill all required fields.', 'warning');
@@ -427,7 +427,7 @@ const seedAllExams = async () => {
   const btn = document.getElementById('seedExamsBtn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Seeding...'; }
 
-  const result = await API.post('/exams/seed-all', { academicYear: '2024', names });
+  const result = await API.post('/exams/seed-all', { academicYear: defaultExamYear(), names });
 
   if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Seed All Exams'; }
 
@@ -486,3 +486,13 @@ enhanceModal();
 ensureCheckboxHeader();
 ensureBulkDeleteButton();
 loadAll();
+
+/* Academic year: the school's saved year, else this calendar year (never a fixed one) */
+function defaultExamYear() {
+  const sc = (typeof Auth !== 'undefined' && Auth.getSchool && Auth.getSchool()) || {};
+  return String(sc.academic?.currentYear || sc.currentYear || new Date().getFullYear());
+}
+(() => {
+  const yi = document.getElementById('examYear');
+  if (yi && (!yi.value || yi.value === '2024')) yi.value = defaultExamYear();
+})();

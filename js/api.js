@@ -387,8 +387,10 @@ const initSidebar = (user) => {
   const school = Auth.getSchool();
   const currentTermEl = document.getElementById('currentTerm');
   if (currentTermEl && school) {
-    currentTermEl.textContent =
-      `Term ${school.currentTerm || 1} • ${school.currentYear || 2024}`;
+    /* the saved year/term live under school.academic; fall back to this year, never a fixed one */
+    const term = school.academic?.currentTerm || school.currentTerm || 1;
+    const year = school.academic?.currentYear || school.currentYear || new Date().getFullYear();
+    currentTermEl.textContent = `Term ${term} • ${year}`;
   }
 
   /* Sidebar toggle */
