@@ -1456,7 +1456,8 @@ const buildClassSheet = (allResults, s) => {
 
   /* Most improved (VAP) */
   const mostImproved = results.filter(r => r.vap !== null && r.vap !== undefined && r.vap > 0)
-    .sort((a, b) => b.vap - a.vap).slice(0, 5);
+    .sort((a, b) => b.vap - a.vap).slice(0, 3);          // top 3 most improved
+  const hasPrevExam = results.some(r => r.vap !== null && r.vap !== undefined);
 
   /* ── Style helpers: white, black text, 1px gridlines ── */
   const levelShort = (code) => code
@@ -1696,12 +1697,15 @@ const buildClassSheet = (allResults, s) => {
     </div>
   </div>
 
+  ${bar('Top 3 most improved learners (VAP)')}
   ${mostImproved.length ? `
-  ${bar('Most improved learners (VAP)')}
   <table style="width:100%;border-collapse:collapse;">
     <thead><tr>${th('Rank')}${th('Learner name', 'left')}${th('Prev points')}${th('Current points')}${th('VAP (+/-)')}</tr></thead>
     <tbody>${improvedRows}</tbody>
-  </table>` : ''}
+  </table>` : `
+  <div style="padding:10px 14px;font-size:11px;">${hasPrevExam
+    ? 'No learner improved on the previous exam.'
+    : 'No earlier exam found for this class. Once an earlier exam has marks, the three most improved learners appear here.'}</div>`}
 
   <!-- Signatures -->
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:3px solid ${LINE};margin-top:0;">
