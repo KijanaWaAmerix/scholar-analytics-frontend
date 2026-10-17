@@ -812,6 +812,7 @@ async function fetchResults() {
   state.subjects  = data.subjects || [];
   state.results   = computeResults(data.results || []);
   state.loadedKey = key;
+  state.vapInfo   = data.vapInfo || null;      // which earlier exam each class was compared with
 
   /* Show the "Subject Teachers" boxes for the class(es) in scope */
   renderTeacherInputs();
@@ -1705,7 +1706,8 @@ const buildClassSheet = (allResults, s) => {
   </table>` : `
   <div style="padding:10px 14px;font-size:11px;">${hasPrevExam
     ? 'No learner improved on the previous exam.'
-    : 'No earlier exam found for this class. Once an earlier exam has marks, the three most improved learners appear here.'}</div>`}
+    : 'No earlier exam with marks was found for this class, so VAP cannot be worked out. The three most improved learners will appear once an earlier exam (an earlier term or year, or created before this one in the same term) has marks.'}
+    ${(state.vapInfo || []).length ? `<div style="margin-top:6px;font-size:10px;">Compared with: ${state.vapInfo.map(v => `${escHtml(prettyClass(v.class))} — ${v.previous ? escHtml(v.previous.name) + ' (Term ' + escHtml(v.previous.term) + ', ' + escHtml(v.previous.year) + ')' : 'no earlier exam'}`).join(' &nbsp;|&nbsp; ')}</div>` : ''}</div>`}
 
   <!-- Signatures -->
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:3px solid ${LINE};margin-top:0;">
