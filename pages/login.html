@@ -321,6 +321,181 @@
       .suspension-icon { width: 72px; height: 72px; font-size: 30px; }
     }
   </style>
+
+  <!-- ═══════════ Login theme: globe · light navy · maroon card ═══════════
+       Loaded after style.css so it wins. Visual only: ids, hooks and scripts untouched. -->
+  <style>
+    :root {
+      --lg-navy: #2b4a85;
+      --lg-navy-deep: #1b3363;
+      --lg-maroon: #7a1c2c;
+      --lg-maroon-top: #85202f;
+      --lg-maroon-deep: #64172a;
+      --lg-gold: #f2c66d;
+      --lg-gold-hover: #f7d487;
+      --lg-text: rgba(255,255,255,.94);
+      --lg-muted: rgba(255,255,255,.72);
+      --lg-line: rgba(255,255,255,.14);
+    }
+
+    body.login-body {
+      margin: 0; min-height: 100vh; color: var(--lg-text);
+      font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background: linear-gradient(155deg, var(--lg-navy) 0%, var(--lg-navy-deep) 100%) !important;
+    }
+    body.login-body::before { display: none !important; }
+
+    body.login-body .login-wrapper {
+      display: grid !important; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      width: 100%; max-width: none !important; min-height: 100vh; margin: 0; padding: 0;
+      background: transparent !important; box-shadow: none !important; border-radius: 0 !important;
+    }
+
+    /* ── left ── */
+    body.login-body .login-left {
+      display: flex !important; flex-direction: column; align-items: center; justify-content: center;
+      gap: 28px; padding: 48px 40px; background: transparent !important; text-align: center;
+    }
+    body.login-body .login-left .deco-circle { display: none !important; }
+    .globe-hero { width: 100%; display: grid; place-items: center; }
+    #loginGlobe { width: min(420px, 100%); aspect-ratio: 1; display: block; }
+
+    body.login-body .login-left .brand { margin: 0; text-align: center; }
+    body.login-body .login-left .brand-icon { display: none !important; }
+    body.login-body .login-left .brand-name {
+      margin: 0; font-family: 'Playfair Display', Georgia, serif; font-size: 2rem; font-weight: 700;
+      letter-spacing: -.01em; color: #fff;
+    }
+    body.login-body .login-left .brand-tagline { margin: 8px 0 0; font-size: 1rem; color: var(--lg-muted); }
+    .brand-warm { margin: 4px 0 0; font-size: .95rem; color: var(--lg-muted); }
+
+    body.login-body .features-list {
+      display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0; width: 100%; max-width: 480px; margin: 0; text-align: left;
+      border-top: 1px solid var(--lg-line);
+    }
+    body.login-body .feature-item {
+      display: flex; gap: 12px; align-items: flex-start; padding: 16px 14px 16px 0;
+      border-bottom: 1px solid var(--lg-line);
+    }
+    body.login-body .feature-item > i { color: var(--lg-gold) !important; margin-top: 3px; font-size: .95rem; width: 18px; text-align: center; }
+    body.login-body .feature-item h4 { margin: 0 0 2px; font-size: .88rem; font-weight: 600; color: #fff !important; }
+    body.login-body .feature-item p { margin: 0; font-size: .78rem; line-height: 1.45; color: var(--lg-muted) !important; }
+
+    /* ── right ── */
+    body.login-body .login-right {
+      display: flex !important; flex-direction: column; align-items: center; justify-content: center;
+      gap: 24px; padding: 48px 40px; background: transparent !important;
+    }
+    body.login-body .login-card {
+      width: 100%; max-width: 420px; padding: 40px 36px 32px; color: var(--lg-text);
+      background: linear-gradient(180deg, var(--lg-maroon-top) 0%, var(--lg-maroon) 45%, var(--lg-maroon-deep) 100%) !important;
+      border: 1px solid rgba(255,255,255,.10) !important; border-radius: 20px !important;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 40px 80px -24px rgba(6,14,38,.65), 0 8px 24px -8px rgba(6,14,38,.4) !important;
+    }
+    .card-heart, .card-care { display: none !important; }
+
+    body.login-body .login-card-header { margin: 0 0 28px; text-align: left; }
+    body.login-body .login-card-header h2 {
+      margin: 0 0 8px; font-family: 'Playfair Display', Georgia, serif; font-size: 1.75rem; font-weight: 700;
+      letter-spacing: -.01em; color: #fff !important;
+    }
+    body.login-body .login-card-header p { margin: 0; font-size: .92rem; line-height: 1.5; color: var(--lg-muted) !important; }
+
+    body.login-body .login-card .form-group { margin: 0 0 18px; }
+    body.login-body .login-card .form-group label {
+      display: block; margin: 0 0 8px; font-size: .85rem; font-weight: 600; color: var(--lg-text) !important;
+    }
+    body.login-body .login-card .form-group label i { display: none !important; }
+
+    body.login-body .login-card input[type="email"],
+    body.login-body .login-card input[type="text"],
+    body.login-body .login-card input[type="password"] {
+      width: 100%; height: 48px; padding: 0 14px !important; font-size: .95rem; font-family: inherit;
+      color: #1a1a1a !important; background: #fff !important;
+      border: 1px solid transparent !important; border-radius: 10px !important; box-shadow: none !important;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    body.login-body .login-card input[type="password"] { padding-right: 48px !important; }
+    body.login-body .login-card input::placeholder { color: #8b909a; }
+    body.login-body .login-card input:focus {
+      outline: none; border-color: var(--lg-gold) !important; box-shadow: 0 0 0 3px rgba(242,198,109,.35) !important;
+    }
+    body.login-body .login-card .toggle-password { color: #6b7280 !important; }
+    body.login-body .login-card .toggle-password:hover { color: var(--lg-maroon) !important; }
+    body.login-body .login-card .field-error { margin-top: 6px; font-size: .78rem; color: #ffd0d8 !important; }
+
+    body.login-body .login-card .form-options { margin: 4px 0 24px; font-size: .85rem; }
+    body.login-body .login-card .checkbox-label { color: var(--lg-muted) !important; }
+    body.login-body .login-card input[type="checkbox"] { accent-color: var(--lg-gold); }
+    body.login-body .login-card .forgot-link { color: var(--lg-gold) !important; font-weight: 600; text-decoration: none; }
+    body.login-body .login-card .forgot-link:hover { text-decoration: underline; }
+
+    body.login-body .login-card .btn-login {
+      width: 100%; height: 48px; padding: 0 20px; font-size: .98rem; font-weight: 700; font-family: inherit;
+      color: #4a1220 !important; background: var(--lg-gold) !important;
+      border: 0 !important; border-radius: 10px !important; box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 6px 14px -4px rgba(0,0,0,.35) !important;
+      cursor: pointer; transition: background .15s ease, transform .1s ease;
+    }
+    body.login-body .login-card .btn-login:hover { background: var(--lg-gold-hover) !important; }
+    body.login-body .login-card .btn-login:active { transform: translateY(1px); }
+    body.login-body .login-card .btn-login:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+    body.login-body .login-card .btn-login:disabled { opacity: .75; cursor: not-allowed; }
+
+    body.login-body .login-card .alert-error {
+      margin: 0 0 18px; padding: 12px 14px; border-radius: 10px; font-size: .85rem;
+      background: rgba(0,0,0,.22) !important; border: 1px solid rgba(255,255,255,.18) !important; color: #ffe1e5 !important;
+    }
+    body.login-body .login-card-footer {
+      margin: 24px 0 0; padding-top: 20px; text-align: center; font-size: .85rem;
+      border-top: 1px solid var(--lg-line) !important;
+    }
+    body.login-body .login-card-footer p { margin: 0; color: var(--lg-muted) !important; }
+    body.login-body .login-card-footer a { color: var(--lg-gold) !important; font-weight: 600; text-decoration: none; }
+    body.login-body .login-card-footer a:hover { text-decoration: underline; }
+    body.login-body .login-bottom-note { margin: 0; font-size: .78rem; text-align: center; color: var(--lg-muted) !important; }
+
+    /* keep every box inside the card */
+    body.login-body .login-card,
+    body.login-body .login-card *,
+    body.login-body .login-card *::before,
+    body.login-body .login-card *::after { box-sizing: border-box; }
+    body.login-body .login-card { overflow: hidden; min-width: 0; }
+    body.login-body .login-card form,
+    body.login-body .login-card .form-group,
+    body.login-body .login-card .input-wrapper,
+    body.login-body .login-card .password-wrapper {
+      width: 100% !important; max-width: 100% !important; min-width: 0; margin-left: 0; margin-right: 0;
+    }
+    body.login-body .login-card .input-wrapper,
+    body.login-body .login-card .password-wrapper { position: relative; display: block; }
+    body.login-body .login-card input[type="email"],
+    body.login-body .login-card input[type="text"],
+    body.login-body .login-card input[type="password"] {
+      display: block; width: 100% !important; max-width: 100% !important; min-width: 0;
+    }
+    body.login-body .login-card .toggle-password {
+      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+      width: 36px; height: 36px; padding: 0; display: grid; place-items: center;
+      background: transparent; border: 0; cursor: pointer;
+    }
+    body.login-body .login-card .form-options { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+    @media (max-width: 900px) {
+      body.login-body .login-wrapper { grid-template-columns: 1fr; }
+      body.login-body .login-left { padding: 28px 20px 0; gap: 12px; }
+      #loginGlobe { width: min(200px, 56vw); }
+      body.login-body .login-left .brand-name { font-size: 1.5rem; }
+      body.login-body .login-left .brand-tagline,
+      .brand-warm, body.login-body .features-list { display: none !important; }
+      body.login-body .login-right { padding: 20px 16px 32px; }
+      body.login-body .login-card { padding: 32px 24px 26px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      body.login-body .login-card .btn-login, body.login-body .login-card input { transition: none; }
+    }
+  </style>
 </head>
 
 <body class="login-body">
@@ -424,12 +599,18 @@
       <div class="deco-circle deco-circle-2"></div>
       <div class="deco-circle deco-circle-3"></div>
 
+      <!-- Spinning globe -->
+      <div class="globe-hero">
+        <canvas id="loginGlobe" width="800" height="800" role="img" aria-label="Rotating globe connecting schools around the world"></canvas>
+      </div>
+
       <div class="brand">
         <div class="brand-icon">
           <i class="fas fa-graduation-cap"></i>
         </div>
         <h1 class="brand-name">Scholar Analytics</h1>
         <p class="brand-tagline">Empowering Education Through Data</p>
+        <p class="brand-warm">Every learner matters. Every day counts.</p>
       </div>
 
       <div class="features-list">
@@ -477,7 +658,7 @@
 
         <div class="login-card-header">
           <h2>Welcome Back</h2>
-          <p>Sign in to your Scholar Analytics account</p>
+          <p>Sign in to your Scholar Analytics account to continue.</p>
         </div>
 
         <div class="alert alert-error" id="loginAlert" style="display:none;">
@@ -564,8 +745,8 @@
       </div>
 
       <p class="login-bottom-note">
-        &copy; 2030 Scholar Analytics &mdash;
-        Junior Secondary School Management System
+        &copy; 2026 Scholar Analytics &mdash;
+        School Management System
       </p>
 
     </div>
@@ -618,5 +799,141 @@
 <script src="../js/api.js?v=2"></script>
 <script src="../js/main.js?v=2"></script>
 <script src="../js/forgot-password.js?v=1"></script>
+
+<!-- Real globe: d3 (orthographic projection) + world-atlas country shapes.
+     If the CDN files can't load, it falls back to a simple wireframe globe. -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script>
+(function () {
+  var c = document.getElementById('loginGlobe');
+  if (!c || !c.getContext) return;
+  var HIGHLIGHT = '404';   // country shown in gold (ISO numeric code: 404 = Kenya). Set to '' for none.
+  var START_LON = 37, START_LAT = -8;  // globe opens facing East Africa
+  var DATA_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json';
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function fallback() {
+    var ctx = c.getContext('2d');
+      var W = c.width, R = W * 0.42, cx = W / 2, cy = W / 2;
+      var tilt = 0.41, angle = 0;
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var spots = [[-1.3,36.8],[51.5,-0.1],[40.7,-74],[28.6,77.2],[35.7,139.7],[-33.9,151.2],[-23.5,-46.6],[30,31.2],[6.5,3.4],[55.7,37.6],[1.3,103.8],[-26.2,28],[19.4,-99.1],[48.9,2.3]];
+    
+      function project(lat, lon, rot) {
+        var la = lat * Math.PI / 180, lo = lon * Math.PI / 180 + rot;
+        var x = Math.cos(la) * Math.sin(lo), y = Math.sin(la), z = Math.cos(la) * Math.cos(lo);
+        var y2 = y * Math.cos(tilt) - z * Math.sin(tilt);
+        var z2 = y * Math.sin(tilt) + z * Math.cos(tilt);
+        return { x: cx + R * x, y: cy - R * y2, z: z2 };
+      }
+      function line(points) {
+        ctx.beginPath(); var pen = false;
+        for (var i = 0; i < points.length; i++) {
+          var p = points[i];
+          if (p.z >= 0) { if (!pen) { ctx.moveTo(p.x, p.y); pen = true; } else ctx.lineTo(p.x, p.y); } else pen = false;
+        }
+        ctx.stroke();
+      }
+      function draw(t) {
+        ctx.clearRect(0, 0, W, W);
+        var g = ctx.createRadialGradient(cx - R * .35, cy - R * .4, R * .1, cx, cy, R);
+        g.addColorStop(0, 'rgba(130,170,235,.6)'); g.addColorStop(1, 'rgba(20,40,90,.6)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+    
+        ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(180,200,243,.5)';
+        var lat, lon, pts;
+        for (lat = -60; lat <= 60; lat += 30) { pts = []; for (lon = -180; lon <= 180; lon += 4) pts.push(project(lat, lon, angle)); line(pts); }
+        for (lon = -180; lon < 180; lon += 30) { pts = []; for (lat = -90; lat <= 90; lat += 4) pts.push(project(lat, lon, angle)); line(pts); }
+    
+        ctx.fillStyle = '#fff';
+        for (lat = -75; lat <= 75; lat += 15) {
+          var step = 15 / Math.max(Math.cos(lat * Math.PI / 180), .25);
+          for (lon = -180; lon < 180; lon += step) {
+            var p = project(lat, lon, angle);
+            if (p.z > 0) { ctx.globalAlpha = .2 + .7 * p.z; ctx.beginPath(); ctx.arc(p.x, p.y, 2.4 * (.6 + .6 * p.z), 0, 6.283); ctx.fill(); }
+          }
+        }
+        ctx.globalAlpha = 1;
+    
+        var pulse = 0.5 + 0.5 * Math.sin(t / 700);
+        for (var i = 0; i < spots.length; i++) {
+          var s = project(spots[i][0], spots[i][1], angle);
+          if (s.z > 0.05) {
+            var rad = 20 + 5 * pulse;
+            var gl = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, rad);
+            gl.addColorStop(0, 'rgba(244,201,122,.95)'); gl.addColorStop(1, 'rgba(244,201,122,0)');
+            ctx.globalAlpha = Math.min(1, s.z * 1.6);
+            ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(s.x, s.y, rad, 0, 6.283); ctx.fill();
+            ctx.fillStyle = '#fff4d6'; ctx.beginPath(); ctx.arc(s.x, s.y, 4.5, 0, 6.283); ctx.fill();
+          }
+        }
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(214,226,250,.85)';
+        ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.283); ctx.stroke();
+      }
+      function tick(t) { angle += 0.004; draw(t); requestAnimationFrame(tick); }
+      draw(0);
+      if (!reduce) requestAnimationFrame(tick);
+    
+  }
+
+  if (!window.d3 || !window.topojson) { fallback(); return; }
+
+  var ctx = c.getContext('2d');
+  var W = c.width, R = W * 0.44, cx = W / 2, cy = W / 2;
+  var proj = d3.geoOrthographic().scale(R).translate([cx, cy]).clipAngle(90).rotate([-START_LON, -START_LAT]);
+  var path = d3.geoPath(proj, ctx);
+  var sphere = { type: 'Sphere' }, grat = d3.geoGraticule10();
+
+  fetch(DATA_URL).then(function (r) { if (!r.ok) throw new Error('map data'); return r.json(); })
+  .then(function (topo) {
+    var countries = topojson.feature(topo, topo.objects.countries).features;
+    var borders = topojson.mesh(topo, topo.objects.countries, function (a, b) { return a !== b; });
+    var lon = START_LON;
+
+    function draw(t) {
+      proj.rotate([-lon, -START_LAT]);
+      ctx.clearRect(0, 0, W, W);
+
+      // soft atmosphere
+      var halo = ctx.createRadialGradient(cx, cy, R * .98, cx, cy, R * 1.12);
+      halo.addColorStop(0, 'rgba(160,195,255,.35)'); halo.addColorStop(1, 'rgba(160,195,255,0)');
+      ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(cx, cy, R * 1.12, 0, 6.283); ctx.fill();
+
+      // ocean
+      var oc = ctx.createRadialGradient(cx - R * .35, cy - R * .4, R * .1, cx, cy, R);
+      oc.addColorStop(0, '#3f6fb8'); oc.addColorStop(1, '#17315f');
+      ctx.beginPath(); path(sphere); ctx.fillStyle = oc; ctx.fill();
+
+      // graticule
+      ctx.beginPath(); path(grat); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(190,210,245,.18)'; ctx.stroke();
+
+      // countries
+      var pulse = 0.5 + 0.5 * Math.sin(t / 650);
+      for (var i = 0; i < countries.length; i++) {
+        var f = countries[i];
+        ctx.beginPath(); path(f);
+        ctx.fillStyle = (HIGHLIGHT && f.id === HIGHLIGHT)
+          ? 'rgba(244,' + Math.round(190 + 15 * pulse) + ',' + Math.round(110 + 20 * pulse) + ',1)'
+          : '#dfe8f7';
+        ctx.fill();
+      }
+      ctx.beginPath(); path(borders); ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(31,58,107,.55)'; ctx.stroke();
+
+      // shading for depth
+      var sh = ctx.createRadialGradient(cx - R * .3, cy - R * .35, R * .2, cx, cy, R);
+      sh.addColorStop(0, 'rgba(255,255,255,.10)'); sh.addColorStop(.6, 'rgba(10,25,60,0)'); sh.addColorStop(1, 'rgba(10,25,60,.5)');
+      ctx.beginPath(); path(sphere); ctx.fillStyle = sh; ctx.fill();
+
+      ctx.beginPath(); path(sphere); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(214,226,250,.85)'; ctx.stroke();
+    }
+    function tick(t) { lon += 0.25; draw(t); requestAnimationFrame(tick); }
+    draw(0);
+    if (!reduce) requestAnimationFrame(tick);
+  })
+  .catch(function () { ctx.clearRect(0, 0, W, W); fallback(); });
+})();
+</script>
 </body>
 </html>
