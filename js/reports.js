@@ -465,18 +465,37 @@ const pushSchoolToServer = debounceByKey(async () => {
   if (!r?.ok) warnSaveFailed('the school details');
 });
 
+/* School name, motto and principal are kept in ONE place: Settings -> School Profile.
+   The Reports page only reads them, so they are never typed twice. The old boxes stay in the
+   page (hidden) so the rest of this file keeps working. */
+const fieldWrap = (input) => input?.closest('.rpt-field') || input?.parentElement;
+
+const renderSchoolInfo = () => {
+  const name = el.rptSchoolName?.value.trim();
+  const mot  = el.rptSchoolMotto?.value.trim();
+  const pri  = el.rptPrincipal?.value.trim();
+  let box = document.getElementById('rptSchoolInfo');
+  if (!box) {
+    const anchor = fieldWrap(el.rptSchoolName);
+    if (!anchor) return;
+    box = document.createElement('div');
+    box.id = 'rptSchoolInfo';
+    box.style.cssText = 'border:1px solid #cbd5e1;background:#f8fafc;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.6;color:#334155;margin-bottom:6px;';
+    anchor.insertAdjacentElement('beforebegin', box);
+  }
+  const row = (label, v) => `<div><strong>${label}:</strong> ${v ? escHtml(v) : '<span style="color:#b45309;">not set</span>'}</div>`;
+  box.innerHTML = row('School', name) + row('Motto', mot) + row('Principal / HOI', pri) +
+    `<div style="margin-top:4px;font-size:11px;color:#64748b;">Taken from Settings &rarr; School Profile. <a href="settings.html" style="color:#0d3349;font-weight:700;">Change it there</a>.</div>`;
+};
+
 schoolFields.forEach(({ key, input }) => {
   if (!input) return;
   const saved = readSavedSettings()[key];
-  if (saved) input.value = saved;                         // device copy, instantly
-  input.addEventListener('input', () => {
-    input.dataset.touched = '1';
-    const st = readSavedSettings();
-    st[key] = input.value.trim();
-    writeSavedSettings(st);
-    pushSchoolToServer('school');
-  });
+  input.value = saved || '';                              // device copy, instantly (never the demo text)
+  const w = fieldWrap(input);
+  if (w) w.style.display = 'none';
 });
+renderSchoolInfo();
 
 /* Postal address, phone and (optional) email come from Settings -> School Profile.
    Kept in this browser too, so the header is right even before the server answers. */
@@ -506,9 +525,10 @@ const loadSchoolFromServer = async () => {
     const v = fromServer[key];
     if (!v) return;
     st[key] = v;
-    if (input && !input.dataset.touched) input.value = v;   // never overwrite what is being typed
+    if (input) input.value = v;
   });
   writeSavedSettings(st);
+  renderSchoolInfo();
 };
 
 /* ── Class teacher (one name per class) ────────────────────── */
@@ -529,6 +549,9 @@ const pushTeachersToServer = debounceByKey(async (classId) => {
 
 el.rptClass?.addEventListener('change', () => {
   if (!el.rptTeacher) return;
+  /* Whole grade: each class gets its own class-teacher box in the Teachers panel, so hide this one */
+  const tw = fieldWrap(el.rptTeacher);
+  if (tw) tw.style.display = isGradeValue(el.rptClass.value) ? 'none' : '';
   delete el.rptTeacher.dataset.touched;
   const k = classTeacherKey();
   el.rptTeacher.value = k ? (readSavedSettings()[k] || '') : '';   // never carry one class's teacher to another
@@ -926,8 +949,8 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
     : (state.examInfo?.name || 'Exam');
 
   const settings = {
-    schoolName   : el.rptSchoolName?.value  || 'Scholar Analytics Demo School',
-    schoolMotto  : el.rptSchoolMotto?.value || 'Excellence Through Knowledge',
+    schoolName   : el.rptSchoolName?.value  || 'School Name',
+    schoolMotto  : el.rptSchoolMotto?.value || '',
     address      : schoolContact.address,                   // from Settings -> School Profile
     phone        : schoolContact.phone,
     email        : schoolContact.email,                     // optional
