@@ -316,9 +316,20 @@ const renderTeacherInputs = () => {
 
   const store = getTeacherStore();
 
+  const wholeGrade = classes.length > 1;
+  const savedCT    = readSavedSettings();
+
   const section = (c) => `
     <div style="margin-bottom:12px;">
       <div style="font-size:11px;font-weight:700;color:#0d3349;margin-bottom:6px;">${escHtml(c.name)}</div>
+      ${wholeGrade ? `
+      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;color:#0d3349;margin-bottom:8px;max-width:340px;">
+        Class teacher — ${escHtml(c.name)}
+        <input type="text" data-classteacher="${c._id}"
+          value="${escHtml(savedCT[`classTeacher:${c._id}`] || '')}"
+          placeholder="Class teacher's name"
+          style="padding:7px 9px;font-size:12px;border:1px solid #94a3b8;border-radius:6px;font-weight:400;" />
+      </label>` : ''}
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;">
         ${state.subjects.map(subj => `
           <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:#334155;">
@@ -346,11 +357,21 @@ const renderTeacherInputs = () => {
         Subject Teachers
       </div>
       <div style="font-size:11px;color:#64748b;margin-bottom:10px;">
-        Type each teacher's name (e.g. Kemboi Dan). Saved on this device, separately for each class, and printed in the Teacher column.
+        ${wholeGrade ? 'Type the class teacher and each subject teacher for every class. Each learner\'s report card shows the class teacher of their own class. ' : 'Type each teacher\'s name (e.g. Kemboi Dan). '}Saved separately for each class and printed on the report cards.
       </div>
       ${classes.map(section).join('')}
       ${copyBtn}
     </div>`;
+
+  /* One class teacher per class (East and West can have different ones) */
+  wrap.querySelectorAll('input[data-classteacher]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const st = readSavedSettings();
+      st[`classTeacher:${inp.dataset.classteacher}`] = inp.value.trim();
+      writeSavedSettings(st);
+      pushTeachersToServer(inp.dataset.classteacher);
+    });
+  });
 
   wrap.querySelectorAll('input[data-subj]').forEach(inp => {
     inp.addEventListener('input', () => {
@@ -913,6 +934,8 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
     teacher      : (el.rptTeacher?.value   || '').trim(),   // class teacher (blank if not typed)
     principal    : (el.rptPrincipal?.value || '').trim(),   // principal (blank if not typed)
     teacherMaps  : getTeacherMaps(),                        // subject teachers, per class in scope
+    classTeachers: Object.fromEntries(classesInScope().map(c =>   // class teacher of each class (East / West …)
+      [c.name, (readSavedSettings()[`classTeacher:${c._id}`] || '').trim()])),
     closingDate  : el.rptClosingDate?.value || 'To Be Announced',
     nextTerm     : el.rptNextTerm?.value    || 'To Be Announced',
     cls: className, term, exam: examName,
@@ -1311,7 +1334,7 @@ ${dot('top:-6px;left:-6px;')}${dot('top:-6px;right:-6px;')}${dot('bottom:-6px;le
 
   ${sectionBar('Comments')}
   <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid ${LINE};">
-    ${signBlock("Class teacher's comment", KJSEA.getTeacherComment(r.meanGrade), s.teacher, 'Class teacher &mdash; signature')}
+    ${signBlock("Class teacher's comment", KJSEA.getTeacherComment(r.meanGrade), ((s.classTeachers || {})[r.streamName] || s.teacher), 'Class teacher &mdash; signature')}
     ${signBlock("Principal / Head of Institution's comment",     KJSEA.getPrincipalComment(r, r.meanGrade), s.principal, 'Principal / HOI &mdash; signature &amp; stamp', true)}
   </div>
 
@@ -1571,6 +1594,7 @@ const buildClassSheet = (allResults, s) => {
       <td style="${tdS('text-align:center;font-weight:800;border-right:none;')}">+${r.vap}</td>
     </tr>`).join('');
 
+  const ctNames = Object.entries(s.classTeachers || {}).filter(([, t]) => t);
   const sigBlock = (title, person, label, last = false) => `
     <div style="padding:12px 18px;background:#ffffff;${last ? '' : `border-right:1px solid ${LINE};`}">
       <div style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">${title}${person ? ': ' + escHtml(tidyName(person)) : ''}</div>
@@ -1614,7 +1638,7 @@ const buildClassSheet = (allResults, s) => {
     Learner position is assigned using total marks. Performance level is calculated using average marks. Marks are rounded to the nearest whole number before the level is worked out.<br/><strong>Performance level:</strong> EE1, EE2 = Exceeding Expectation &nbsp;·&nbsp; ME1, ME2 = Meeting Expectation &nbsp;·&nbsp; AE1, AE2 = Approaching Expectation &nbsp;·&nbsp; BE1, BE2 = Below Expectation
   </div>
 
-  ${bar('Overall grade distribution', true)}
+  ${bar('Overall grade distribution')}
   <div style="display:grid;grid-template-columns:repeat(${xCount > 0 ? 9 : 8},1fr);">${distCells}</div>
 
   ${bar('Subject-wise performance summary')}
@@ -1629,10 +1653,10 @@ const buildClassSheet = (allResults, s) => {
     </table>
   </div>
 
-  ${bar('Top 3 learners per subject', true)}
+  ${bar('Top 3 learners per subject')}
   <div style="padding:12px;display:flex;flex-wrap:wrap;gap:10px;background:#ffffff;">${top3Cards}</div>
 
-  ${bar('Gender performance analytics', true)}
+  ${bar('Gender performance analytics')}
   <div style="display:grid;grid-template-columns:1fr 2fr;">
     <div style="padding:12px;border-right:1px solid ${LINE};font-size:11px;">
       <div style="display:flex;gap:10px;margin-bottom:10px;">
@@ -1658,7 +1682,7 @@ const buildClassSheet = (allResults, s) => {
 
   <!-- Signatures -->
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:3px solid ${LINE};margin-top:0;">
-    ${sigBlock('Class teacher', s.teacher, 'Signature &amp; date: .....................')}
+    ${sigBlock(ctNames.length > 1 ? 'Class teachers' : 'Class teacher', ctNames.length > 1 ? ctNames.map(([c, t]) => `${shortClass(c)}: ${t}`).join(' / ') : (ctNames[0]?.[1] || s.teacher), 'Signature &amp; date: .....................')}
     ${sigBlock('Dean of studies', '', 'Signature &amp; date: .....................')}
     ${sigBlock('Principal / Head of Institution (HOI)', s.principal, 'Signature, stamp &amp; date: .....................', true)}
   </div>
