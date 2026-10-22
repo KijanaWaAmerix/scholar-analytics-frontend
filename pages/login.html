@@ -345,6 +345,11 @@
       background: linear-gradient(155deg, var(--lg-navy) 0%, var(--lg-navy-deep) 100%) !important;
     }
     body.login-body::before { display: none !important; }
+    /* style.css sets overflow:hidden on .login-body, which blocked scrolling */
+    html { overflow-y: auto; }
+    body.login-body { overflow-y: auto !important; overflow-x: hidden !important; }
+    .forgot-modal { overflow-y: auto; align-items: flex-start; }
+    .forgot-card { margin: auto; }
 
     body.login-body .login-wrapper {
       display: grid !important; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
@@ -752,53 +757,70 @@
     </div>
 
   </div>
-  <div class="forgot-modal" id="forgotModal" role="dialog" aria-modal="true" aria-labelledby="forgotTitle">
-    <div class="forgot-card">
-      <button type="button" class="forgot-close" data-close-forgot aria-label="Close">
-        <i class="fas fa-xmark"></i>
-      </button>
+  <div class="forgot-modal" id="forgotModal" role="dialog" aria-modal="true">
+ <div class="forgot-card">
+  <button type="button" class="forgot-close" data-close-forgot aria-label="Close"><i class="fas fa-xmark"></i></button>
+  <div class="forgot-alert" id="fpAlert"><i class="fas fa-circle-info"></i><span id="fpAlertText"></span></div>
+  <div class="steps"><span class="dot on" data-d="1"></span><span class="dot" data-d="2"></span><span class="dot" data-d="3"></span></div>
 
-      <h3 id="forgotTitle">Reset your password</h3>
-      <p>Enter the email address you use to sign in and we'll send you a link to choose a new password.</p>
-
-      <div class="forgot-alert" id="forgotAlert">
-        <i class="fas fa-circle-info"></i>
-        <span id="forgotAlertText"></span>
-      </div>
-
-      <form id="forgotForm" novalidate>
-        <div class="form-group">
-          <label for="forgotEmail">
-            <i class="fas fa-envelope"></i> Email Address
-          </label>
-          <div class="input-wrapper">
-            <input
-              type="email"
-              id="forgotEmail"
-              placeholder="Enter your email address"
-              autocomplete="email"
-              required
-            />
-          </div>
-          <span class="field-error" id="forgotEmailError">
-            <i class="fas fa-circle-exclamation"></i>
-            Please enter a valid email address.
-          </span>
-        </div>
-
-        <div class="forgot-actions">
-          <button type="button" class="forgot-cancel" data-close-forgot>Cancel</button>
-          <button type="submit" class="btn-login" id="forgotSubmit">
-            Send Reset Link &nbsp;<i class="fas fa-paper-plane"></i>
-          </button>
-        </div>
-      </form>
-    </div>
+  <div class="step" data-s="1">
+    <h3>Reset your password</h3>
+    <p>Enter your email or phone number. We send the code to both your phone (SMS) and your email.</p>
+    <div class="form-group"><label id="idLabel">Email or phone number</label>
+      <div class="input-wrapper"><input id="idInput" type="text" placeholder="Email or 0712 345 678" autocomplete="username" inputmode="email"></div></div>
+    <div class="forgot-actions"><button class="forgot-cancel" data-close-forgot>Cancel</button><button class="btn-login next" id="sendCodeBtn">Send code &nbsp;<i class="fas fa-paper-plane"></i></button></div>
   </div>
+
+  <div class="step" data-s="2" hidden>
+    <h3>Enter the 6-digit code</h3>
+    <p id="codeSub"></p>
+    <div class="otp" id="otp"><input maxlength="1" inputmode="numeric" autocomplete="one-time-code"><input maxlength="1" inputmode="numeric" autocomplete="one-time-code"><input maxlength="1" inputmode="numeric" autocomplete="one-time-code"><input maxlength="1" inputmode="numeric" autocomplete="one-time-code"><input maxlength="1" inputmode="numeric" autocomplete="one-time-code"><input maxlength="1" inputmode="numeric" autocomplete="one-time-code"></div>
+    <div class="forgot-actions"><button class="forgot-cancel" data-go="1">Back</button><button class="btn-login next" id="verifyBtn">Verify code</button></div>
+    <p class="small"><span id="resendWrap">Didn't get it? <a href="#" id="resend">Resend code</a> </span>· or ask your school admin to reset it.</p>
+  </div>
+
+  <div class="step" data-s="3" hidden>
+    <h3>Choose a new password</h3>
+    <p>Use at least 8 characters.</p>
+    <div class="form-group"><label>New password</label><div class="input-wrapper"><input type="password" id="newPw" autocomplete="new-password"></div></div>
+    <div class="form-group"><label>Confirm password</label><div class="input-wrapper"><input type="password" id="newPw2" autocomplete="new-password"></div></div>
+    <div class="forgot-actions"><button class="btn-login next" id="saveBtn">Save new password</button></div>
+  </div>
+
+  <div class="step" data-s="4" hidden style="text-align:center">
+    <div class="ok"><i class="fas fa-check"></i></div>
+    <h3>Password updated</h3><p>You can now sign in with your new password.</p>
+    <div class="forgot-actions"><button class="btn-login" data-close-forgot>Back to sign in</button></div>
+  </div>
+ </div></div>
+<style>
+.forgot-card{background:linear-gradient(180deg,#85202f,#64172a);color:#fff;border:1px solid rgba(255,255,255,.1)}
+.forgot-card h3{color:#fff}.forgot-card>p,.step>p{color:rgba(255,255,255,.75);font-size:.88rem;margin:0 0 18px}
+.forgot-card label{display:block;margin:0 0 8px;font-size:.85rem;font-weight:600}
+.forgot-close{color:#fff}.forgot-close:hover{background:rgba(255,255,255,.12);color:#fff}
+.forgot-cancel{background:transparent;color:#fff;border-color:rgba(255,255,255,.3)}.forgot-cancel:hover{background:rgba(255,255,255,.1)}
+.forgot-card .btn-login{height:48px;border:0;border-radius:10px;background:#f2c66d;color:#4a1220;font-weight:700;cursor:pointer;font-family:inherit;font-size:.95rem}
+.forgot-card input{width:100%;height:48px;padding:0 14px;border:1px solid transparent;border-radius:10px;font-size:.95rem;font-family:inherit;color:#1a1a1a;background:#fff;box-sizing:border-box}
+.forgot-card input:focus{outline:none;border-color:#f2c66d;box-shadow:0 0 0 3px rgba(242,198,109,.35)}
+.form-group{margin:0 0 16px}
+.steps{display:flex;gap:6px;margin:0 0 18px}.dot{height:4px;flex:1;border-radius:4px;background:rgba(255,255,255,.2)}.dot.on{background:#f2c66d}
+.tabs{display:flex;gap:8px;margin:0 0 18px}.tab{flex:1;height:42px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-weight:600;font-family:inherit;cursor:pointer}.tab.on{background:rgba(242,198,109,.18);border-color:#f2c66d;color:#f2c66d}
+.phone{display:flex;gap:8px}.cc{display:flex;align-items:center;padding:0 12px;background:rgba(255,255,255,.14);border-radius:10px;font-size:.9rem;white-space:nowrap}
+.otp{display:flex;gap:8px;margin:0 0 20px}.otp input{text-align:center;font-size:1.4rem;font-weight:700;padding:0}
+.small{font-size:.8rem!important;margin:16px 0 0!important;text-align:center}.small a{color:#f2c66d;font-weight:600}
+.ok{width:64px;height:64px;border-radius:50%;background:#f2c66d;color:#4a1220;display:grid;place-items:center;font-size:28px;margin:6px auto 16px}
+[hidden]{display:none!important}
+</style>
+<style>
+.forgot-alert{margin:0 0 14px!important;display:none}
+.forgot-card .forgot-alert.error{background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.2);color:#ffe1e5}
+.forgot-card .forgot-alert.success{background:rgba(242,198,109,.15);border:1px solid rgba(242,198,109,.4);color:#ffe9b8}
+.forgot-card .btn-login:disabled{opacity:.7;cursor:not-allowed}
+</style>
 
 <script src="../js/api.js?v=2"></script>
 <script src="../js/main.js?v=2"></script>
-<script src="../js/forgot-password.js?v=1"></script>
+<script src="../js/forgot-password.js?v=2"></script>
 
 <!-- Real globe: d3 (orthographic projection) + world-atlas country shapes.
      If the CDN files can't load, it falls back to a simple wireframe globe. -->
