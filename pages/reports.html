@@ -181,10 +181,28 @@
                 </select>
               </div>
 
+              <!-- Grades 1–6 only: which assessment(s) the report shows -->
+              <div class="rpt-field" id="reportTypeWrap" style="display:none;">
+                <label><i class="fas fa-file-lines"></i> Report type</label>
+                <select id="rptReportType" class="rpt-select">
+                  <option value="end">End Term</option>
+                  <option value="mid">Mid Term</option>
+                  <option value="both">Mid + End Term</option>
+                </select>
+              </div>
+
               <div class="rpt-field" id="examFieldWrap">
-                <label><i class="fas fa-pen-to-square"></i> Exam</label>
+                <label><i class="fas fa-pen-to-square"></i> <span id="examLabelText">Assessment</span></label>
                 <select id="rptExam" class="rpt-select">
-                  <option value="">-- Select Exam --</option>
+                  <option value="">-- Select Assessment --</option>
+                </select>
+              </div>
+
+              <!-- Grades 1–6, "Mid + End Term" only -->
+              <div class="rpt-field" id="exam2FieldWrap" style="display:none;">
+                <label><i class="fas fa-pen-to-square"></i> <span id="exam2LabelText">Mid Term assessment</span></label>
+                <select id="rptExam2" class="rpt-select">
+                  <option value="">-- Select Assessment --</option>
                 </select>
               </div>
 
@@ -345,7 +363,8 @@
 
 
 <script src="../js/api.js"></script>
-<script src="../js/reports.js"></script>
+<script src="../js/reports.js?v=8"></script>
+<script src="../js/reports-primary.js?v=2"></script>
 
 </body>
 </html>

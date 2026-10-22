@@ -1,7 +1,13 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Reports & PDFs
    File: js/reports.js
-   Version: 6.3
+   Version: 6.5
+   6.5: • Grades 7–9 report cards can show Mid Term + End Term side by side (average drives remarks, pathway, overall level, comments); larger wording pools for remarks and comments.
+   6.4: • Grades 1–6 use js/reports-primary.js (load it after this file): report type
+          End Term / Mid Term / Mid + End Term, KNEC four-level performance levels.
+        • Grades 7–9: KNEC learning-area codes (901…911) on the card; the class sheet writes
+          the code in brackets after each learning area. Bolder, clearer text.
+        • "Examination" -> "Assessment"; "Principal / HOI" -> "Head of Institution".
    6.2: ONE class dropdown — Whole Grade, or any single class (East / West).
         Exam names come from real exams; teacher names are saved per class.
    Changes from 6.0:
@@ -696,7 +702,7 @@ const resetLearnerList = () => {
    Single class  → option value = exam id
    Whole grade   → option value = "year|exam name"
 ══════════════════════════════════════════════════════════ */
-const loadExams = async () => {
+const loadExamsCore = async () => {
   const value = el.rptClass?.value;
   const term  = el.rptTerm?.value;
 
@@ -716,7 +722,7 @@ const loadExams = async () => {
     }
 
     state.exams = result.data.exams;
-    el.rptExam.innerHTML = '<option value="">-- Select Exam --</option>' +
+    el.rptExam.innerHTML = '<option value="">-- Select Assessment --</option>' +
       state.exams.map(e => `<option value="${e._id}">${escHtml(e.name)}</option>`).join('');
     return;
   }
@@ -740,7 +746,7 @@ const loadExams = async () => {
 
   const manyYears = new Set(keys.map(k => map[k].year)).size > 1;
 
-  el.rptExam.innerHTML = '<option value="">-- Select Exam --</option>' + keys.map(k => {
+  el.rptExam.innerHTML = '<option value="">-- Select Assessment --</option>' + keys.map(k => {
     const x = map[k];
     const missing = targets.filter(c => !x.classes.includes(c));
     const note = missing.length ? ` — not in ${missing.map(streamLabel).join(', ')}` : '';
@@ -748,11 +754,18 @@ const loadExams = async () => {
   }).join('');
 };
 
+/* Loads the assessment list; for Grades 1–6 (js/reports-primary.js) it then fills the second
+   dropdown and pre-selects the End Term / Mid Term assessment. */
+const loadExams = async () => {
+  await loadExamsCore();
+  if (typeof primaryAfterExams === 'function') primaryAfterExams();
+};
+
 el.rptClass?.addEventListener('change', () => {
   const v = el.rptClass.value;
   state.scope      = isGradeValue(v) ? 'grade' : 'class';
   state.gradeValue = isGradeValue(v) ? v.slice(6) : '';
-  if (el.rptExam) el.rptExam.innerHTML = '<option value="">-- Select Exam --</option>';
+  if (el.rptExam) el.rptExam.innerHTML = '<option value="">-- Select Assessment --</option>';
   resetLearnerList();
   clearTeacherInputs();
   resetPreview();
@@ -760,7 +773,7 @@ el.rptClass?.addEventListener('change', () => {
 });
 
 el.rptTerm?.addEventListener('change', () => {
-  if (el.rptExam) el.rptExam.innerHTML = '<option value="">-- Select Exam --</option>';
+  if (el.rptExam) el.rptExam.innerHTML = '<option value="">-- Select Assessment --</option>';
   resetLearnerList();
   resetPreview();
   loadExams();
@@ -775,6 +788,9 @@ el.rptTerm?.addEventListener('change', () => {
 el.rptExam?.addEventListener('change', fetchResults);
 
 async function fetchResults() {
+  if (typeof isPrimarySelection === 'function' && isPrimarySelection()) return fetchPrimaryResults();
+  if (typeof juniorDual === 'function' && juniorDual()) return fetchJuniorDual();      // Grades 7–9, Mid + End on one card
+
   const classVal = el.rptClass?.value;
   const examVal  = el.rptExam?.value;
   const term     = el.rptTerm?.value;
@@ -912,8 +928,14 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
   const cls  = el.rptClass?.value;
   const exam = el.rptExam?.value;
   if (!cls || !exam) {
-    showToast('Please select Class and Exam.', 'warning');
+    showToast('Please select Class and Assessment.', 'warning');
     flashMissing(cls, term, exam);
+    return;
+  }
+
+  if ((isPrimarySelection() || juniorDual()) && reportType() === 'both' && !document.getElementById('rptExam2')?.value) {
+    showToast('Please select the Mid Term assessment.', 'warning');
+    flashMissing(cls, term, '');
     return;
   }
 
@@ -928,9 +950,7 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
 
   /* Results should already be loaded from the selection-change handler,
      but fetch fresh if for some reason they aren't. */
-  const expectedKey = state.scope === 'class'
-    ? `class:${cls}:${exam}`
-    : `grade:${state.gradeValue}:${term}:${exam}`;
+  const expectedKey = expectedKeyNow();
 
   if (state.loadedKey !== expectedKey) {
     await fetchResults();
@@ -962,7 +982,9 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
       [c.name, (readSavedSettings()[`classTeacher:${c._id}`] || '').trim()])),
     closingDate  : el.rptClosingDate?.value || 'To Be Announced',
     nextTerm     : el.rptNextTerm?.value    || 'To Be Announced',
-    cls: className, term, exam: examName,
+    cls: className, term, exam: primaryExamLabel() || examName,
+    primary      : primarySettings(),                        // Grades 1–6: { type: 'end' | 'mid' | 'both' }
+    dual         : dualSettings(),                           // Grades 7–9 card: { type: 'both' } = Mid + End side by side
     year         : state.examInfo?.academicYear || CURRENT_YEAR,
   };
 
@@ -1091,19 +1113,209 @@ KJSEA.levelFull = function (code) {
 };
 
 /* Remark matched to the level, so it can never contradict the Performance Level column */
-KJSEA.getSubjectRemark = function (score) {
+/* ── Wording pools (Grades 7–9) ─────────────────────────────────────────────
+   Many wordings per level, so cards in the same class do not read the same.
+   The wording is picked from the learner + learning area, so it is the same every
+   time a card is printed, and rows on one card differ from each other. */
+const hashStr = (x) => { let h = 7; for (const c of String(x ?? '')) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+const pickFrom = (pool, seed, step = 0) => pool[(hashStr(seed) + step * 7) % pool.length];
+
+const REMARK_POOL = {
+  EE1: ['Outstanding performance. Keep it up.', 'Exceptional work. A true achiever.', 'Excellent mastery of this learning area.', 'Brilliant results. Keep shining.', 'Superb work. Maintain this standard.',
+        'Highly commendable performance.', 'Remarkable understanding. Well done.', 'Top performance. Keep the focus.', 'Excellent. Share your skills with others.', 'Impressive command of the content.',
+        'Exemplary work. Keep it going.', 'Truly outstanding. Congratulations.'],
+  EE2: ['Very good performance. Aim higher.', 'Strong work. Push for the top level.', 'Very good understanding. Keep going.', 'Commendable results. Keep it up.', 'A very good effort. Aim for excellence.',
+        'Solid mastery. A little more for EE1.', 'Very good. Keep practising.', 'Well done. You can reach the top.', 'Great progress. Stay consistent.', 'Very good grasp of the content.',
+        'Keep up this fine effort.', 'Very good work. Aim even higher.'],
+  ME1: ['Good performance. Next level is near.', 'Good work. A little more effort.', 'Meeting expectation well. Keep going.', 'Good grasp. Practise to improve.', 'Steady progress. Keep it up.',
+        'Good effort. Revise more often.', 'On track. Aim a level higher.', 'Good understanding. Work on details.', 'Well done. More practice will help.', 'A good result. Stay focused.',
+        'Pleasing work. Keep improving.', 'Good. Read widely to do better.'],
+  ME2: ['Meeting the standard. Keep practising.', 'Fair work. More revision is needed.', 'Satisfactory. Put in more effort.', 'Meeting basic expectation. Aim higher.', 'Fair grasp. Practise regularly.',
+        'An average result. Work harder.', 'Can do better with more practice.', 'Fair effort. Revise key topics.', 'Satisfactory. Ask for help when stuck.', 'Reasonable work. Be more consistent.',
+        'Keep working to move up a level.', 'Fair. Daily practice will help.'],
+  AE1: ['Close to the standard. Practise more.', 'Nearly there. Revise regularly.', 'Needs more effort to meet the standard.', 'Improving. Keep practising.', 'Some gaps remain. Seek help.',
+        'Work harder on the basics.', 'Can improve with steady revision.', 'Approaching the standard. Stay focused.', 'More practice is needed.', 'Revise past topics often.',
+        'Needs extra effort and guidance.', 'A step away from the standard.'],
+  AE2: ['Approaching the standard. Needs support.', 'More effort and guidance needed.', 'Many gaps. Revise the basics.', 'Needs regular extra practice.', 'Below the standard. Seek help.',
+        'Improvement is needed. Work harder.', 'Please see the teacher for help.', 'Needs close support in this area.', 'Practise every day to improve.', 'Needs a firm push in this area.',
+        'Work with the teacher on weak topics.', 'Must improve with extra support.'],
+  BE1: ['Below the standard. Needs extra support.', 'Urgent help needed in this area.', 'Needs close guidance and daily practice.', 'Please seek extra lessons.', 'Weak performance. Work with the teacher.',
+        'Basic skills need to be built.', 'Needs strong support at school and home.', 'Much improvement is needed.', 'Work hard on the basics.', 'Needs extra attention in this area.',
+        'Support is urgently needed.', 'Meet the teacher for a plan.'],
+  BE2: ['Well below the standard. Needs close support.', 'Needs urgent and intensive help.', 'Very weak. Extra lessons advised.', 'Please work closely with the teacher.', 'Basic skills are not yet in place.',
+        'Needs daily guided practice.', 'Requires immediate support.', 'Needs a plan of support from school and home.', 'Serious improvement is needed.', 'Start again with the basics.',
+        'Needs intensive support.', 'Please see the teacher soon.'],
+};
+
+KJSEA.getSubjectRemark = function (score, seed = '', step = 0) {
   const g = this.getGrade(score);
   if (!g) return '—';
-  return {
-    EE1: 'Outstanding performance. Keep it up.',
-    EE2: 'Very good performance. Aim higher.',
-    ME1: 'Good performance. Next level is near.',
-    ME2: 'Meeting the standard. Keep practising.',
-    AE1: 'Close to the standard. Practise more.',
-    AE2: 'Approaching the standard. Needs support.',
-    BE1: 'Below the standard. Needs extra support.',
-    BE2: 'Well below the standard. Needs close support.',
-  }[g.grade];
+  return pickFrom(REMARK_POOL[g.grade], seed, step);
+};
+
+const TEACHER_POOL = {
+  EE1: ['Exceptional performance. {n} shows mastery across the learning areas. Keep excelling!',
+        'An outstanding result. {n} is a role model in class. Keep it up!',
+        'Excellent work. {n} is focused, hard-working and consistent.',
+        'Superb results. {n} should keep challenging themselves.',
+        'Brilliant performance. {n} is a joy to teach.',
+        'Remarkable achievement. Maintain this high standard, {n}.',
+        'Outstanding. {n} shows great discipline and understanding.',
+        'Exemplary results. {n} can inspire others in class.'],
+  EE2: ['Very good performance. {n} shows strong understanding. Keep it up.',
+        'A very good result. A little more effort will reach the top level.',
+        'Strong work, {n}. Keep up the dedication and enthusiasm.',
+        '{n} is a hard-working learner with very good results.',
+        'Very good progress. {n} should aim even higher.',
+        'Commendable performance. Stay consistent, {n}.',
+        'Very good grasp of most learning areas. Well done.',
+        'Great effort. {n} is close to excellence.'],
+  ME1: ['Good performance. {n} is meeting expectations well. Keep it up!',
+        'A good result. More practice will lift {n} higher.',
+        '{n} is a focused learner making steady progress.',
+        'Good work, {n}. Aim for a higher level next time.',
+        'Meeting expectations in most areas. Keep working hard.',
+        'Good effort. Regular revision will help {n} improve.',
+        'Steady progress. {n} can do even better.',
+        'A pleasing result. Keep up the good habits, {n}.'],
+  ME2: ['Fair performance. {n} is meeting basic expectations. More practice is needed.',
+        'A fair result. With extra effort, {n} can improve.',
+        '{n} can do better with regular revision and focus.',
+        'Satisfactory work. Ask for help in weaker areas, {n}.',
+        'An average performance. More commitment will bring better results.',
+        'Fair effort. {n} should practise a little every day.',
+        'Meeting the basics. {n} should aim higher next term.',
+        'Reasonable work. More consistency is needed, {n}.'],
+  AE1: ['Approaching expectation. Some improvement shown, but more effort is needed.',
+        '{n} is improving but must work harder in several areas.',
+        'Close to the standard. Regular revision will help {n}.',
+        'More effort and practice are needed, {n}.',
+        'Some progress noted. {n} should seek help in weaker areas.',
+        'With extra focus, {n} can reach the standard.',
+        '{n} needs to revise more and ask questions in class.',
+        'A step away from the standard. Keep trying, {n}.'],
+  AE2: ['Below average. Extra support and steady effort are needed.',
+        '{n} needs close guidance and regular practice.',
+        'Improvement is needed in many areas. Please support {n} at home.',
+        '{n} should seek help from teachers and revise daily.',
+        'Needs a firm push. Parents are encouraged to follow up.',
+        'More commitment is needed. {n} can improve with support.',
+        'Weak in several areas. Extra lessons would help {n}.',
+        'Please work with the school to help {n} improve.'],
+  BE1: ['Performance is low. Urgent support is needed. Please see the class teacher.',
+        '{n} needs close guidance and extra lessons.',
+        'Much improvement is needed. Parents are encouraged to engage the school.',
+        'Basic skills need to be built. Please support {n} daily.',
+        'Needs urgent attention in most areas.',
+        'The school and home should work together to help {n}.',
+        'Weak results. {n} needs a clear plan of support.',
+        'Please meet the class teacher to discuss how to help {n}.'],
+  BE2: ['Very low performance. Immediate and intensive support is needed.',
+        '{n} needs urgent help. Parents are asked to meet the school.',
+        'Serious support is needed in all areas for {n}.',
+        'Please contact the class teacher for a support plan.',
+        'Basic skills are not yet in place. Daily guided practice is needed.',
+        'Urgent intervention is required for {n}.',
+        'Parents are encouraged to engage the school soon.',
+        '{n} needs intensive support at school and at home.'],
+};
+
+const HEAD_POOL = {
+  EE1: ['{n} has achieved exceptional results. The school is very proud. Keep it up.',
+        'An outstanding term for {n}. We congratulate and encourage you.',
+        'Excellent achievement, {n}. Be a role model to others.',
+        'Exceptional work from {n}. The school is proud of this success.',
+        'Congratulations {n} on an excellent performance. Maintain the standard.',
+        'A brilliant result. We encourage {n} to keep aiming high.'],
+  EE2: ['{n} has done very well this term. We encourage continued dedication.',
+        'Very good results from {n}. Keep up the positive attitude.',
+        'A strong performance. {n} is encouraged to aim for the top.',
+        'Well done {n}. We expect even better results.',
+        'Commendable work, {n}. Keep the hard work going.',
+        '{n} is doing very well. Keep it up.'],
+  ME1: ['{n} is making good progress. We encourage continued effort and participation.',
+        'A good term for {n}. Keep working hard.',
+        'Good results from {n}. We urge more focus to do even better.',
+        '{n} is on the right track. Keep it up.',
+        'Pleasing progress, {n}. Aim for the next level.',
+        'Good work, {n}. We encourage regular revision.'],
+  ME2: ['{n} has shown satisfactory performance. With more focus, better results will come.',
+        'A fair term for {n}. We expect improvement next term.',
+        '{n} can do better. We encourage more commitment.',
+        'Satisfactory results. {n} should put in more effort.',
+        'Fair work, {n}. Regular revision will bring improvement.',
+        'We encourage {n} to work harder and aim higher.'],
+  AE1: ['{n} is making some progress but needs more effort. Seek help where needed.',
+        'Improvement is noted. {n} should revise consistently.',
+        'More effort is needed from {n} to reach the standard.',
+        '{n} is encouraged to work closely with teachers.',
+        'We urge {n} to put in more work next term.',
+        'With more focus, {n} will improve.'],
+  AE2: ['{n} needs to improve. We urge parents to work closely with the school.',
+        'Better results are possible with support. We encourage {n} to try harder.',
+        'Please support {n} with regular revision at home.',
+        '{n} needs extra support to improve results.',
+        'We encourage parents to follow up on {n}\'s work.',
+        'Improvement is needed. We will support {n} at school.'],
+  BE1: ['{n} needs urgent academic support. Please keep close contact with the class teacher.',
+        'We strongly encourage regular attendance and extra support for {n}.',
+        'Please meet the school to plan how to help {n}.',
+        '{n} needs close follow up from school and home.',
+        'Urgent help is needed. We will work with you to support {n}.',
+        'Parents are urged to engage the school about {n}\'s progress.'],
+  BE2: ['{n} needs immediate and intensive support. Please contact the school.',
+        'We invite parents to meet us to plan support for {n}.',
+        'Urgent intervention is needed for {n}. Please see the class teacher.',
+        'Please come to school to discuss a plan for {n}.',
+        'Serious support is required. We will work together to help {n}.',
+        '{n} needs intensive help. Parents, please engage the school.'],
+};
+
+
+/* ── More wordings (Grades 7–9) so cards in one class rarely repeat ── */
+const EXTRA = (pool, more) => Object.entries(more).forEach(([k, v]) => pool[k].push(...v));
+EXTRA(REMARK_POOL, {
+  EE1: ['Consistently excellent. Well done.', 'A model learner in this area.', 'Exceptional grasp of concepts.', 'Superb. Keep stretching yourself.', 'Top marks. Keep reading widely.', 'Excellent depth of understanding.', 'Very impressive. Keep it up.', 'A standout result. Congratulations.', 'Excellent work ethic shown here.', 'Great mastery. Help your peers.', 'Distinguished performance.', 'Flawless effort. Keep going.'],
+  EE2: ['Very good. The top level is within reach.', 'Strong grasp. Polish the details.', 'A very good show. Keep it steady.', 'Great work. Aim for full marks.', 'Very good effort and focus.', 'Keep this momentum going.', 'Commendable. Try harder questions.', 'Very good understanding of topics.', 'Well done. Keep reading more.', 'Almost excellent. Keep pushing.', 'A very pleasing result.', 'Very good. Stay disciplined.'],
+  ME1: ['Good result. Keep building on it.', 'Solid work. Aim a notch higher.', 'Good. Revise weak topics.', 'Doing well. Stay consistent.', 'A good show. Try extra exercises.', 'Good grasp. Work on accuracy.', 'Well done. Keep reading widely.', 'On the right track. Keep going.', 'Good effort. Ask more questions.', 'Fairly strong. Push a bit more.', 'Good progress this term.', 'Keep this up and improve more.'],
+  ME2: ['Meets the standard. Push for more.', 'Average work. Revise often.', 'Fair. Do extra exercises.', 'You can do better. Practise.', 'An acceptable result. Aim higher.', 'Revise notes every week.', 'Fair progress. Stay focused.', 'Needs steady daily practice.', 'Satisfactory. Read more widely.', 'Work on weaker topics.', 'Meeting the basics. Keep trying.', 'Average. More effort will lift it.'],
+  AE1: ['Almost there. Keep revising.', 'Some progress. More effort needed.', 'Practise past questions often.', 'Needs a little more work.', 'Close to the standard. Do not stop.', 'Revise the key concepts again.', 'Focus more during lessons.', 'Weak spots need attention.', 'Improving slowly. Keep trying.', 'Ask the teacher for help.', 'More daily practice is needed.', 'Work harder to meet the standard.'],
+  AE2: ['Needs regular guided practice.', 'Gaps remain. Seek extra help.', 'Please revise the basics daily.', 'Work closely with the teacher.', 'Below the standard. Keep trying.', 'Needs more time on this area.', 'Extra lessons would help.', 'Please attend remedial sessions.', 'Build the basics step by step.', 'Needs a clear improvement plan.', 'Put in much more effort.', 'Support is needed to improve.'],
+  BE1: ['Needs strong support to improve.', 'Please attend extra lessons.', 'Build basic skills daily.', 'Parents, please help with revision.', 'Needs one-on-one guidance.', 'Very low. Work with the teacher.', 'Improvement plan is needed.', 'Needs patient daily practice.', 'Start from the basics again.', 'Much more effort is needed.', 'Seek help without delay.', 'Needs close follow-up.'],
+  BE2: ['Needs immediate close support.', 'Basics must be rebuilt.', 'Extra lessons are strongly advised.', 'Please see the teacher urgently.', 'Needs daily supervised practice.', 'Very low. A support plan is needed.', 'Needs intensive help in this area.', 'Parents, please follow up closely.', 'Take small steps. Ask for help.', 'Requires urgent attention.', 'Needs a fresh start with support.', 'Do not give up. Seek help.'],
+});
+EXTRA(TEACHER_POOL, {
+  EE1: ['{n} has had an excellent term. Keep aiming high.', 'A brilliant result. {n} should keep helping classmates.', '{n} is disciplined and highly capable. Well done.', 'Superb effort this term, {n}. Keep it up.', 'Top-class results. {n} leads by example.', 'Exceptional work, {n}. Stay humble and keep learning.'],
+  EE2: ['{n} has done very well. Keep up the hard work.', 'A very good term. {n} is on course for excellence.', 'Very good results. {n} should tackle tougher questions.', '{n} shows commitment and strong results.', 'Well done, {n}. A little more polish will reach the top.', 'Very good performance. Keep the habits that work, {n}.'],
+  ME1: ['{n} has had a good term. More revision will help.', 'Good results. {n} can climb higher with focus.', '{n} is a capable learner. Keep working steadily.', 'A good term, {n}. Set a higher target next time.', '{n} is meeting expectations. Keep it up.', 'Good effort, {n}. Reading more will lift your results.'],
+  ME2: ['{n} has done fairly. More effort is needed to improve.', 'An average term. {n} should revise every day.', '{n} can achieve more with focus and practice.', 'Fair results. {n} should ask questions in class.', 'Meeting basic expectations. {n} should set a higher goal.', 'More commitment will help {n} do better.'],
+  AE1: ['{n} is close to the standard. More revision is needed.', 'Some improvement seen. {n} must keep working hard.', '{n} should practise past questions regularly.', 'With more effort, {n} will meet the standard.', '{n} should seek help from subject teachers.', 'A fair attempt. {n} needs more consistency.'],
+  AE2: ['{n} needs steady support and daily revision.', 'Results are below the standard. {n} should work harder.', 'Please encourage {n} to revise at home.', '{n} would benefit from extra lessons.', 'More focus is needed in class, {n}.', 'Parents are asked to support {n} with revision.'],
+  BE1: ['{n} needs urgent support. Please meet the class teacher.', 'Results are low. {n} needs a support plan.', 'Close follow-up at home and school will help {n}.', '{n} needs help to build the basics.', 'Please work with the school to support {n}.', 'Much improvement is needed. {n} should attend extra lessons.'],
+  BE2: ['{n} needs immediate and intensive support.', 'Please meet the school to plan support for {n}.', '{n} needs close daily guidance.', 'Very low results. {n} needs urgent help in every area.', 'Parents, please follow up with {n} every day.', 'A clear support plan is needed for {n}.'],
+});
+EXTRA(HEAD_POOL, {
+  EE1: ['Excellent results, {n}. The school is proud of you.', 'Outstanding work, {n}. Keep leading by example.', 'Congratulations {n}. Maintain this fine standard.', 'A wonderful term for {n}. Keep shining.', '{n} has set a high standard. Well done.', 'Exceptional, {n}. Keep aiming higher.'],
+  EE2: ['Very good work, {n}. Keep pushing for the top.', 'Well done {n}. We are pleased with this progress.', '{n} has done very well. Stay consistent.', 'A very good term, {n}. Aim for excellence.', 'Commendable results from {n}. Keep it up.', '{n} is doing very well. We encourage more effort.'],
+  ME1: ['Good work, {n}. Aim a level higher next term.', '{n} is progressing well. Keep working hard.', 'A good term for {n}. Keep up the effort.', 'Well done {n}. More focus will bring better results.', '{n} is doing well. We encourage steady revision.', 'Good progress, {n}. Keep going.'],
+  ME2: ['{n} can do better. We encourage more revision.', 'Fair results. {n} should aim higher next term.', '{n} is meeting the basics. More effort is needed.', 'We encourage {n} to be more consistent.', 'More practice will help {n} improve.', '{n} has potential. Please work harder.'],
+  AE1: ['{n} is improving. More effort will bring results.', 'We encourage {n} to revise daily.', '{n} is close to the standard. Keep trying.', 'More focus is needed from {n}. We will help.', '{n} should seek help early. We are here to support.', 'Keep working, {n}. You can reach the standard.'],
+  AE2: ['{n} needs more support. Please engage the class teacher.', 'Improvement is needed. We will support {n}.', '{n} should work harder and attend remedial lessons.', 'Please help {n} revise at home.', 'We will work with {n} to improve.', 'More effort is needed from {n}.'],
+  BE1: ['{n} needs close support. Please visit the school.', 'We will help {n}. Please meet the class teacher.', 'Urgent attention is needed for {n}.', '{n} needs help to build the basics. Parents, please engage.', 'Please work with us to support {n}.', 'A support plan will be made for {n}.'],
+  BE2: ['{n} needs urgent intensive support. Please visit the school.', 'We ask parents to meet the school about {n}.', 'Immediate support is needed for {n}.', 'We will work closely with {n} and the family.', '{n} needs daily guided help. Please see the class teacher.', 'Serious attention is needed. We will support {n}.'],
+});
+
+const fillName = (t, name) => t.replace(/\{n\}/g, name);
+KJSEA.getTeacherComment = function (grade, name = 'The learner', seed = '') {
+  const pool = TEACHER_POOL[grade];
+  return pool ? fillName(pickFrom(pool, seed), name) : 'Performance noted. The learner is encouraged to work harder next term.';
+};
+KJSEA.getPrincipalComment = function (learner, grade) {
+  const first = String(learner.fullName || 'The learner').trim().split(/\s+/)[0]
+    .replace(/^./, c => c.toUpperCase()).replace(/(?<=.)./g, c => c.toLowerCase());
+  const pool = HEAD_POOL[grade];
+  return pool ? fillName(pickFrom(pool, String(learner.studentId) + 'h'), first)
+              : `${first} is encouraged to work harder and engage more actively with the learning process.`;
 };
 
 /* ── B. Shared print-friendly style: white page, black text, gridlines only ── */
@@ -1141,7 +1353,7 @@ const tidyName = (n) => String(n || '').trim()
 const levelBlock = (code) => {
   const full = KJSEA.levelFull(code);
   if (!code || !full) return '';
-  return `<div style="font-size:13.5px;font-weight:600;line-height:1.25;">${escHtml(full)}</div>` +
+  return `<div style="font-size:13.5px;font-weight:700;line-height:1.2;white-space:nowrap;">${escHtml(full)}</div>` +
          `<div style="font-size:15px;font-weight:800;line-height:1.25;">${escHtml(code)}</div>`;
 };
 
@@ -1170,14 +1382,42 @@ const schoolHeader = (s, size = 22) => {
   const fallback = !details && !motto
     ? '<div style="font-size:10px;margin-top:3px;">Junior Secondary School</div>' : '';
 
-  return `<div style="font-family:'Playfair Display',Georgia,'Times New Roman',serif;font-size:${fs}px;font-weight:800;letter-spacing:0.5px;line-height:1.15;color:#000;">${escHtml(name)}</div>${details}${motto}${fallback}`;
+  return `<div style="font-family:'Playfair Display',Georgia,'Times New Roman',serif;font-size:${fs}px;font-weight:900;letter-spacing:0.8px;line-height:1.15;color:#000;-webkit-text-stroke:0.5px #000;">${escHtml(name)}</div>${details}${motto}${fallback}`;
+};
+
+/* KNEC learning-area codes (Grades 7–9) */
+const knecCode = (sub) => {
+  const n = String(sub.name || '').toLowerCase().replace(/[^a-z]/g, '');
+  const c = String(sub.code || '').toUpperCase();
+  if (/sign/.test(n))                              return '904';
+  if (/^english/.test(n))                          return '901';
+  if (/kiswahili/.test(n))                         return '902';
+  if (/math/.test(n))                              return '903';
+  if (/science/.test(n) && !/social/.test(n))     return '905';
+  if (/agricultur|nutrition/.test(n))              return '906';
+  if (/social/.test(n))                            return '907';
+  if (/islamic/.test(n) || c === 'IRE')            return '909';
+  if (/christian|religio/.test(n) || c === 'CRE')  return '908';
+  if (/creative|arts|sport/.test(n))               return '910';
+  if (/pretech|technical/.test(n))                 return '911';
+  return '';
 };
 
 /* ══════════════════════════════════════════════════════════
    11. BUILD INDIVIDUAL REPORT CARD  (7 columns, low ink)
 ══════════════════════════════════════════════════════════ */
+/* Total points of one assessment, worked out from its marks (so it never depends on a stored total) */
+const endPts = (res) => (res?.subjectResults || []).reduce((t, x) => {
+  const ok = x && !x.absent && !x.notEntered && x.score !== null && x.score !== undefined && !isNaN(Number(x.score));
+  return t + (ok ? (KJSEA.getGrade(x.score)?.points || 0) : 0);
+}, 0);
+
 const buildReportCard = (r, s) => {
+  if (s.primary) return buildPrimaryCard(r, s);          // Grades 1–6 (js/reports-primary.js)
   const { INK, LINE, MUTE } = PRINT;
+  const both = !!(s.dual && r.dual);                      // Mid Term + End Term side by side (Grades 7–9)
+  const firstName = String(r.fullName || 'The learner').trim().split(/\s+/)[0]
+    .replace(/^./, c => c.toUpperCase()).replace(/(?<=.)./g, c => c.toLowerCase());
 
   const sectionBar = (title, right = '') => `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 12px;background:#ffffff;color:${INK};border-bottom:2px solid ${LINE};font-size:13.9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">
@@ -1207,33 +1447,57 @@ const buildReportCard = (r, s) => {
   const teacherFor = (sub) => tidyName(teacherMap[normName(sub.name)] || sub.teacherName || '');
 
   /* ── Subject rows ───────────────────────────────────────── */
-  const subjectRows = sortSubjects(r.subjectResults).map((sub, i) => {
+  const lvlCode = (x) => (x && validSub(x)) ? (KJSEA.getGrade(x.score)?.grade || '—') : (x && x.absent ? 'ABS' : '—');
+  const scoreOf = (x) => !x ? '—' : x.absent ? 'ABS' : validSub(x) ? Math.round(Number(x.score)) + '%' : '—';
+  const cc = (txt, size = 16.6) => `text-align:center;font-weight:800;font-size:${size}px;color:${INK};`;
+
+  const dualRows = both ? sortSubjects(r.dual.rows).map((row, i) => {
+    const remark = row.avg !== null
+      ? KJSEA.getSubjectRemark(row.avg, String(r.studentId) + row.key, i)
+      : ((row.mid?.absent || row.end?.absent) ? 'Absent — not assessed' : 'Marks not entered');
+    const endPts = validSub(row.end) ? (KJSEA.getGrade(row.end.score)?.points ?? '—') : '—';
+    const tch = teacherFor({ name: row.name, teacherName: row.teacherName });
+    return `
+    <tr>
+      <td style="${td(`text-align:center;font-size:13.9px;font-weight:700;color:${INK};`)}">${escHtml(knecCode(row) || String(i + 1))}</td>
+      <td style="${td(`text-align:left;font-weight:700;font-size:16px;color:${INK};`)}">${escHtml(row.name)}</td>
+      <td style="${td(cc())}">${scoreOf(row.mid)}</td>
+      <td style="${td(cc())}">${lvlCode(row.mid)}</td>
+      <td style="${td(cc())}">${scoreOf(row.end)}</td>
+      <td style="${td(cc())}">${lvlCode(row.end)}</td>
+      <td style="${td(cc())}">${endPts}</td>
+      <td style="${td(`text-align:left;font-size:14.5px;font-weight:600;color:${INK};line-height:1.2;`)}">${escHtml(remark)}</td>
+      <td style="${td(`text-align:left;font-size:14.5px;font-weight:800;color:${INK};line-height:1.2;border-right:none;`)}">${escHtml(tch)}</td>
+    </tr>`;
+  }).join('') : '';
+
+  const subjectRows = both ? dualRows : sortSubjects(r.subjectResults).map((sub, i) => {
     const isOut    = sub.absent || sub.notEntered;
     const code     = sub.grade || '';
     const scoreTxt = sub.score !== null && sub.score !== undefined ? sub.score + '%' : (sub.absent ? 'ABS' : '—');
     const remark   = sub.absent ? 'Absent — not assessed'
                    : sub.notEntered ? 'Marks not entered'
-                   : (sub.remark || KJSEA.getSubjectRemark(sub.score));
+                   : (sub.remark || KJSEA.getSubjectRemark(sub.score, String(r.studentId) + sub.name, i));
     const level    = isOut
       ? `<div style="font-size:13.9px;font-weight:600;">${sub.absent ? 'Absent' : 'Not entered'}</div>`
       : levelBlock(code);
 
     return `
     <tr>
-      <td style="${td(`text-align:center;font-size:13.9px;font-weight:700;color:${INK};`)}">${i + 1}</td>
+      <td style="${td(`text-align:center;font-size:13.9px;font-weight:700;color:${INK};`)}">${escHtml(knecCode(sub) || String(i + 1))}</td>
       <td style="${td(`text-align:left;font-weight:700;font-size:16px;color:${INK};`)}">${escHtml(sub.name)}</td>
       <td style="${td(`text-align:center;font-weight:800;font-size:16.6px;color:${INK};`)}">${scoreTxt}</td>
       <td style="${td(`text-align:left;color:${INK};`)}">${level}</td>
       <td style="${td(`text-align:center;font-weight:800;font-size:16.6px;color:${INK};`)}">${isOut ? '—' : sub.points}</td>
-      <td style="${td(`text-align:left;font-size:13.9px;color:${INK};line-height:1.25;`)}">${escHtml(remark)}</td>
-      <td style="${td(`text-align:left;font-size:13.9px;font-weight:700;color:${INK};line-height:1.25;border-right:none;`)}">${escHtml(teacherFor(sub))}</td>
+      <td style="${td(`text-align:left;font-size:14.5px;font-weight:600;color:${INK};line-height:1.2;`)}">${escHtml(remark)}</td>
+      <td style="${td(`text-align:left;font-size:14.5px;font-weight:800;color:${INK};line-height:1.2;border-right:none;`)}">${escHtml(teacherFor(sub))}</td>
     </tr>`;
   }).join('');
 
   /* ── Learner details grid ───────────────────────────────── */
   const cell = (label, value, { span = 1, last = false, bottom = true } = {}) => `
     <div style="grid-column:span ${span};padding:3px 12px 5px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}${bottom ? `border-bottom:2px solid ${LINE};` : ''}">
-      <div style="font-size:12.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">${label}</div>
+      <div style="font-size:13.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">${label}</div>
       <div style="font-size:17.4px;font-weight:800;color:${INK};line-height:1.35;min-height:17px;">${value || '&nbsp;'}</div>
     </div>`;
 
@@ -1250,15 +1514,28 @@ const buildReportCard = (r, s) => {
   /* ── Summary strip: average + overall performance level only ── */
   const stat = (label, value, last = false) => `
     <div style="padding:4px 12px;text-align:center;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
-      <div style="font-size:12.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">${label}</div>
+      <div style="font-size:13.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">${label}</div>
       <div style="font-size:20.8px;font-weight:800;color:${INK};line-height:1.15;">${value}</div>
     </div>`;
 
-  const statsStrip = `
+  const dAvg = (x) => (x && x.subjectCount) ? `${x.avgScore}%` : '—';
+  const statsStrip = both ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr 2fr;border-bottom:3px solid ${LINE};">
+      ${stat('Mid term average', dAvg(r.dual.mid))}
+      ${stat('End term average', dAvg(r.dual.end))}
+      ${stat('Overall level (average of both)', `${escHtml(KJSEA.levelFull(r.meanGrade))} &nbsp;${escHtml(r.meanGrade || '')}`, true)}
+    </div>` : `
     <div style="display:grid;grid-template-columns:1fr 2fr;border-bottom:3px solid ${LINE};">
       ${stat('Average', `${r.avgScore}%`)}
       ${stat('Overall performance level', `${escHtml(KJSEA.levelFull(r.meanGrade))} &nbsp;${escHtml(r.meanGrade || '')}`, true)}
     </div>`;
+
+  /* Class teacher's comment: from the overall level (the average on a Mid + End card) */
+  const trend = both && r.dual.mid?.subjectCount && r.dual.end?.subjectCount
+    ? (() => { const d = r.dual.end.avgScore - r.dual.mid.avgScore;
+               return d >= 3 ? ' Improved since mid term.' : d <= -3 ? ' Dipped since mid term; more effort is needed.' : ''; })()
+    : '';
+  const teacherComment = KJSEA.getTeacherComment(r.meanGrade, firstName, String(r.studentId)) + trend;
 
   /* ── Pathway summary (calculations unchanged; no bars, no colour) ── */
   const pathwayKeys = ['stem', 'social', 'creative'];
@@ -1274,7 +1551,7 @@ const buildReportCard = (r, s) => {
     return `
       <div style="flex:1;padding:6px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
         <div style="font-size:14.5px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:${INK};margin-bottom:3px;">${name}</div>
-        <div style="font-size:12.4px;color:${MUTE};line-height:1.35;min-height:0;">${escHtml(pw.subjects)}</div>
+        <div style="font-size:13.6px;font-weight:600;color:${INK};line-height:1.35;min-height:0;">${escHtml(pw.subjects)}</div>
         <div style="display:flex;align-items:baseline;gap:8px;margin:3px 0;">
           <span style="font-size:30.5px;font-weight:800;color:${INK};line-height:1.1;">${hasScore ? pw.avg + '%' : '—'}</span>
           <span style="font-size:15.3px;font-weight:700;color:${INK};">${hasScore ? pw.points + '/' + pw.maxPts + ' pts' : ''}</span>
@@ -1287,18 +1564,18 @@ const buildReportCard = (r, s) => {
   /* ── Comments + sign-off ────────────────────────────────── */
   const signBlock = (title, comment, person, personLabel, last = false) => `
     <div style="padding:8px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
-      <div style="font-size:12.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">${title}</div>
-      <div style="font-size:14.5px;color:${INK};line-height:1.45;font-style:italic;min-height:20px;">${escHtml(comment)}</div>
+      <div style="font-size:13.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">${title}</div>
+      <div style="font-size:16px;font-weight:600;color:${INK};line-height:1.4;font-style:italic;min-height:24px;">${escHtml(comment)}</div>
       <div style="margin-top:8px;border-bottom:2px solid ${LINE};"></div>
-      <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:12.4px;color:${INK};">
-        <span><strong style="font-size:13.9px;">${person ? escHtml(tidyName(person)) : '&nbsp;'}</strong><br/>${personLabel}</span>
-        <span style="align-self:flex-end;">Date: ....................</span>
+      <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:12.8px;font-weight:600;color:${INK};">
+        <span><strong style="font-size:15.5px;">${person ? escHtml(tidyName(person)) : '&nbsp;'}</strong><br/>${personLabel}</span>
+        <span style="align-self:flex-end;white-space:nowrap;">Date: ..........</span>
       </div>
     </div>`;
 
   const dateCell = (label, value, last = false) => `
     <div style="padding:6px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
-      <div style="font-size:12.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">${label}</div>
+      <div style="font-size:13.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">${label}</div>
       <div style="font-size:16.6px;font-weight:800;color:${INK};min-height:15px;">${value ? escHtml(value) : '..............................'}</div>
     </div>`;
 
@@ -1306,10 +1583,34 @@ const buildReportCard = (r, s) => {
   const keyCells = KJSEA.SCALE.map((g, i) => `
     <div style="padding:5px 4px;text-align:center;background:#ffffff;${i < KJSEA.SCALE.length - 1 ? `border-right:2px solid ${LINE};` : ''}">
       <div style="font-size:15.3px;font-weight:800;color:${INK};">${g.grade}</div>
-      <div style="font-size:11.8px;font-weight:600;color:${INK};line-height:1.2;">${g.full}</div>
-      <div style="font-size:12.4px;font-weight:700;color:${INK};margin-top:3px;">${g.min}–${g.max}%</div>
-      <div style="font-size:11.8px;color:${INK};">${g.points} pts</div>
+      <div style="font-size:13px;font-weight:700;color:${INK};line-height:1.2;">${g.full}</div>
+      <div style="font-size:13.6px;font-weight:800;color:${INK};margin-top:3px;">${g.min}–${g.max}%</div>
+      <div style="font-size:13px;font-weight:600;color:${INK};">${g.points} pts</div>
     </div>`).join('');
+
+  /* ── Mid + End: header rows and total row ──────────────── */
+  const hth = (label, al = 'center', last = false, extra = '') =>
+    `<th ${extra} style="padding:6px 4px 10px;text-align:${al};font-size:13.2px;font-weight:800;letter-spacing:0.3px;text-transform:uppercase;line-height:1.2;color:${INK};background:#ffffff;border-right:${last ? 'none' : `2px solid ${LINE}`};border-bottom:3px solid ${LINE};">${label}</th>`;
+  const gth = (label, n) =>
+    `<th colspan="${n}" style="padding:5px 4px 8px;text-align:center;font-size:13.2px;font-weight:800;text-transform:uppercase;color:${INK};background:#ffffff;border-right:2px solid ${LINE};border-bottom:2px solid ${LINE};">${label}</th>`;
+  const dualHead = `
+      <tr>${hth('Code', 'center', false, 'rowspan="2"')}${hth('Learning area', 'left', false, 'rowspan="2"')}${gth('Mid term', 2)}${gth('End term', 3)}${hth('Teacher&rsquo;s remark', 'left', false, 'rowspan="2"')}${hth('Teacher', 'left', true, 'rowspan="2"')}</tr>
+      <tr>${hth('Score')}${hth('Level')}${hth('Score')}${hth('Level')}${hth('Pts')}</tr>`;
+
+  const dTot = (x, mx) => (x && x.subjectCount)
+    ? `${x.totalScore}<div style="font-size:12px;font-weight:700;">/${x.subjectCount * 100}</div>` : '—';
+  const dLvl = (x) => (x && x.subjectCount) ? (KJSEA.getGrade(x.avgScore)?.grade || '—') : '—';
+  const DB = `border-top:4px double ${LINE};`;
+  const dualTotal = both ? `<tr>
+        <td style="${td(DB)}"></td>
+        <td style="${td(DB + `font-weight:800;font-size:15.3px;letter-spacing:0.8px;color:${INK};`)}">TOTAL</td>
+        <td style="${td(DB + `text-align:center;font-weight:800;font-size:15px;color:${INK};`)}">${dTot(r.dual.mid)}</td>
+        <td style="${td(DB + `text-align:center;font-weight:800;font-size:16px;color:${INK};`)}">${dLvl(r.dual.mid)}</td>
+        <td style="${td(DB + `text-align:center;font-weight:800;font-size:15px;color:${INK};`)}">${dTot(r.dual.end)}</td>
+        <td style="${td(DB + `text-align:center;font-weight:800;font-size:16px;color:${INK};`)}">${dLvl(r.dual.end)}</td>
+        <td style="${td(DB + `text-align:center;font-weight:800;font-size:15px;color:${INK};`)}">${r.dual.end?.subjectCount ? `${endPts(r.dual.end)}<div style="font-size:12px;font-weight:700;">/${r.dual.end.subjectCount * 8}</div>` : '—'}</td>
+        <td colspan="2" style="${td(DB + `border-right:none;font-size:13.9px;font-weight:800;color:${INK};`)}">${escHtml(teacherComment.split('.')[0])}.</td>
+      </tr>` : '';
 
   /* ── Page ───────────────────────────────────────────────── */
   const dot = (pos) => `<span style="position:absolute;${pos}width:9px;height:9px;background:#000;transform:rotate(45deg);"></span>`;
@@ -1322,11 +1623,11 @@ ${dot('top:-6px;left:-6px;')}${dot('top:-6px;right:-6px;')}${dot('bottom:-6px;le
   <div style="display:flex;align-items:center;gap:14px;padding:8px 16px;background:#ffffff;border-bottom:3px solid ${LINE};">
     <div style="width:50px;height:50px;background:#ffffff;color:${INK};border:2px solid ${LINE};border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:26.3px;font-weight:800;letter-spacing:1px;flex-shrink:0;">${escHtml(initials)}</div>
     <div style="flex:1;min-width:0;">
-      ${schoolHeader(s, 22)}
+      ${schoolHeader(s, 24)}
     </div>
     <div style="text-align:right;flex-shrink:0;">
       <div style="font-size:17.4px;font-weight:800;letter-spacing:1.2px;color:${INK};">LEARNER PROGRESS REPORT</div>
-      <div style="font-size:14.5px;font-weight:600;color:${INK};margin-top:3px;">Term ${escHtml(s.term)} &nbsp;&bull;&nbsp; ${escHtml(s.exam)} Examination &nbsp;&bull;&nbsp; ${escHtml(s.year)}</div>
+      <div style="font-size:14.5px;font-weight:600;color:${INK};margin-top:3px;">Term ${escHtml(s.term)} &nbsp;&bull;&nbsp; ${escHtml(s.exam)} Assessment &nbsp;&bull;&nbsp; ${escHtml(s.year)}</div>
     </div>
   </div>
 
@@ -1335,31 +1636,32 @@ ${dot('top:-6px;left:-6px;')}${dot('top:-6px;right:-6px;')}${dot('bottom:-6px;le
 
   ${sectionBar('Subject performance')}
   <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+    ${both ? '<colgroup>' + [6, 17, 8, 7, 8, 7, 6, 28, 13].map(w => `<col style="width:${w}%">`).join('') + '</colgroup>' : ''}
     <thead>
-      <tr>
-        ${th('No.', 4)}${th('Learning area', 19, 'left')}${th('Score', 8)}${th('Performance level', 21, 'left')}${th('Points<br/>(out of 8)', 9)}${th('Teacher&rsquo;s remark', 22, 'left')}${th('Teacher', 17, 'left', true)}
-      </tr>
+      ${both ? dualHead : `<tr>
+        ${th('Code', 6)}${th('Learning area', 17, 'left')}${th('Score', 9)}${th('Performance level', 20, 'left')}${th('Points<br/>(out of 8)', 7)}${th('Teacher&rsquo;s remark', 30, 'left')}${th('Teacher', 11, 'left', true)}
+      </tr>`}
     </thead>
     <tbody>
       ${subjectRows}
-      <tr>
+      ${both ? dualTotal : `<tr>
         <td style="${td(`border-top:4px double ${LINE};`)}"></td>
         <td style="${td(`border-top:4px double ${LINE};font-weight:800;font-size:15.3px;letter-spacing:0.8px;color:${INK};`)}">TOTAL</td>
-        <td style="${td(`border-top:4px double ${LINE};text-align:center;font-weight:800;font-size:16px;color:${INK};`)}">${r.totalScore}/${maxTotal}</td>
+        <td style="${td(`border-top:4px double ${LINE};text-align:center;font-weight:800;font-size:16px;white-space:nowrap;color:${INK};`)}">${r.totalScore}/${maxTotal}</td>
         <td style="${td(`border-top:4px double ${LINE};color:${INK};`)}">${levelBlock(r.meanGrade)}</td>
         <td style="${td(`border-top:4px double ${LINE};text-align:center;font-weight:800;font-size:16px;color:${INK};`)}">${r.totalPoints}/${maxPoints}</td>
-        <td colspan="2" style="${td(`border-top:4px double ${LINE};border-right:none;font-size:13.9px;font-weight:700;color:${INK};`)}">${escHtml(KJSEA.getTeacherComment(r.meanGrade).split('.')[0])}.</td>
-      </tr>
+        <td colspan="2" style="${td(`border-top:4px double ${LINE};border-right:none;font-size:13.9px;font-weight:700;color:${INK};`)}">${escHtml(teacherComment.split('.')[0])}.</td>
+      </tr>`}
     </tbody>
   </table>
 
-  ${sectionBar('Pathway summary', 'Average of the KNEC subjects for each pathway')}
+  ${sectionBar('Pathway summary', both ? 'Based on the average of Mid &amp; End Term' : 'Average of the KNEC subjects for each pathway')}
   <div style="display:flex;border-bottom:3px solid ${LINE};">${pathwayCells}</div>
 
   ${sectionBar('Comments')}
   <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid ${LINE};">
-    ${signBlock("Class teacher's comment", KJSEA.getTeacherComment(r.meanGrade), ((s.classTeachers || {})[r.streamName] || s.teacher), 'Class teacher &mdash; signature')}
-    ${signBlock("Principal / Head of Institution's comment",     KJSEA.getPrincipalComment(r, r.meanGrade), s.principal, 'Principal / HOI &mdash; signature &amp; stamp', true)}
+    ${signBlock("Class teacher's comment", teacherComment, ((s.classTeachers || {})[r.streamName] || s.teacher), 'Class teacher &mdash; signature')}
+    ${signBlock("Head of Institution's comment",     KJSEA.getPrincipalComment(r, r.meanGrade), s.principal, 'Head of Institution &mdash; signature &amp; stamp', true)}
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid ${LINE};">
@@ -1367,7 +1669,7 @@ ${dot('top:-6px;left:-6px;')}${dot('top:-6px;right:-6px;')}${dot('bottom:-6px;le
     ${dateCell('Next term opens',   s.nextTerm, true)}
   </div>
 
-  <div style="display:flex;align-items:flex-end;gap:10px;padding:10px 12px 6px;background:#ffffff;border-bottom:3px solid ${LINE};font-size:13.9px;color:${INK};">
+  <div style="display:flex;align-items:flex-end;gap:10px;padding:10px 12px 6px;background:#ffffff;border-bottom:3px solid ${LINE};font-size:15.5px;color:${INK};">
     <span style="white-space:nowrap;font-weight:700;">Parent / Guardian signature:</span>
     <div style="flex:1;border-bottom:2px solid ${LINE};height:14px;"></div>
     <span style="white-space:nowrap;">Date: ______________</span>
@@ -1375,10 +1677,10 @@ ${dot('top:-6px;left:-6px;')}${dot('top:-6px;right:-6px;')}${dot('bottom:-6px;le
 
   ${sectionBar('Grading key', 'Performance level, score range and points')}
   <div style="display:grid;grid-template-columns:repeat(8,1fr);border-bottom:2px solid ${LINE};">${keyCells}</div>
-  <div style="padding:4px 12px;background:#ffffff;border-bottom:3px solid ${LINE};font-size:11.8px;color:${INK};">Marks are rounded to the nearest whole number before the performance level is worked out.</div>
+  <div style="padding:4px 12px;background:#ffffff;border-bottom:3px solid ${LINE};font-size:12.8px;font-weight:600;color:${INK};">${both ? 'Remarks, pathways and overall level use the average of Mid and End Term. Marks are rounded to whole numbers.' : 'Marks are rounded to the nearest whole number before the performance level is worked out.'}</div>
 
   <!-- Footer -->
-  <div style="background:#ffffff;display:flex;justify-content:space-between;align-items:center;padding:6px 14px;font-size:12.4px;font-weight:600;color:${INK};">
+  <div style="background:#ffffff;display:flex;justify-content:space-between;align-items:center;padding:6px 14px;font-size:13.4px;font-weight:700;color:${INK};">
     <span>Powered by Scholar Analytics</span>
     <span>Parent / Guardian copy</span>
   </div>
@@ -1391,6 +1693,7 @@ ${dot('top:-6px;left:-6px;')}${dot('top:-6px;right:-6px;')}${dot('bottom:-6px;le
    12. BUILD CLASS RESULT SHEET  (Kaaboi table + Chebarus analysis, low ink)
 ══════════════════════════════════════════════════════════ */
 const buildClassSheet = (allResults, s) => {
+  if (s.primary) return buildPrimarySheet(allResults, s);   // Grades 1–6 (js/reports-primary.js)
   const { INK, LINE, MUTE } = PRINT;
   const results = allResults.filter(r => r.subjectCount > 0);    // learners with marks
   const noMarks = allResults.filter(r => !(r.subjectCount > 0));  // shown as X, not ranked
@@ -1406,6 +1709,8 @@ const buildClassSheet = (allResults, s) => {
   }));
   subjectList.splice(0, subjectList.length, ...sortSubjects(subjectList));
   const sameSubj = (x, subj) => normName(x.name) === normName(subj.name);
+  /* "English (901)" — learning-area name followed by its KNEC code in brackets */
+  const areaLabel = (x) => { const c = knecCode(x); return escHtml(x.name) + (c ? ` (${c})` : ''); };
 
   const avg      = div(results.reduce((a, r) => a + r.avgScore, 0), n).toFixed(1);
   const meanPts  = div(results.reduce((a, r) => a + r.avgPoints, 0), n).toFixed(2);
@@ -1465,7 +1770,7 @@ const buildClassSheet = (allResults, s) => {
     ? `<span style="font-size:12.5px;font-weight:800;letter-spacing:0.3px;">${escHtml(code)}</span>` : '—';
 
   const bar = (t, newPage = false) => `<div class="bar${newPage ? ' pgstart' : ''}" style="padding:5px 14px;background:#ffffff;color:${INK};font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border-top:3px solid ${LINE};border-bottom:2px solid ${LINE};">${t}</div>`;
-  const th  = (label, align = 'center', title = '') => `<th ${title ? `title="${escHtml(title)}"` : ''} style="padding:6px 5px;text-align:${align};font-size:9px;font-weight:800;line-height:1.15;color:${INK};background:#ffffff;border-right:1px solid ${LINE};border-bottom:2px solid ${LINE};">${label}</th>`;
+  const th  = (label, align = 'center', title = '') => `<th ${title ? `title="${escHtml(title)}"` : ''} style="padding:6px 5px 10px;text-align:${align};font-size:9px;font-weight:800;line-height:1.15;color:${INK};background:#ffffff;border-right:1px solid ${LINE};border-bottom:2px solid ${LINE};">${label}</th>`;
   const tdS = (extra = '') => `padding:4px 5px 6px;border-right:1px solid ${LINE};border-bottom:1px solid ${LINE};font-size:10.5px;line-height:1.3;color:${INK};background:#ffffff;${extra}`;
 
   /* ── Merit table (Kaaboi style: mark + level in one cell) ── */
@@ -1485,7 +1790,7 @@ const buildClassSheet = (allResults, s) => {
     ? `<td style="${tdS('text-align:center;white-space:nowrap;')}">${escHtml(shortClass(r.streamName))}</td><td style="${tdS('text-align:center;font-weight:800;')}">${i === null ? '—' : streamPos[i]}</td>`
     : '';
 
-  const subjHeaders = subjectList.map(subj => th(escHtml(subj.code), 'center', subj.name)).join('');
+  const subjHeaders = subjectList.map(subj => th(areaLabel(subj), 'center', subj.name)).join('');
 
   const tableRows = results.map((r, i) => {
     const subjCells = subjectList.map(subj => {
@@ -1565,7 +1870,7 @@ const buildClassSheet = (allResults, s) => {
   const summaryRows = ranked.map(x => `
     <tr>
       <td style="${tdS('text-align:center;font-weight:800;')}">${x.rank}</td>
-      <td style="${tdS('font-weight:700;')}">${escHtml(x.name)}</td>
+      <td style="${tdS('font-weight:700;')}">${areaLabel(x)}</td>
       <td style="${tdS('text-align:center;font-weight:800;')}">${x.avg}%</td>
       <td style="${tdS('text-align:center;font-weight:700;')}">${x.avgPts}</td>
       ${KJSEA.SCALE.map(g => `<td style="${tdS(`text-align:center;font-weight:${x.subDist[g.grade] ? 800 : 400};`)}">${x.subDist[g.grade]}</td>`).join('')}
@@ -1576,7 +1881,7 @@ const buildClassSheet = (allResults, s) => {
   const top3Cards = subjectStats.map(x => `
     <div class="keep" style="flex:0 0 calc(25% - 7.5px);box-sizing:border-box;border:1.5px solid ${LINE};background:#ffffff;">
       <div style="padding:5px 10px;border-bottom:1.5px solid ${LINE};">
-        <div style="font-size:11px;font-weight:800;">${escHtml(x.name)}</div>
+        <div style="font-size:11px;font-weight:800;">${areaLabel(x)}</div>
         <div style="font-size:9.5px;">Avg: ${x.avg}%</div>
       </div>
       <div style="padding:5px 10px;">
@@ -1601,7 +1906,7 @@ const buildClassSheet = (allResults, s) => {
     const leader = none ? '—' : mA > fA ? 'Male' : mA < fA ? 'Female' : 'Tie';
     return `
       <tr>
-        <td style="${tdS('font-weight:700;')}">${escHtml(subj.name)}</td>
+        <td style="${tdS('font-weight:700;')}">${areaLabel(subj)}</td>
         <td style="${tdS('text-align:center;')}">${mS.length ? mA + '%' : '—'}</td>
         <td style="${tdS('text-align:center;')}">${fS.length ? fA + '%' : '—'}</td>
         <td style="${tdS('text-align:center;')}">${none ? '—' : Math.abs(mA - fA).toFixed(1)}</td>
@@ -1644,7 +1949,7 @@ const buildClassSheet = (allResults, s) => {
     </div>
     <div style="text-align:right;">
       <div style="font-size:12.5px;font-weight:800;letter-spacing:1px;">ASSESSMENT RESULTS</div>
-      <div style="font-size:10.5px;font-weight:600;margin-top:3px;">CLASS: ${escHtml(prettyClass(s.cls))} &nbsp;|&nbsp; TERM: ${escHtml(s.term)} &nbsp;|&nbsp; YEAR: ${escHtml(s.year)} &nbsp;|&nbsp; EXAM: ${escHtml(s.exam)}</div>
+      <div style="font-size:10.5px;font-weight:600;margin-top:3px;">CLASS: ${escHtml(prettyClass(s.cls))} &nbsp;|&nbsp; TERM: ${escHtml(s.term)} &nbsp;|&nbsp; YEAR: ${escHtml(s.year)} &nbsp;|&nbsp; ASSESSMENT: ${escHtml(s.exam)}</div>
     </div>
   </div>
 
@@ -1713,7 +2018,7 @@ const buildClassSheet = (allResults, s) => {
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:3px solid ${LINE};margin-top:0;">
     ${sigBlock(ctNames.length > 1 ? 'Class teachers' : 'Class teacher', ctNames.length > 1 ? ctNames.map(([c, t]) => `${shortClass(c)}: ${t}`).join(' / ') : (ctNames[0]?.[1] || s.teacher), 'Signature &amp; date: .....................')}
     ${sigBlock('Dean of studies', '', 'Signature &amp; date: .....................')}
-    ${sigBlock('Principal / Head of Institution (HOI)', s.principal, 'Signature, stamp &amp; date: .....................', true)}
+    ${sigBlock('Head of Institution', s.principal, 'Signature, stamp &amp; date: .....................', true)}
   </div>
 
   <!-- Footer -->
@@ -1863,14 +2168,15 @@ const safeFileText = (t, fallback) =>
 
 /* Draw html off-screen, measure where a page may be cut, and capture it.
    breaks = y positions (CSS px from the top of the sheet) that are safe to cut at. */
-async function captureHTML(html, widthPx, maxScale) {
+async function captureHTML(html, widthPx, maxScale, isCard = false) {
   if (document.fonts && document.fonts.ready) {
     try { await document.fonts.ready; } catch { /* ignore */ }
   }
 
   const wrap = document.createElement('div');
   wrap.style.cssText = `position:fixed;top:-99999px;left:-99999px;width:${widthPx}px;background:#fff;z-index:-9999;`;
-  wrap.innerHTML = html;
+  /* Cards: fill the page width (same as printing) so the narrow SCORE column fits "620/900" */
+  wrap.innerHTML = isCard ? String(html).replace(/max-width:754px/g, 'max-width:none') : html;
   document.body.appendChild(wrap);
 
   try {
@@ -1898,6 +2204,17 @@ async function captureHTML(html, widthPx, maxScale) {
     const canvas = await html2canvas(wrap, {
       scale, useCORS: true, allowTaint: true, backgroundColor: '#ffffff',
       logging: false, windowWidth: widthPx, scrollX: 0, scrollY: 0,
+      /* html2canvas draws text a little lower than the browser does, so the bottom of
+         letters touched the cell border and looked cut off. Give bordered cells and
+         value boxes a few extra pixels underneath (capture copy only). */
+      onclone: isCard ? (doc) => {
+        doc.querySelectorAll('td, th, div').forEach(n => {
+          const hasText = [...n.childNodes].some(c => c.nodeType === 3 && c.textContent.trim());
+          if (!hasText) return;
+          const cs = doc.defaultView.getComputedStyle(n);
+          n.style.paddingBottom = (parseFloat(cs.paddingBottom) + 5) + 'px';
+        });
+      } : undefined,
     });
 
     return { canvas, scale, breaks, starts, cssW: canvas.width / scale, cssH: canvas.height / scale };
@@ -1987,7 +2304,7 @@ async function generateSinglePDF() {
       unit: 'mm', format: pdfFormat(),
     });
 
-    const cap = await captureHTML(el.previewPaper.innerHTML, isSheet ? 960 : 794, isSheet ? 1.6 : 2);
+    const cap = await captureHTML(el.previewPaper.innerHTML, isSheet ? 960 : 794, isSheet ? 1.6 : 2, !isSheet);
 
     if (isSheet) addSheetPaged(pdf, cap);
     else         addCardOnePage(pdf, cap);
@@ -2040,7 +2357,7 @@ async function downloadBulkPDF() {
 
       await new Promise(r => setTimeout(r, 20));          // let the progress bar repaint
 
-      const cap = await captureHTML(html, 794, 1.5);
+      const cap = await captureHTML(html, 794, 1.5, true);
       if (i > 0) pdf.addPage();
       addCardOnePage(pdf, cap);
     }
