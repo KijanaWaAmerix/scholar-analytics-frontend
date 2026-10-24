@@ -2103,6 +2103,8 @@ const printPages = (htmls, landscape) => {
   st.textContent = `@page { size: A4 ${landscape ? 'landscape' : 'portrait'}; margin: ${landscape ? margin : 0}mm; }` +
     `@media print { html, body, #printArea, .print-area { background:#fff !important; } ` +
     `.print-area div[style*="max-width:754px"] { max-width:none !important; } ` +
+    `.print-area div[style*="max-width:960px"] { max-width:none !important; } ` +
+    `.print-area div[style*="overflow-x:auto"] { overflow:visible !important; } ` +
     `* { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`;
 
   if (landscape) {                                    // class sheet: flows over pages by itself
@@ -2195,7 +2197,22 @@ async function captureHTML(html, widthPx, maxScale, isCard = false) {
   document.body.appendChild(wrap);
 
   try {
-    const root = wrap.firstElementChild;
+    let root = wrap.firstElementChild;
+
+    /* A wide table (Whole Grade adds Class + Str pos columns) can be wider than the sheet and
+       would be cut off at the right edge: give the capture exactly the extra width it needs. */
+    if (!isCard) {
+      let extra = 0;
+      root.querySelectorAll('div').forEach(d => {
+        if (getComputedStyle(d).overflowX !== 'visible') extra = Math.max(extra, d.scrollWidth - d.clientWidth);
+      });
+      if (extra > 1) {
+        widthPx = widthPx + Math.ceil(extra) + 2;
+        wrap.style.width = widthPx + 'px';
+        root.style.maxWidth = 'none';
+      }
+    }
+
     const box  = root.getBoundingClientRect();
     const top  = box.top;
 
