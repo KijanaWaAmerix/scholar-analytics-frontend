@@ -1595,7 +1595,8 @@ const buildReportCard = (r, s) => {
   /* ── Class teacher's comment: from the overall level (the average on a Mid + End card) ── */
   const trend = both && r.dual.mid?.subjectCount && r.dual.end?.subjectCount
     ? (() => { const d = r.dual.end.avgScore - r.dual.mid.avgScore;
-               return d >= 3 ? ' Improved since mid term.' : d <= -3 ? ' Dipped since mid term; more effort is needed.' : ''; })()
+               const w = trendWordOf(s);
+               return d >= 3 ? ` Improved since ${w}.` : d <= -3 ? ` Dipped since ${w}; more effort is needed.` : ''; })()
     : '';
   const teacherComment = KJSEA.getTeacherComment(r.meanGrade, firstName, String(r.studentId)) + trend;
   const closing = escHtml(teacherComment.split('.')[0]) + '.';
@@ -1617,7 +1618,7 @@ const buildReportCard = (r, s) => {
   const cols = both ? [6, 17, 7, 7, 7, 7, 6, 24, 19] : [7, 22, 8, 8, 6, 31, 18];
   const colgroup = '<colgroup>' + cols.map(w => `<col style="width:${w}%">`).join('') + '</colgroup>';
   const head = both
-    ? `<tr>${cardTh('Code', 0, 'center', false, 'rowspan="2"')}${cardTh('Learning area', 0, 'left', false, 'rowspan="2"')}${cardGroupTh('Mid term', 2)}${cardGroupTh('End term', 3)}${cardTh('Teacher&rsquo;s remark (average)', 0, 'left', false, 'rowspan="2"')}${cardTh('Teacher', 0, 'left', true, 'rowspan="2"')}</tr>
+    ? `<tr>${cardTh('Code', 0, 'center', false, 'rowspan="2"')}${cardTh('Learning area', 0, 'left', false, 'rowspan="2"')}${cardGroupTh(escHtml(slotLabelsOf(s).mid), 2)}${cardGroupTh(escHtml(slotLabelsOf(s).end), 3)}${cardTh('Teacher&rsquo;s remark (average)', 0, 'left', false, 'rowspan="2"')}${cardTh('Teacher', 0, 'left', true, 'rowspan="2"')}</tr>
        <tr>${cardSubTh('Score')}${cardSubTh('Level')}${cardSubTh('Score')}${cardSubTh('Level')}${cardSubTh('Pts')}</tr>`
     : `<tr>${cardTh('Code')}${cardTh('Learning area', 0, 'left')}${cardTh('Score')}${cardTh('Level')}${cardTh('Pts<br/>/ 8')}${cardTh('Teacher&rsquo;s remark', 0, 'left')}${cardTh('Teacher', 0, 'left', true)}</tr>`;
 
@@ -1638,8 +1639,8 @@ const buildReportCard = (r, s) => {
 
   const levelStrip = both
     ? `<div style="display:grid;grid-template-columns:1fr 1fr 2fr;border-bottom:3px solid ${LINE};">
-         ${cardStat('Mid term average', dAvg(r.dual.mid))}
-         ${cardStat('End term average', dAvg(r.dual.end))}
+         ${cardStat(escHtml(slotLabelsOf(s).mid) + ' average', dAvg(r.dual.mid))}
+         ${cardStat(escHtml(slotLabelsOf(s).end) + ' average', dAvg(r.dual.end))}
          ${cardStat('Overall level (average of both)', levelText, true)}
        </div>`
     : `<div style="display:flex;align-items:baseline;gap:12px;padding:3px 12px 7px;background:#ffffff;border-bottom:3px solid ${LINE};line-height:1.2;">
@@ -1695,7 +1696,7 @@ const buildReportCard = (r, s) => {
     <tbody>${rowsHtml}${totalRow}</tbody>
   </table>
 
-  ${cardBar('Pathway summary', both ? 'Average of Mid &amp; End Term' : 'Average of the KNEC subjects for each pathway')}
+  ${cardBar('Pathway summary', both ? `Average of ${escHtml(slotLabelsOf(s).mid)} &amp; ${escHtml(slotLabelsOf(s).end)}` : 'Average of the KNEC subjects for each pathway')}
   <div style="display:flex;border-bottom:3px solid ${LINE};">${pathwayCells}</div>
 
   ${cardBar('Comments')}

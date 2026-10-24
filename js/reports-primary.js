@@ -125,15 +125,65 @@ const isDualCapable = () => isPrimarySelection() || (isJuniorSelection() && stat
 /* Grades 7–9 card showing Mid Term and End Term side by side */
 const juniorDual = () => isJuniorSelection() && state.activeTab !== 'class' && reportType() === 'both';
 
-const reportType = () => {
+/* What the Report type dropdown says: 'end' | 'mid' | 'both' | 'custom' */
+const rawType  = () => {
   const v = $p('rptReportType')?.value;
-  return v === 'mid' || v === 'both' ? v : 'end';
+  return v === 'mid' || v === 'both' || v === 'custom' ? v : 'end';
+};
+const isCustom = () => rawType() === 'custom';
+
+/* Custom: the second assessment is optional ("None" = one assessment only) */
+const NONE_VAL = '__none';
+const customSecond = () => {
+  const v = $p('rptExam2')?.value;
+  return v && v !== NONE_VAL ? v : '';
 };
 
+/* The report type the cards work with: 'end' | 'mid' | 'both'.
+   Custom with two assessments behaves like "both", with one assessment like a single End Term card. */
+const reportType = () => {
+  const v = rawType();
+  if (v === 'custom') return customSecond() ? 'both' : 'end';
+  return v;
+};
+
+/* Which assessment fills which slot. Slots: 'mid' = left column, 'end' = right column (or the only one). */
+const examSlots = () => {
+  const a = el.rptExam?.value || '', b = $p('rptExam2')?.value || '';
+  const v = rawType();
+  if (v === 'custom') return customSecond() ? { mid: a, end: customSecond() } : { mid: '', end: a };
+  if (v === 'both')   return { mid: b, end: a };
+  if (v === 'mid')    return { mid: a, end: '' };
+  return { mid: '', end: a };
+};
+
+const cleanExamText = (sel) => {
+  const o = sel && sel.options[sel.selectedIndex];
+  return o && o.value && o.value !== NONE_VAL
+    ? o.textContent.replace(/\s+—.*$/, '').replace(/\s*\(\d{4}\)\s*$/, '').trim() : '';
+};
+
+/* Names printed on the card: "Mid Term" / "End Term", or the two assessments chosen under Custom */
+const slotLabels = () => {
+  if (isCustom()) {
+    const first = cleanExamText(el.rptExam) || 'First assessment';
+    const second = customSecond() ? (cleanExamText($p('rptExam2')) || 'Second assessment') : '';
+    return second ? { mid: first, end: second } : { mid: first, end: first };
+  }
+  return { mid: 'Mid Term', end: 'End Term' };
+};
+const slotLabelsOf = (s) => (s?.primary?.labels || s?.dual?.labels || { mid: 'Mid Term', end: 'End Term' });
+const trendWordOf  = (s) => (s?.primary?.custom || s?.dual?.custom) ? slotLabelsOf(s).mid : 'mid term';
+
 const PRIMARY_TYPE_LABEL = { end: 'End Term', mid: 'Mid Term', both: 'Mid & End Term' };
-const primarySettings   = () => isPrimarySelection() ? { type: reportType() } : null;
-const primaryExamLabel  = () => (isPrimarySelection() || juniorDual()) ? PRIMARY_TYPE_LABEL[reportType()] : '';
-const dualSettings      = () => juniorDual() ? { type: 'both' } : null;
+const typeText = (type, st) => {
+  if (st?.custom) { const l = st.labels || slotLabels(); return type === 'both' ? `${l.mid} & ${l.end}` : l.end; }
+  return PRIMARY_TYPE_LABEL[type];
+};
+const primarySettings   = () => isPrimarySelection() ? { type: reportType(), custom: isCustom(), labels: slotLabels() } : null;
+const primaryExamLabel  = () => (isPrimarySelection() || juniorDual())
+  ? typeText(reportType(), { custom: isCustom(), labels: slotLabels() }) : '';
+const dualSettings      = () => juniorDual() ? { type: 'both', custom: isCustom(), labels: slotLabels() } : null;
 
 /* The key a loaded result set must have for the current selection */
 const expectedKeyNow = () => {
@@ -160,10 +210,12 @@ const updatePrimaryControls = () => {
   /* A class sheet is for ONE assessment, so "Mid + End Term" is offered for report cards only */
   const sel = $p('rptReportType');
   const sheetTab = state.activeTab === 'class' && isPrimarySelection();
-  const bothOpt = sel && [...sel.options].find(o => o.value === 'both');
-  if (bothOpt) { bothOpt.disabled = sheetTab; bothOpt.hidden = sheetTab; }
   let changed = false;
-  if (sheetTab && sel && sel.value === 'both') { sel.value = 'end'; changed = true; }
+  ['both', 'custom'].forEach(v => {
+    const o = sel && [...sel.options].find(x => x.value === v);
+    if (o) { o.disabled = sheetTab; o.hidden = sheetTab; }
+    if (sheetTab && sel && sel.value === v) { sel.value = 'end'; changed = true; }
+  });
 
   const type = reportType();
 
@@ -173,13 +225,17 @@ const updatePrimaryControls = () => {
   const label2   = $p('exam2LabelText');
 
   if (typeWrap) typeWrap.style.display = prim ? 'flex' : 'none';
-  if (label)    label.textContent      = prim ? (type === 'mid' ? 'Mid Term assessment' : 'End Term assessment') : 'Assessment';
-  if (label2)   label2.textContent     = 'Mid Term assessment';
+  const custom = prim && isCustom();
+  if (label)    label.textContent      = custom ? 'First assessment' : prim ? (type === 'mid' ? 'Mid Term assessment' : 'End Term assessment') : 'Assessment';
+  if (label2)   label2.textContent     = custom ? 'Second assessment (optional)' : 'Mid Term assessment';
 
   /* Report type already says which assessment(s) to use, so the pickers stay hidden
      (they come back only if no matching assessment can be found - see syncExamPickers) */
   const wrapA = $p('examFieldWrap');
-  if (prim) {
+  if (custom) {                               // Custom: the teacher chooses the assessments
+    if (wrapA) wrapA.style.display = 'flex';
+    if (exam2) exam2.style.display = 'flex';
+  } else if (prim) {
     if (wrapA) wrapA.style.display = 'none';
     if (exam2) exam2.style.display = 'none';
   } else {
@@ -191,7 +247,7 @@ const updatePrimaryControls = () => {
 
 /* Fallback: show a picker only when the assessment could not be chosen automatically */
 const syncExamPickers = () => {
-  if (!isDualCapable()) return;
+  if (!isDualCapable() || isCustom()) return;
   const a = el.rptExam, b = $p('rptExam2');
   const loaded = (s) => s && [...s.options].some(o => o.value);
   const type = reportType();
@@ -208,6 +264,20 @@ const primaryAfterExams = (force = false) => {
 
   const a = el.rptExam, b = $p('rptExam2');
   if (!a) return;
+
+  if (isCustom()) {
+    /* Custom: nothing is chosen for the teacher. Second list = the same assessments + "None". */
+    if (b) {
+      const keep = b.value;
+      b.innerHTML = `<option value="${NONE_VAL}">None (one assessment only)</option>` +
+        [...a.options].filter(o => o.value).map(o => o.outerHTML).join('');
+      b.value = keep && [...b.options].some(o => o.value === keep) ? keep : NONE_VAL;
+    }
+    if (a.value && state.loadedKey !== expectedKeyNow()) fetchResults();
+    return;
+  }
+
+  if (b && b.querySelector(`option[value="${NONE_VAL}"]`)) b.innerHTML = a.innerHTML;   // leaving Custom
   if (b && (force === false || !b.options.length || b.options.length !== a.options.length)) {
     const keep = b.value;
     b.innerHTML = a.innerHTML;
@@ -233,8 +303,8 @@ const primaryAfterExams = (force = false) => {
 
 const primaryKey = () => {
   const type = reportType();
-  return `${isPrimarySelection() ? 'primary' : 'dual'}:${type}:${el.rptClass?.value}:${el.rptTerm?.value}:${el.rptExam?.value}:` +
-         (type === 'both' ? ($p('rptExam2')?.value || '') : '');
+  return `${isPrimarySelection() ? 'primary' : 'dual'}:${rawType()}:${type}:${el.rptClass?.value}:${el.rptTerm?.value}:${el.rptExam?.value}:` +
+         ((type === 'both' || isCustom()) ? ($p('rptExam2')?.value || '') : '');
 };
 
 $p('rptReportType')?.addEventListener('change', () => {
@@ -311,17 +381,17 @@ const mergePrimary = (sets) => {
 async function fetchPrimaryResults() {
   const type = reportType();
   const a = el.rptExam?.value;
-  const b = $p('rptExam2')?.value;
+  const slots = examSlots();
   const term = el.rptTerm?.value;
-  if (!el.rptClass?.value || !term || !a || (type === 'both' && !b)) return;
+  if (!el.rptClass?.value || !term || !a || (type === 'both' && (!slots.mid || !slots.end))) return;
 
-  if (type === 'both' && a === b) {
-    showToast('Choose two different assessments for Mid Term and End Term.', 'warning');
+  if (type === 'both' && slots.mid === slots.end) {
+    showToast(isCustom() ? 'Choose two different assessments.' : 'Choose two different assessments for Mid Term and End Term.', 'warning');
     return;
   }
 
-  const wanted = type === 'both' ? [{ role: 'end', val: a }, { role: 'mid', val: b }]
-               : [{ role: type, val: a }];
+  const wanted = type === 'both' ? [{ role: 'end', val: slots.end }, { role: 'mid', val: slots.mid }]
+               : [{ role: type, val: type === 'mid' ? slots.mid : slots.end }];
 
   if (el.rptLearner) el.rptLearner.innerHTML = '<option value="">Loading...</option>';
 
@@ -411,13 +481,13 @@ const blendJunior = (mid, end) => {
 };
 
 async function fetchJuniorDual() {
-  const a = el.rptExam?.value;                         // End Term
-  const b = $p('rptExam2')?.value;                     // Mid Term
+  const a = examSlots().end;                           // right column (End Term)
+  const b = examSlots().mid;                           // left column  (Mid Term)
   const term = el.rptTerm?.value;
   if (!el.rptClass?.value || !term || !a || !b) return;
 
   if (a === b) {
-    showToast('Choose two different assessments for Mid Term and End Term.', 'warning');
+    showToast(isCustom() ? 'Choose two different assessments.' : 'Choose two different assessments for Mid Term and End Term.', 'warning');
     return;
   }
 
@@ -512,10 +582,10 @@ const primaryOverall = (r, type) => {
 };
 
 /* "Improved / dipped since mid term" line for the class teacher's comment on a Mid + End card */
-const trendSentence = (m, e) => {
+const trendSentence = (m, e, word = 'mid term') => {
   if (m === null || e === null || m === undefined || e === undefined) return '';
   const d = e - m;
-  return d >= 3 ? ' Improved since mid term.' : d <= -3 ? ' Dipped since mid term; more effort is needed.' : '';
+  return d >= 3 ? ` Improved since ${word}.` : d <= -3 ? ` Dipped since ${word}; more effort is needed.` : '';
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -545,7 +615,7 @@ const buildPrimaryCard = (r, s) => {
   const lastRemarkTh = !upper;
   const remarkHead = both ? 'Teacher&rsquo;s remark (average)' : 'Teacher&rsquo;s remark';
   const head = both
-    ? `<tr>${cardTh('No.', 0, 'center', false, 'rowspan="2"')}${cardTh('Learning area', 0, 'left', false, 'rowspan="2"')}${cardGroupTh('Mid term', 2)}${cardGroupTh('End term', 2)}${cardTh(remarkHead, 0, 'left', lastRemarkTh, 'rowspan="2"')}${upper ? cardTh('Teacher', 0, 'left', true, 'rowspan="2"') : ''}</tr>
+    ? `<tr>${cardTh('No.', 0, 'center', false, 'rowspan="2"')}${cardTh('Learning area', 0, 'left', false, 'rowspan="2"')}${cardGroupTh(escHtml(slotLabelsOf(s).mid), 2)}${cardGroupTh(escHtml(slotLabelsOf(s).end), 2)}${cardTh(remarkHead, 0, 'left', lastRemarkTh, 'rowspan="2"')}${upper ? cardTh('Teacher', 0, 'left', true, 'rowspan="2"') : ''}</tr>
        <tr>${cardSubTh('Score')}${cardSubTh('Level')}${cardSubTh('Score')}${cardSubTh('Level')}</tr>`
     : `<tr>${cardTh('No.')}${cardTh('Learning area', 0, 'left')}${cardTh('Score')}${cardTh('Performance level', 0, 'left')}${cardTh(remarkHead, 0, 'left', lastRemarkTh)}${upper ? cardTh('Teacher', 0, 'left', true) : ''}</tr>`;
 
@@ -605,7 +675,7 @@ const buildPrimaryCard = (r, s) => {
   const overall = primaryOverall(r, type);
   const first = String(r.fullName || 'The learner').trim().split(/\s+/)[0].replace(/^./, c => c.toUpperCase()).replace(/(?<=.)./g, c => c.toLowerCase());
   const teacherComment = primaryTeacherComment(overall?.code, first, String(r.studentId)) +
-    (both ? trendSentence(r.mid?.count ? r.mid.avg : null, r.end?.count ? r.end.avg : null) : '');
+    (both ? trendSentence(r.mid?.count ? r.mid.avg : null, r.end?.count ? r.end.avg : null, trendWordOf(s)) : '');
   const overallRemark = { EE: 'Excellent performance.', ME: 'Good performance.', AE: 'Fair. More effort needed.', BE: 'Needs extra support.' }[overall?.code] || '';
 
   const totalRow = `<tr>
@@ -630,7 +700,7 @@ const buildPrimaryCard = (r, s) => {
   const avgTxt = (role) => r[role]?.count ? `${(Math.round(r[role].avg * 10) / 10).toFixed(1)}%` : '—';
   const overallTxt = overall ? `${escHtml(overall.full)} &nbsp;${overall.code}` : '—';
   const statsStrip = both
-    ? `<div style="display:grid;grid-template-columns:1fr 1fr 2fr;border-bottom:3px solid ${LINE};">${cardStat('Mid term average', avgTxt('mid'))}${cardStat('End term average', avgTxt('end'))}${cardStat('Overall level (average of both)', overallTxt, true)}</div>`
+    ? `<div style="display:grid;grid-template-columns:1fr 1fr 2fr;border-bottom:3px solid ${LINE};">${cardStat(escHtml(slotLabelsOf(s).mid) + ' average', avgTxt('mid'))}${cardStat(escHtml(slotLabelsOf(s).end) + ' average', avgTxt('end'))}${cardStat('Overall level (average of both)', overallTxt, true)}</div>`
     : `<div style="display:grid;grid-template-columns:1fr 2fr;border-bottom:3px solid ${LINE};">${cardStat('Average', avgTxt(type))}${cardStat('Overall performance level', overallTxt, true)}</div>`;
 
   /* ── key ── */
@@ -644,7 +714,7 @@ const buildPrimaryCard = (r, s) => {
   const classTeacher = (s.classTeachers || {})[r.streamName] || s.teacher;
 
   return cardFrame(`
-  ${cardHeader(s, `Term ${escHtml(s.term)} &nbsp;&bull;&nbsp; ${PRIMARY_TYPE_LABEL[type]} Assessment &nbsp;&bull;&nbsp; ${escHtml(s.year)}`)}
+  ${cardHeader(s, `Term ${escHtml(s.term)} &nbsp;&bull;&nbsp; ${escHtml(typeText(type, s.primary))} Assessment &nbsp;&bull;&nbsp; ${escHtml(s.year)}`)}
   ${learnerGrid}
   ${statsStrip}
 
