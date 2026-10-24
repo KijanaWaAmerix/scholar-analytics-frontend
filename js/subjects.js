@@ -14,6 +14,23 @@ const state = {
   editingId  : null,
 };
 
+/* How many standard learning areas a class gets, by grade (must match the backend list) */
+const standardCount = (cls) => {
+  const g = Number(cls?.grade);
+  if (g >= 1 && g <= 3) return 7;
+  if (g >= 4 && g <= 6) return 8;
+  return 9;
+};
+const seedLabel = (cls) => cls ? `Add ${standardCount(cls)} Standard Subjects` : 'Add Standard Subjects';
+const setSeedButton = (cls, busy) => {
+  const btn = document.getElementById('seedSubjectsBtn');
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.innerHTML = busy
+    ? '<i class="fas fa-spinner fa-spin"></i> Adding...'
+    : `<i class="fas fa-wand-magic-sparkles"></i> ${seedLabel(cls)}`;
+};
+
 /* Load classes into filter dropdown */
 const loadClasses = async () => {
   const result = await API.get('/classes');
@@ -48,6 +65,7 @@ const loadSubjects = async (classId) => {
     cls ? `Subjects for ${cls.name}` : 'Select a class';
 
   document.getElementById('seedSubjectsBtn').style.display = 'inline-flex';
+  setSeedButton(cls);
   document.getElementById('addSubjectBtn').style.display   = 'inline-flex';
 
   document.getElementById('subjectsCard').style.display        = 'block';
@@ -78,7 +96,7 @@ const renderTable = () => {
     tbody.innerHTML = `
       <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-soft);">
         <i class="fas fa-book-open" style="font-size:28px;display:block;margin-bottom:10px;opacity:0.3;"></i>
-        No subjects yet. Click "Seed 9 CBC Subjects" to add all default learning areas.
+        No subjects yet. Click "${document.getElementById('seedSubjectsBtn')?.textContent.trim() || 'Add Standard Subjects'}" to add the standard learning areas for this class.
       </td></tr>`;
     return;
   }
@@ -201,19 +219,20 @@ const toggleSubject = async (id, isActive) => {
 const seedSubjects = async () => {
   if (!state.selectedClass) { showToast('Select a class first.', 'warning'); return; }
 
-  const btn = document.getElementById('seedSubjectsBtn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Seeding...'; }
+  const cls = state.classes.find(c => c._id === state.selectedClass);
+  setSeedButton(cls, true);
 
   const result = await API.post('/subjects/seed-defaults', { classId: state.selectedClass });
 
-  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Seed 9 CBC Subjects'; }
+  setSeedButton(cls, false);
 
   if (!result?.ok) {
     showToast(result?.data?.message || 'Failed to seed subjects.', 'error');
     return;
   }
 
-  showToast(`${result.data.created?.length || 0} subjects created.`, 'success');
+  const made = result.data.created?.length || 0;
+  showToast(made ? `${made} subjects added.` : 'All standard subjects are already there.', made ? 'success' : 'info');
   loadSubjects(state.selectedClass);
 };
 
