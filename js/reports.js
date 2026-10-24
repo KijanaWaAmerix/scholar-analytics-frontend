@@ -1993,7 +1993,7 @@ const buildClassSheet = (allResults, s) => {
     Learner position is assigned using total marks. Performance level is calculated using average marks. Marks are rounded to the nearest whole number before the level is worked out.<br/><strong>Performance level:</strong> EE1, EE2 = Exceeding Expectation &nbsp;·&nbsp; ME1, ME2 = Meeting Expectation &nbsp;·&nbsp; AE1, AE2 = Approaching Expectation &nbsp;·&nbsp; BE1, BE2 = Below Expectation
   </div>
 
-  ${bar('Overall grade distribution')}
+  ${bar('Overall grade distribution', true)}
   <div style="display:grid;grid-template-columns:repeat(${xCount > 0 ? 9 : 8},1fr);">${distCells}</div>
 
   ${bar('Subject-wise performance summary')}
@@ -2008,10 +2008,10 @@ const buildClassSheet = (allResults, s) => {
     </table>
   </div>
 
-  ${bar('Top 3 learners per subject')}
+  ${bar('Top 3 learners per subject', true)}
   <div style="padding:12px;display:flex;flex-wrap:wrap;gap:10px;background:#ffffff;">${top3Cards}</div>
 
-  ${bar('Gender performance analytics')}
+  ${bar('Gender performance analytics', true)}
   <div style="display:grid;grid-template-columns:1fr 2fr;">
     <div style="padding:12px;border-right:1px solid ${LINE};font-size:11px;">
       <div style="display:flex;gap:10px;margin-bottom:10px;">
@@ -2208,6 +2208,11 @@ async function captureHTML(html, widthPx, maxScale, isCard = false) {
     });
     breaks.sort((a, b) => a - b);
 
+    /* the rankings table header, so it can be repeated at the top of each following page */
+    const th0 = root.querySelector('thead');
+    const hb  = th0 ? th0.getBoundingClientRect() : null;
+    const head = hb && hb.height > 0 ? { top: hb.top - top, bottom: hb.bottom - top } : null;
+
     /* sections that must start on a fresh page (class sheet) */
     const starts = [...root.querySelectorAll('.pgstart')]
       .map(node => node.getBoundingClientRect().top - top)
@@ -2232,7 +2237,7 @@ async function captureHTML(html, widthPx, maxScale, isCard = false) {
       } : undefined,
     });
 
-    return { canvas, scale, breaks, starts, cssW: canvas.width / scale, cssH: canvas.height / scale };
+    return { canvas, scale, breaks, starts, head, cssW: canvas.width / scale, cssH: canvas.height / scale };
   } finally {
     wrap.remove();
   }
@@ -2250,17 +2255,22 @@ function addCardOnePage(pdf, cap) {
 
 /* Where to cut. `starts` are forced page starts (each analysis section begins a new page);
    inside each part, a page is cut at the last safe break (between rows) that fits. */
-function planPageCuts(breaks, totalPx, pagePx, starts = []) {
+function planPageCuts(breaks, totalPx, pagePx, starts = [], headPx = 0) {
   const marks = [0, ...starts.filter(m => m > 1 && m < totalPx - 1), totalPx];
   const cuts  = [0];
 
   for (let m = 0; m < marks.length - 1; m++) {
     let y = marks[m];
     const end = marks[m + 1];
+    let first = true;
 
-    while (end - y > pagePx) {
-      const limit = y + pagePx;
-      const minY  = y + pagePx * 0.4;                  // avoid tiny pages
+    while (true) {
+      /* the rankings (first part) repeat their table header on every page after the first */
+      const avail = (m === 0 && !first) ? pagePx - headPx : pagePx;
+      if (end - y <= avail) break;
+      first = false;
+      const limit = y + avail;
+      const minY  = y + avail * 0.4;                   // avoid tiny pages
       const cut   = breaks.filter(b => b <= limit && b >= minY && b < end).pop() || limit;
       cuts.push(cut);
       y = cut;
@@ -2277,7 +2287,9 @@ function addSheetPaged(pdf, cap) {
   const usableW = pw - 2 * PDF_MARGIN;
   const usableH = ph - 2 * PDF_MARGIN - 4;           // 4 mm kept for the page number
   const mmPerPx = usableW / cap.cssW;
-  const cuts    = planPageCuts(cap.breaks, cap.cssH, usableH / mmPerPx, cap.starts);
+  const headPx  = cap.head ? cap.head.bottom - cap.head.top : 0;
+  const cuts    = planPageCuts(cap.breaks, cap.cssH, usableH / mmPerPx, cap.starts, headPx);
+  const firstStart = (cap.starts || []).filter(m => m > 1)[0] ?? cap.cssH;
 
   for (let i = 0; i < cuts.length - 1; i++) {
     const y0 = Math.round(cuts[i] * cap.scale);
@@ -2290,8 +2302,20 @@ function addSheetPaged(pdf, cap) {
     slice.getContext('2d').drawImage(cap.canvas, 0, y0, cap.canvas.width, h, 0, 0, cap.canvas.width, h);
 
     if (i > 0) pdf.addPage();
+
+    /* rankings continued on this page: repeat the table header first */
+    let offsetMM = 0;
+    if (i > 0 && cap.head && cuts[i] < firstStart - 1) {
+      const hy = Math.round(cap.head.top * cap.scale);
+      const hh = Math.round(cap.head.bottom * cap.scale) - hy;
+      const hc = document.createElement('canvas');
+      hc.width = cap.canvas.width; hc.height = hh;
+      hc.getContext('2d').drawImage(cap.canvas, 0, hy, cap.canvas.width, hh, 0, 0, cap.canvas.width, hh);
+      offsetMM = (hh / cap.scale) * mmPerPx;
+      pdf.addImage(hc.toDataURL('image/jpeg', 0.95), 'JPEG', PDF_MARGIN, PDF_MARGIN, usableW, offsetMM);
+    }
     pdf.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG',
-      PDF_MARGIN, PDF_MARGIN, usableW, (h / cap.scale) * mmPerPx);
+      PDF_MARGIN, PDF_MARGIN + offsetMM, usableW, (h / cap.scale) * mmPerPx);
   }
 
   const total = pdf.getNumberOfPages();

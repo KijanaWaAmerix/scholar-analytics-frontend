@@ -968,7 +968,7 @@ const buildPrimarySheet = (allResults, s) => {
     Learner position is assigned using total marks. Performance level is calculated using average marks. Marks are rounded to the nearest whole number before the level is worked out.<br/><strong>Performance level:</strong> ${PRIMARY_SCALE.map(l => `${l.code} = ${l.full} (${l.label})`).join(' &nbsp;·&nbsp; ')}
   </div>
 
-  ${bar('Overall level distribution')}
+  ${bar('Overall level distribution', true)}
   <div style="display:grid;grid-template-columns:repeat(${cols},1fr);">${distCells}</div>
 
   ${bar('Learning area performance summary')}
@@ -981,10 +981,10 @@ const buildPrimarySheet = (allResults, s) => {
     </table>
   </div>
 
-  ${bar('Top 3 learners per learning area')}
+  ${bar('Top 3 learners per learning area', true)}
   <div style="padding:12px;display:flex;flex-wrap:wrap;gap:10px;background:#ffffff;">${top3Cards}</div>
 
-  ${bar('Gender performance analytics')}
+  ${bar('Gender performance analytics', true)}
   <div style="display:grid;grid-template-columns:1fr 2fr;">
     <div style="padding:12px;border-right:1px solid ${LINE};font-size:11px;">
       <div style="display:flex;gap:10px;margin-bottom:10px;">
