@@ -90,7 +90,9 @@ const loadClasses = async () => {
 /* ══════════════════════════════════════════════════════════
    LOAD STUDENTS FROM API
 ══════════════════════════════════════════════════════════ */
+let loadSeq = 0;   /* newest request wins - a slow older reply must not overwrite the filtered list */
 const loadStudents = async (page = 1) => {
+  const mySeq = ++loadSeq;
 
   /* Show skeleton */
   if (el.tableBody) {
@@ -109,6 +111,7 @@ const loadStudents = async (page = 1) => {
   if (state.filters.status) params.set('status', state.filters.status);
 
   const result = await API.get(`/students?${params}`);
+  if (mySeq !== loadSeq) return;   /* a newer filter was chosen meanwhile */
 
   if (!result?.ok) {
     showToast('Failed to load students.', 'error');

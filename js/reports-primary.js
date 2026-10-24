@@ -173,10 +173,31 @@ const updatePrimaryControls = () => {
   const label2   = $p('exam2LabelText');
 
   if (typeWrap) typeWrap.style.display = prim ? 'flex' : 'none';
-  if (exam2)    exam2.style.display    = prim && type === 'both' ? 'flex' : 'none';
   if (label)    label.textContent      = prim ? (type === 'mid' ? 'Mid Term assessment' : 'End Term assessment') : 'Assessment';
   if (label2)   label2.textContent     = 'Mid Term assessment';
+
+  /* Report type already says which assessment(s) to use, so the pickers stay hidden
+     (they come back only if no matching assessment can be found - see syncExamPickers) */
+  const wrapA = $p('examFieldWrap');
+  if (prim) {
+    if (wrapA) wrapA.style.display = 'none';
+    if (exam2) exam2.style.display = 'none';
+  } else {
+    if (wrapA) wrapA.style.display = 'flex';
+    if (exam2) exam2.style.display = 'none';
+  }
   return changed;
+};
+
+/* Fallback: show a picker only when the assessment could not be chosen automatically */
+const syncExamPickers = () => {
+  if (!isDualCapable()) return;
+  const a = el.rptExam, b = $p('rptExam2');
+  const loaded = (s) => s && [...s.options].some(o => o.value);
+  const type = reportType();
+  const wrapA = $p('examFieldWrap'), wrapB = $p('exam2FieldWrap');
+  if (wrapA) wrapA.style.display = (loaded(a) && !a.value) ? 'flex' : 'none';
+  if (wrapB) wrapB.style.display = (type === 'both' && loaded(b) && !b.value) ? 'flex' : 'none';
 };
 
 /* Called by reports.js after the assessment list has loaded: copy it to the second dropdown and
@@ -203,6 +224,8 @@ const primaryAfterExams = (force = false) => {
   if (type === 'end')  pick(a, /end/i);
   if (type === 'mid')  pick(a, /mid/i);
   if (type === 'both') { pick(a, /end/i); pick(b, /mid/i); }
+
+  syncExamPickers();
 
   /* Selection complete (picked automatically)? load the marks now, as if the teacher had chosen it */
   if (a.value && (type !== 'both' || b?.value) && state.loadedKey !== expectedKeyNow()) fetchResults();
@@ -499,7 +522,7 @@ const trendSentence = (m, e) => {
    6. THE REPORT CARD  (Grades 1–3 and 4–6; End, Mid, or Mid + End)
 ══════════════════════════════════════════════════════════ */
 const buildPrimaryCard = (r, s) => {
-  const { INK, LINE } = PRINT;
+  const INK = CARD_INK, LINE = CARD_LINE;
   const type  = s.primary?.type || 'end';
   const both  = type === 'both';
   const roles = primaryRoles(type);
@@ -510,39 +533,29 @@ const buildPrimaryCard = (r, s) => {
 
   const maps = s.teacherMaps || {};
   const teacherMap = maps[r.streamName] || (Object.keys(maps).length === 1 ? Object.values(maps)[0] : null) || {};
-  const teacherFor = (a) => tidyName(teacherMap[a.key] || a.teacher || '');
+  const teacherFor = (a) => dropTitle(teacherMap[a.key] || a.teacher || '');
 
-  const initials = String(s.schoolName || 'S').trim().split(/\s+/).filter(Boolean)
-    .slice(0, 2).map(w => w[0].toUpperCase()).join('');
   const gender = r.gender ? r.gender.charAt(0).toUpperCase() + r.gender.slice(1) : '';
 
-  /* ── table styles ── */
-  const thS = (label, al = 'center', last = false, extra = '') =>
-    `<th ${extra} style="padding:6px 4px;text-align:${al};font-size:13.4px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;line-height:1.2;color:${INK};background:#ffffff;border-right:${last ? 'none' : `2px solid ${LINE}`};border-bottom:3px solid ${LINE};">${label}</th>`;
-  const subTh = (label) =>
-    `<th style="padding:5px 3px;text-align:center;font-size:13px;font-weight:800;text-transform:uppercase;color:${INK};background:#ffffff;border-right:2px solid ${LINE};border-bottom:3px solid ${LINE};">${label}</th>`;
-  const grpTh = (label) =>
-    `<th colspan="2" style="padding:5px;text-align:center;font-size:13.4px;font-weight:800;text-transform:uppercase;color:${INK};background:#ffffff;border-right:2px solid ${LINE};border-bottom:2px solid ${LINE};">${label}</th>`;
-  const td = (extra = '') =>
-    `padding:6px 6px 7px;line-height:1.2;background:#ffffff;border-right:2px solid ${LINE};border-bottom:2px solid ${LINE};vertical-align:middle;color:${INK};${extra}`;
-
-  const widths = both ? (upper ? [5, 20, 9, 8, 9, 8, 24, 17] : [5, 24, 10, 9, 10, 9, 33])
-                      : (upper ? [5, 20, 10, 25, 23, 17]      : [5, 25, 12, 25, 33]);
+  /* ── column widths ── */
+  const widths = both ? (upper ? [5, 19, 8.5, 8.5, 8.5, 8.5, 26, 16] : [6, 25, 9, 9, 9, 9, 33])
+                      : (upper ? [5, 21, 8, 24, 25, 17]              : [6, 28, 9, 23, 34]);
   const colgroup = '<colgroup>' + widths.map(w => `<col style="width:${w}%">`).join('') + '</colgroup>';
 
   const lastRemarkTh = !upper;
+  const remarkHead = both ? 'Teacher&rsquo;s remark (average)' : 'Teacher&rsquo;s remark';
   const head = both
-    ? `<tr>${thS('No.', 'center', false, 'rowspan="2"')}${thS('Learning area', 'left', false, 'rowspan="2"')}${grpTh('Mid term')}${grpTh('End term')}${thS('Teacher&rsquo;s remark', 'left', lastRemarkTh, 'rowspan="2"')}${upper ? thS('Teacher', 'left', true, 'rowspan="2"') : ''}</tr>
-       <tr>${subTh('Score')}${subTh('Level')}${subTh('Score')}${subTh('Level')}</tr>`
-    : `<tr>${thS('No.')}${thS('Learning area', 'left')}${thS('Score')}${thS('Performance level', 'left')}${thS('Teacher&rsquo;s remark', 'left', lastRemarkTh)}${upper ? thS('Teacher', 'left', true) : ''}</tr>`;
+    ? `<tr>${cardTh('No.', 0, 'center', false, 'rowspan="2"')}${cardTh('Learning area', 0, 'left', false, 'rowspan="2"')}${cardGroupTh('Mid term', 2)}${cardGroupTh('End term', 2)}${cardTh(remarkHead, 0, 'left', lastRemarkTh, 'rowspan="2"')}${upper ? cardTh('Teacher', 0, 'left', true, 'rowspan="2"') : ''}</tr>
+       <tr>${cardSubTh('Score')}${cardSubTh('Level')}${cardSubTh('Score')}${cardSubTh('Level')}</tr>`
+    : `<tr>${cardTh('No.')}${cardTh('Learning area', 0, 'left')}${cardTh('Score')}${cardTh('Performance level', 0, 'left')}${cardTh(remarkHead, 0, 'left', lastRemarkTh)}${upper ? cardTh('Teacher', 0, 'left', true) : ''}</tr>`;
 
-  /* A level: full name + bold code when there is room (one assessment), code only when side by side */
+  /* A level: code + full name on one line (one assessment), code only when side by side */
   const levelCell = (code, full) => {
     const l = PRIMARY_SCALE.find(x => x.code === code);
-    if (!l) return `<div style="text-align:${full ? 'left' : 'center'};font-size:17px;font-weight:800;">—</div>`;
+    if (!l) return `<div style="text-align:${full ? 'left' : 'center'};font-size:15.5px;font-weight:800;">—</div>`;
     return full
-      ? `<div style="font-size:13.5px;font-weight:700;line-height:1.15;">${escHtml(l.full)}</div><div style="font-size:16.5px;font-weight:800;line-height:1.2;">${l.code}</div>`
-      : `<div style="text-align:center;font-size:19px;font-weight:800;line-height:1.2;">${l.code}</div>`;
+      ? `<span style="font-weight:800;font-size:15.5px;">${l.code}</span> <span style="font-size:12px;font-weight:600;">${escHtml(l.full)}</span>`
+      : `<div style="text-align:center;font-weight:800;font-size:15px;">${l.code}</div>`;
   };
 
   /* Remark follows the level of the learning area: the average of Mid and End Term on a Mid + End card */
@@ -557,161 +570,102 @@ const buildPrimaryCard = (r, s) => {
     return vals.length ? 'Marks not entered.' : '';
   };
 
+  const num = (size = 15) => `text-align:center;font-weight:800;font-size:${size}px;color:${INK};padding-left:2px;padding-right:2px;`;
   const rows = areas.map((a, i) => {
     let cells = '';
     if (both) {
       const m = primaryCell(r, 'mid', a.key), e = primaryCell(r, 'end', a.key);
-      cells = `<td style="${td('text-align:center;font-weight:800;font-size:17px;')}">${m.txt}</td><td style="${td('text-align:center;')}">${levelCell(m.level, false)}</td>` +
-              `<td style="${td('text-align:center;font-weight:800;font-size:17px;')}">${e.txt}</td><td style="${td('text-align:center;')}">${levelCell(e.level, false)}</td>`;
+      cells = `<td style="${cardTd(num())}">${m.txt}</td><td style="${cardTd('text-align:center;')}">${levelCell(m.level, false)}</td>` +
+              `<td style="${cardTd(num())}">${e.txt}</td><td style="${cardTd('text-align:center;')}">${levelCell(e.level, false)}</td>`;
     } else {
       const c = primaryCell(r, type, a.key);
-      cells = `<td style="${td('text-align:center;font-weight:800;font-size:17.5px;')}">${c.txt}</td><td style="${td('text-align:left;')}">${levelCell(c.level, true)}</td>`;
+      cells = `<td style="${cardTd(num(15.5))}">${c.txt}</td><td style="${cardTd('text-align:left;')}">${levelCell(c.level, true)}</td>`;
     }
     return `<tr>
-      <td style="${td('text-align:center;font-size:15px;font-weight:700;')}">${i + 1}</td>
-      <td style="${td('text-align:left;font-weight:800;font-size:16.5px;')}">${escHtml(a.name)}</td>
+      <td style="${cardTd('text-align:center;font-size:13.5px;font-weight:700;')}">${i + 1}</td>
+      <td style="${cardTd('text-align:left;font-weight:700;font-size:14.5px;')}">${escHtml(a.name)}</td>
       ${cells}
-      <td style="${td(`text-align:left;font-size:15px;font-weight:600;${upper ? '' : 'border-right:none;'}`)}">${escHtml(remarkFor(a, i))}</td>
-      ${upper ? `<td style="${td('text-align:left;font-size:15px;font-weight:800;border-right:none;')}">${escHtml(teacherFor(a))}</td>` : ''}
+      <td style="${cardTd(`text-align:left;font-size:13.3px;font-weight:600;${upper ? '' : 'border-right:none;'}`)}">${escHtml(remarkFor(a, i))}</td>
+      ${upper ? `<td style="${cardTd('text-align:left;font-size:13.3px;font-weight:800;border-right:none;')}">${escHtml(teacherFor(a))}</td>` : ''}
     </tr>`;
   }).join('');
 
-  /* ── total row ── */
+  /* ── total row (437 over 900) ── */
   const D = `border-top:4px double ${LINE};`;
   const totalCells = roles.map(role => {
     const v = r[role];
     const has = v && v.count > 0;
     const lv = has ? primaryLevel(v.avg)?.code : '';
+    const tot = `<td style="${cardTd(D + `text-align:center;font-weight:800;font-size:14.5px;padding:2px 2px;`)}">${has ? cardFrac(v.total, v.count * 100) : '—'}</td>`;
     return both
-      ? `<td style="${td(D + 'text-align:center;font-weight:800;font-size:15.5px;')}">${has ? `${v.total}<div style="font-size:12px;font-weight:700;">/${v.count * 100}</div>` : '—'}</td><td style="${td(D + 'text-align:center;')}">${levelCell(lv, false)}</td>`
-      : `<td style="${td(D + 'text-align:center;font-weight:800;font-size:16px;')}">${has ? `${v.total}<div style="font-size:12px;font-weight:700;">/${v.count * 100}</div>` : '—'}</td><td style="${td(D + 'text-align:left;')}">${levelCell(lv, true)}</td>`;
+      ? tot + `<td style="${cardTd(D + 'text-align:center;')}">${levelCell(lv, false)}</td>`
+      : tot + `<td style="${cardTd(D + 'text-align:left;')}">${levelCell(lv, true)}</td>`;
   }).join('');
 
   const overall = primaryOverall(r, type);
+  const first = String(r.fullName || 'The learner').trim().split(/\s+/)[0].replace(/^./, c => c.toUpperCase()).replace(/(?<=.)./g, c => c.toLowerCase());
+  const teacherComment = primaryTeacherComment(overall?.code, first, String(r.studentId)) +
+    (both ? trendSentence(r.mid?.count ? r.mid.avg : null, r.end?.count ? r.end.avg : null) : '');
   const overallRemark = { EE: 'Excellent performance.', ME: 'Good performance.', AE: 'Fair. More effort needed.', BE: 'Needs extra support.' }[overall?.code] || '';
 
   const totalRow = `<tr>
-    <td style="${td(D)}"></td>
-    <td style="${td(D + 'font-weight:800;font-size:16px;letter-spacing:.8px;text-align:left;')}">TOTAL</td>
+    <td style="${cardTd(D)}"></td>
+    <td style="${cardTd(D + 'font-weight:800;font-size:14.5px;letter-spacing:.8px;text-align:left;')}">TOTAL</td>
     ${totalCells}
-    <td colspan="${upper ? 2 : 1}" style="${td(D + 'border-right:none;font-size:15px;font-weight:800;text-align:left;')}">${escHtml(overallRemark)}</td>
+    <td colspan="${upper ? 2 : 1}" style="${cardTd(D + 'border-right:none;font-size:13.3px;font-weight:700;text-align:left;')}">${escHtml(overallRemark)}</td>
   </tr>`;
 
   /* ── learner grid (no assessment number in Grades 1–2) ── */
-  const cell = (label, value, { span = 1, last = false, bottom = true } = {}) => `
-    <div style="grid-column:span ${span};padding:3px 12px 5px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}${bottom ? `border-bottom:2px solid ${LINE};` : ''}">
-      <div style="font-size:13.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">${label}</div>
-      <div style="font-size:18px;font-weight:800;color:${INK};line-height:1.35;min-height:17px;">${value || '&nbsp;'}</div>
-    </div>`;
-
   const learnerGrid = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:3px solid ${LINE};">
-      ${cell('Learner name', escHtml(r.fullName), { span: 2 })}
-      ${cell('Class', escHtml(prettyClass(r.streamName || s.cls)))}
-      ${cell('Gender', escHtml(gender), { last: true })}
+      ${cardCell('Learner name', escHtml(r.fullName), { span: 2 })}
+      ${cardCell('Class', escHtml(prettyClass(r.streamName || s.cls)))}
+      ${cardCell('Gender', escHtml(gender), { last: true })}
       ${showAssessNo
-        ? cell('Assessment no.', escHtml(r.assessmentNo || ''), { bottom: false }) + cell('Admission no.', escHtml(r.upiNumber || ''), { bottom: false }) + cell('Academic year', escHtml(s.year), { bottom: false, span: 2, last: true })
-        : cell('Admission no.', escHtml(r.upiNumber || ''), { bottom: false, span: 2 }) + cell('Academic year', escHtml(s.year), { bottom: false, span: 2, last: true })}
+        ? cardCell('Assessment no.', escHtml(r.assessmentNo || ''), { bottom: false }) + cardCell('Admission no.', escHtml(r.upiNumber || ''), { bottom: false }) + cardCell('Academic year', escHtml(s.year), { bottom: false, span: 2, last: true })
+        : cardCell('Admission no.', escHtml(r.upiNumber || ''), { bottom: false, span: 2 }) + cardCell('Academic year', escHtml(s.year), { bottom: false, span: 2, last: true })}
     </div>`;
 
-  /* ── averages strip ── */
-  const stat = (label, value, last = false) => `
-    <div style="padding:4px 12px;text-align:center;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
-      <div style="font-size:13.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">${label}</div>
-      <div style="font-size:21px;font-weight:800;color:${INK};line-height:1.15;">${value}</div>
-    </div>`;
-  const avgTxt = (role) => r[role]?.count ? `${Math.round(r[role].avg)}%` : '—';
+  /* ── averages strip: every number has its own label ── */
+  const avgTxt = (role) => r[role]?.count ? `${(Math.round(r[role].avg * 10) / 10).toFixed(1)}%` : '—';
   const overallTxt = overall ? `${escHtml(overall.full)} &nbsp;${overall.code}` : '—';
   const statsStrip = both
-    ? `<div style="display:grid;grid-template-columns:1fr 1fr 2fr;border-bottom:3px solid ${LINE};">${stat('Mid term average', avgTxt('mid'))}${stat('End term average', avgTxt('end'))}${stat('Overall level (average of both)', overallTxt, true)}</div>`
-    : `<div style="display:grid;grid-template-columns:1fr 2fr;border-bottom:3px solid ${LINE};">${stat('Average', avgTxt(type))}${stat('Overall performance level', overallTxt, true)}</div>`;
+    ? `<div style="display:grid;grid-template-columns:1fr 1fr 2fr;border-bottom:3px solid ${LINE};">${cardStat('Mid term average', avgTxt('mid'))}${cardStat('End term average', avgTxt('end'))}${cardStat('Overall level (average of both)', overallTxt, true)}</div>`
+    : `<div style="display:grid;grid-template-columns:1fr 2fr;border-bottom:3px solid ${LINE};">${cardStat('Average', avgTxt(type))}${cardStat('Overall performance level', overallTxt, true)}</div>`;
 
-  const sectionBar = (title, right = '') => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 12px;background:#ffffff;color:${INK};border-bottom:2px solid ${LINE};font-size:14.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">
-      <span>${title}</span><span style="font-weight:600;letter-spacing:.2px;text-transform:none;font-size:13.5px;">${right}</span>
-    </div>`;
-
-  /* ── comments ── */
-  const first = String(r.fullName || 'The learner').trim().split(/\s+/)[0].replace(/^./, c => c.toUpperCase()).replace(/(?<=.)./g, c => c.toLowerCase());
-  const signBlock = (title, comment, person, personLabel, last = false) => `
-    <div style="padding:8px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
-      <div style="font-size:13.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">${title}</div>
-      <div style="font-size:16px;font-weight:600;color:${INK};line-height:1.4;font-style:italic;min-height:24px;">${escHtml(comment)}</div>
-      <div style="margin-top:8px;border-bottom:2px solid ${LINE};"></div>
-      <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:12.8px;font-weight:600;color:${INK};">
-        <span><strong style="font-size:15.5px;">${person ? escHtml(tidyName(person)) : '&nbsp;'}</strong><br/>${personLabel}</span>
-        <span style="align-self:flex-end;white-space:nowrap;">Date: ..........</span>
-      </div>
-    </div>`;
-
-  const dateCell = (label, value, last = false) => `
-    <div style="padding:6px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
-      <div style="font-size:13.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">${label}</div>
-      <div style="font-size:17px;font-weight:800;color:${INK};min-height:15px;">${value ? escHtml(value) : '..............................'}</div>
-    </div>`;
-
+  /* ── key ── */
   const keyCells = PRIMARY_SCALE.map((l, i) => `
-    <div style="padding:5px 4px;text-align:center;background:#ffffff;${i < PRIMARY_SCALE.length - 1 ? `border-right:2px solid ${LINE};` : ''}">
-      <div style="font-size:16px;font-weight:800;color:${INK};">${l.code}</div>
-      <div style="font-size:13px;font-weight:700;color:${INK};line-height:1.2;">${l.full}</div>
-      <div style="font-size:13.6px;font-weight:800;color:${INK};margin-top:3px;">${l.label}</div>
+    <div style="padding:3px 4px 6px;text-align:center;${i ? `border-left:2px solid ${LINE};` : ''}">
+      <div style="font-size:14px;font-weight:800;color:${INK};">${l.code}</div>
+      <div style="font-size:12px;font-weight:700;color:${INK};">${l.full}</div>
+      <div style="font-size:12px;font-weight:600;color:${INK};">${l.label}</div>
     </div>`).join('');
 
   const classTeacher = (s.classTeachers || {})[r.streamName] || s.teacher;
-  const dot = (pos) => `<span style="position:absolute;${pos}width:9px;height:9px;background:#000;transform:rotate(45deg);"></span>`;
 
-  return `
-<div style="position:relative;width:100%;max-width:754px;box-sizing:border-box;background:#ffffff;border:1.5px solid #000;padding:5px;margin:7px auto;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
-${dot('top:-6px;left:-6px;')}${dot('top:-6px;right:-6px;')}${dot('bottom:-6px;left:-6px;')}${dot('bottom:-6px;right:-6px;')}
-<div style="width:100%;box-sizing:border-box;background:#ffffff;color-scheme:light;-webkit-print-color-adjust:exact;print-color-adjust:exact;border:3px solid ${LINE};overflow:hidden;font-family:'DM Sans','Segoe UI',Arial,sans-serif;font-size:15.3px;color:${INK};margin:0 auto;font-variant-numeric:tabular-nums;">
-
-  <div style="display:flex;align-items:center;gap:14px;padding:8px 16px;background:#ffffff;border-bottom:3px solid ${LINE};">
-    <div style="width:50px;height:50px;background:#ffffff;color:${INK};border:2px solid ${LINE};border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:26.3px;font-weight:800;letter-spacing:1px;flex-shrink:0;">${escHtml(initials)}</div>
-    <div style="flex:1;min-width:0;">${schoolHeader(s, 24)}</div>
-    <div style="text-align:right;flex-shrink:0;">
-      <div style="font-size:17.4px;font-weight:800;letter-spacing:1.2px;color:${INK};">LEARNER PROGRESS REPORT</div>
-      <div style="font-size:14.5px;font-weight:600;color:${INK};margin-top:3px;">Term ${escHtml(s.term)} &nbsp;&bull;&nbsp; ${PRIMARY_TYPE_LABEL[type]} Assessment &nbsp;&bull;&nbsp; ${escHtml(s.year)}</div>
-    </div>
-  </div>
-
+  return cardFrame(`
+  ${cardHeader(s, `Term ${escHtml(s.term)} &nbsp;&bull;&nbsp; ${PRIMARY_TYPE_LABEL[type]} Assessment &nbsp;&bull;&nbsp; ${escHtml(s.year)}`)}
   ${learnerGrid}
   ${statsStrip}
 
-  ${sectionBar('Learning area performance')}
+  ${cardBar('Learning areas')}
   <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
     ${colgroup}
     <thead>${head}</thead>
     <tbody>${rows}${totalRow}</tbody>
   </table>
 
-  ${sectionBar('Comments')}
+  ${cardBar('Comments')}
   <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid ${LINE};">
-    ${signBlock("Class teacher's comment", primaryTeacherComment(overall?.code, first, String(r.studentId)) + (both ? trendSentence(r.mid?.count ? r.mid.avg : null, r.end?.count ? r.end.avg : null) : ''), classTeacher, 'Class teacher &mdash; signature')}
-    ${signBlock("Head of Institution's comment", primaryHeadComment(overall?.code, first, String(r.studentId)), s.principal, 'Head of Institution &mdash; signature &amp; stamp', true)}
+    ${cardSign("Class teacher's comment", teacherComment, classTeacher, 'Class teacher')}
+    ${cardSign("Head of Institution's comment", primaryHeadComment(overall?.code, first, String(r.studentId)), s.principal, 'Signature &amp; stamp', true)}
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid ${LINE};">
-    ${dateCell('Term closing date', s.closingDate)}
-    ${dateCell('Next term opens', s.nextTerm, true)}
-  </div>
+  ${cardDatesRow(s)}
 
-  <div style="display:flex;align-items:flex-end;gap:10px;padding:10px 12px 6px;background:#ffffff;border-bottom:3px solid ${LINE};font-size:15.5px;color:${INK};">
-    <span style="white-space:nowrap;font-weight:700;">Parent / Guardian signature:</span>
-    <div style="flex:1;border-bottom:2px solid ${LINE};height:14px;"></div>
-    <span style="white-space:nowrap;">Date: ______________</span>
-  </div>
-
-  ${sectionBar('Grading key', 'Performance level and score range')}
+  ${cardBar('Key', 'Performance level and score range')}
   <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:2px solid ${LINE};">${keyCells}</div>
-  <div style="padding:4px 12px;background:#ffffff;border-bottom:3px solid ${LINE};font-size:12.8px;font-weight:600;color:${INK};">Marks are rounded to the nearest whole number before the performance level is worked out.</div>
-
-  <div style="background:#ffffff;display:flex;justify-content:space-between;align-items:center;padding:6px 14px;font-size:13.4px;font-weight:700;color:${INK};">
-    <span>Powered by Scholar Analytics</span>
-    <span>Parent / Guardian copy</span>
-  </div>
-
-</div>
-</div>`;
+  ${cardFooter('Marks are rounded to the nearest whole number. ')}`);
 };
 
 /* ══════════════════════════════════════════════════════════

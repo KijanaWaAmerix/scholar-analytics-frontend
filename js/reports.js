@@ -928,7 +928,9 @@ el.generatePreviewBtn?.addEventListener('click', async () => {
   const cls  = el.rptClass?.value;
   const exam = el.rptExam?.value;
   if (!cls || !exam) {
-    showToast('Please select Class and Assessment.', 'warning');
+    const auto = (typeof isDualCapable === 'function') && isDualCapable() && cls;
+    showToast(auto ? 'No matching assessment found for this class and term. Please choose one.' : 'Please select Class and Assessment.', 'warning');
+    if (typeof syncExamPickers === 'function') syncExamPickers();
     flashMissing(cls, term, exam);
     return;
   }
@@ -1353,7 +1355,7 @@ const tidyName = (n) => String(n || '').trim()
 const levelBlock = (code) => {
   const full = KJSEA.levelFull(code);
   if (!code || !full) return '';
-  return `<div style="font-size:13.5px;font-weight:700;line-height:1.2;white-space:nowrap;">${escHtml(full)}</div>` +
+  return `<div style="font-size:13.2px;font-weight:700;line-height:1.2;overflow-wrap:break-word;">${escHtml(full)}</div>` +
          `<div style="font-size:15px;font-weight:800;line-height:1.25;">${escHtml(code)}</div>`;
 };
 
@@ -1403,39 +1405,143 @@ const knecCode = (sub) => {
   return '';
 };
 
-/* ══════════════════════════════════════════════════════════
-   11. BUILD INDIVIDUAL REPORT CARD  (7 columns, low ink)
-══════════════════════════════════════════════════════════ */
 /* Total points of one assessment, worked out from its marks (so it never depends on a stored total) */
 const endPts = (res) => (res?.subjectResults || []).reduce((t, x) => {
   const ok = x && !x.absent && !x.notEntered && x.score !== null && x.score !== undefined && !isNaN(Number(x.score));
   return t + (ok ? (KJSEA.getGrade(x.score)?.points || 0) : 0);
 }, 0);
 
-const buildReportCard = (r, s) => {
-  if (s.primary) return buildPrimaryCard(r, s);          // Grades 1–6 (js/reports-primary.js)
-  const { INK, LINE, MUTE } = PRINT;
-  const both = !!(s.dual && r.dual);                      // Mid Term + End Term side by side (Grades 7–9)
-  const firstName = String(r.fullName || 'The learner').trim().split(/\s+/)[0]
-    .replace(/^./, c => c.toUpperCase()).replace(/(?<=.)./g, c => c.toLowerCase());
+/* ══════════════════════════════════════════════════════════
+   11. REPORT CARD — shared building blocks (Grades 1–9)
+   Compact A4-shaped layout: white page, solid black gridlines, bold text.
+   js/reports-primary.js uses these same blocks, so every card looks alike.
+══════════════════════════════════════════════════════════ */
+const CARD_LINE = '#000000';
+const CARD_INK  = '#000000';
 
-  const sectionBar = (title, right = '') => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 12px;background:#ffffff;color:${INK};border-bottom:2px solid ${LINE};font-size:13.9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">
-      <span>${title}</span><span style="font-weight:600;letter-spacing:0.2px;text-transform:none;">${right}</span>
-    </div>`;
+/* 437 over a short line over 900 */
+const cardFrac = (a, b) =>
+  `<div style="display:inline-block;text-align:center;line-height:1.15;"><div style="padding:0 4px 3px;">${a}</div><div style="border-top:2px solid ${CARD_LINE};"></div><div style="padding:1px 4px 2px;">${b}</div></div>`;
 
-  const th = (label, width, align = 'center', last = false) =>
-    `<th style="width:${width}%;padding:6px 6px;text-align:${align};font-size:13.2px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;line-height:1.2;color:${INK};background:#ffffff;border-right:${last ? 'none' : `2px solid ${LINE}`};border-bottom:3px solid ${LINE};">${label}</th>`;
+/* Teacher name without the title ("Mr. Dan Kemboi" -> "Dan Kemboi"): titles in the data are often wrong */
+const dropTitle = (n) => tidyName(n).replace(/^(Mr|Mrs|Ms|Md|Miss|Dr|Madam|Sir|Rev|Fr)\.?\s+/i, '').trim();
 
-  const td = (extra = '') =>
-    `padding:4px 6px 6px;line-height:1.25;background:#ffffff;border-right:2px solid ${LINE};border-bottom:2px solid ${LINE};vertical-align:middle;${extra}`;
+const cardBar = (title, right = '') => `
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 12px 6px;background:#ffffff;color:${CARD_INK};border-bottom:2px solid ${CARD_LINE};font-size:13px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">
+    <span>${title}</span><span style="font-weight:600;letter-spacing:0.2px;text-transform:none;font-size:12.5px;">${right}</span>
+  </div>`;
 
-  /* ── Derived values ─────────────────────────────────────── */
-  const maxTotal  = r.subjectCount * 100;
-  const maxPoints = r.subjectCount * 8;
+const cardTh = (label, width, align = 'center', last = false, extra = '') =>
+  `<th ${extra} style="${width ? `width:${width}%;` : ''}padding:5px 4px 9px;text-align:${align};font-size:12.5px;font-weight:800;letter-spacing:0;text-transform:uppercase;line-height:1.15;overflow-wrap:normal;color:${CARD_INK};background:#ffffff;border-right:${last ? 'none' : `2px solid ${CARD_LINE}`};border-bottom:3px solid ${CARD_LINE};">${label}</th>`;
 
+const cardGroupTh = (label, n) =>
+  `<th colspan="${n}" style="padding:3px 4px 6px;text-align:center;font-size:12.5px;font-weight:800;text-transform:uppercase;color:${CARD_INK};background:#ffffff;border-right:2px solid ${CARD_LINE};border-bottom:2px solid ${CARD_LINE};">${label}</th>`;
+
+const cardSubTh = (label) =>
+  `<th style="padding:3px 0 7px;text-align:center;font-size:11px;font-weight:800;text-transform:uppercase;color:${CARD_INK};background:#ffffff;border-right:2px solid ${CARD_LINE};border-bottom:3px solid ${CARD_LINE};">${label}</th>`;
+
+const cardTd = (extra = '') =>
+  `padding:3px 6px 6px;line-height:1.2;background:#ffffff;border-right:2px solid ${CARD_LINE};border-bottom:2px solid ${CARD_LINE};vertical-align:middle;${extra}`;
+
+const cardCell = (label, value, { span = 1, last = false, bottom = true } = {}) => `
+  <div style="grid-column:span ${span};padding:2px 12px 6px;background:#ffffff;${last ? '' : `border-right:2px solid ${CARD_LINE};`}${bottom ? `border-bottom:2px solid ${CARD_LINE};` : ''}">
+    <div style="font-size:12.5px;font-weight:800;color:${CARD_INK};text-transform:uppercase;letter-spacing:0.5px;">${label}</div>
+    <div style="font-size:15.5px;font-weight:700;color:${CARD_INK};margin-top:1px;line-height:1.3;min-height:17px;">${value || '&mdash;'}</div>
+  </div>`;
+
+/* Stacked label + value box (used in the average / overall-level strip) */
+const cardStat = (label, value, last = false) => `
+  <div style="padding:2px 12px 6px;background:#ffffff;${last ? '' : `border-right:2px solid ${CARD_LINE};`}">
+    <div style="font-size:12.5px;font-weight:800;color:${CARD_INK};text-transform:uppercase;letter-spacing:0.5px;">${label}</div>
+    <div style="font-size:17px;font-weight:800;color:${CARD_INK};margin-top:1px;line-height:1.25;">${value}</div>
+  </div>`;
+
+const cardSign = (title, comment, person, personLabel, last = false) => `
+  <div style="padding:5px 12px 8px;background:#ffffff;${last ? '' : `border-right:2px solid ${CARD_LINE};`}">
+    <div style="font-size:12.5px;font-weight:800;color:${CARD_INK};text-transform:uppercase;letter-spacing:0.5px;">${title}</div>
+    <div style="font-size:14.5px;font-weight:600;color:${CARD_INK};line-height:1.3;font-style:italic;min-height:38px;">${escHtml(comment)}</div>
+    <div style="margin-top:3px;border-bottom:2px solid ${CARD_LINE};"></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;margin-top:2px;font-size:12px;font-weight:600;color:${CARD_INK};">
+      <span style="min-width:0;">${person ? `<strong style="font-size:14px;">${escHtml(tidyName(person))}</strong> &middot; ` : ''}${personLabel}</span>
+      <span style="white-space:nowrap;flex-shrink:0;">Date: ........</span>
+    </div>
+  </div>`;
+
+const cardDate = (label, value, last = false) => `
+  <div style="padding:4px 12px 7px;background:#ffffff;${last ? '' : `border-right:2px solid ${CARD_LINE};`}">
+    <div style="font-size:12.5px;font-weight:800;color:${CARD_INK};text-transform:uppercase;">${label}</div>
+    <div style="font-size:14px;font-weight:800;color:${CARD_INK};min-height:16px;">${value ? escHtml(value) : '..............................'}</div>
+  </div>`;
+
+/* Closing date | next term | parent signature, on one row */
+const cardDatesRow = (s) => `
+  <div style="display:grid;grid-template-columns:1fr 1fr 1.7fr;border-bottom:3px solid ${CARD_LINE};">
+    ${cardDate('Term closing date', s.closingDate)}
+    ${cardDate('Next term opens', s.nextTerm)}
+    <div style="padding:4px 12px 5px;background:#ffffff;">
+      <div style="font-size:12.5px;font-weight:800;color:${CARD_INK};text-transform:uppercase;">Parent / Guardian signature</div>
+      <div style="border-bottom:2px solid ${CARD_LINE};height:15px;margin-top:3px;"></div>
+    </div>
+  </div>`;
+
+/* Letterhead (one compact block) + title row */
+const cardHeader = (s, rightText) => {
   const initials = String(s.schoolName || 'S').trim().split(/\s+/).filter(Boolean)
     .slice(0, 2).map(w => w[0].toUpperCase()).join('');
+  const name = String(s.schoolName || '').trim().toUpperCase();
+  const fs = name.length > 56 ? 15 : name.length > 50 ? 16.5 : name.length > 44 ? 18 : name.length > 38 ? 19.5 : 21;
+  const bits = [];
+  if (s.address) bits.push(escHtml(s.address));
+  if (s.phone)   bits.push('Tel: ' + escHtml(s.phone));
+  if (s.email)   bits.push(escHtml(s.email));
+  const details = bits.length
+    ? bits.map((x, i) => `<span style="display:inline-block;white-space:nowrap;">${i ? '<span style="padding:0 7px 0 5px;">|</span>' : ''}${x}</span>`).join('')
+    : '';
+  const motto = String(s.schoolMotto || '').trim()
+    ? `<i style="display:inline-block;margin-left:10px;">&ldquo;${escHtml(String(s.schoolMotto).trim())}&rdquo;</i>` : '';
+  return `
+  <div style="display:flex;align-items:center;gap:12px;padding:6px 14px;background:#ffffff;border-bottom:3px solid ${CARD_LINE};">
+    <div style="width:44px;height:44px;background:#ffffff;color:${CARD_INK};border:2px solid ${CARD_LINE};border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;letter-spacing:1px;flex-shrink:0;">${escHtml(initials)}</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-family:'Playfair Display',Georgia,'Times New Roman',serif;font-size:${fs}px;font-weight:900;letter-spacing:0.6px;line-height:1.15;color:#000;-webkit-text-stroke:0.5px #000;white-space:nowrap;">${escHtml(name)}</div>
+      <div style="font-size:11.5px;font-weight:500;line-height:1.35;margin-top:2px;">${details}${motto}</div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:3px 14px 6px;background:#ffffff;border-bottom:3px solid ${CARD_LINE};font-size:14px;font-weight:800;letter-spacing:1.4px;color:${CARD_INK};">
+    <span style="white-space:nowrap;">LEARNER PROGRESS REPORT</span>
+    <span style="font-weight:600;letter-spacing:0.2px;font-size:13.5px;text-align:right;">${rightText}</span>
+  </div>`;
+};
+
+/* Frame: thin outer line with corner diamonds, thick inner line */
+const cardFrame = (inner) => {
+  const dot = (pos) => `<span style="position:absolute;${pos}width:9px;height:9px;background:#000;transform:rotate(45deg);"></span>`;
+  return `
+<div style="position:relative;width:100%;max-width:754px;box-sizing:border-box;background:#ffffff;border:1.5px solid #000;padding:5px;margin:7px auto;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+${dot('top:-6px;left:-6px;')}${dot('top:-6px;right:-6px;')}${dot('bottom:-6px;left:-6px;')}${dot('bottom:-6px;right:-6px;')}
+<div style="width:100%;box-sizing:border-box;background:#ffffff;color-scheme:light;-webkit-print-color-adjust:exact;print-color-adjust:exact;border:3px solid ${CARD_LINE};overflow:hidden;font-family:'DM Sans','Segoe UI',Arial,sans-serif;font-size:14px;color:${CARD_INK};margin:0 auto;font-variant-numeric:tabular-nums;">
+${inner}
+</div>
+</div>`;
+};
+
+/* Footer line: note + brand on the left, copy label on the right */
+const cardFooter = (note) => `
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:3px 12px 7px;background:#ffffff;font-size:12px;font-weight:700;color:${CARD_INK};">
+    <span>${note}Powered by Scholar Analytics</span>
+    <span style="white-space:nowrap;">Parent / Guardian copy</span>
+  </div>`;
+
+/* ══════════════════════════════════════════════════════════
+   11b. BUILD INDIVIDUAL REPORT CARD — Grades 7–9
+        End Term, Mid Term, or Mid + End Term side by side
+══════════════════════════════════════════════════════════ */
+const buildReportCard = (r, s) => {
+  if (s.primary) return buildPrimaryCard(r, s);          // Grades 1–6 (js/reports-primary.js)
+  const INK = CARD_INK, LINE = CARD_LINE;
+  const both = !!(s.dual && r.dual);                      // Mid Term + End Term side by side
+  const firstName = String(r.fullName || 'The learner').trim().split(/\s+/)[0]
+    .replace(/^./, c => c.toUpperCase()).replace(/(?<=.)./g, c => c.toLowerCase());
 
   const gender = r.gender ? r.gender.charAt(0).toUpperCase() + r.gender.slice(1) : '';
 
@@ -1444,102 +1550,105 @@ const buildReportCard = (r, s) => {
   const teacherMap =
     maps[r.streamName] ||
     (Object.keys(maps).length === 1 ? Object.values(maps)[0] : null) || {};
-  const teacherFor = (sub) => tidyName(teacherMap[normName(sub.name)] || sub.teacherName || '');
+  const teacherFor = (sub) => dropTitle(teacherMap[normName(sub.name)] || sub.teacherName || '');
 
   /* ── Subject rows ───────────────────────────────────────── */
   const lvlCode = (x) => (x && validSub(x)) ? (KJSEA.getGrade(x.score)?.grade || '—') : (x && x.absent ? 'ABS' : '—');
   const scoreOf = (x) => !x ? '—' : x.absent ? 'ABS' : validSub(x) ? Math.round(Number(x.score)) + '%' : '—';
-  const cc = (txt, size = 16.6) => `text-align:center;font-weight:800;font-size:${size}px;color:${INK};`;
+  const num = (size = 15) => `text-align:center;font-weight:800;font-size:${size}px;color:${INK};padding-left:2px;padding-right:2px;`;
+  const codeTd = (row, i) => `<td style="${cardTd(`text-align:center;font-size:13px;font-weight:700;color:${INK};`)}">${escHtml(knecCode(row) || String(i + 1))}</td>`;
+  const areaTd = (name) => `<td style="${cardTd(`text-align:left;font-weight:700;font-size:14px;color:${INK};`)}">${escHtml(name)}</td>`;
+  const remarkTd = (t) => `<td style="${cardTd(`text-align:left;font-size:13px;font-weight:600;color:${INK};`)}">${escHtml(t)}</td>`;
+  const teacherTd = (t) => `<td style="${cardTd(`text-align:left;font-size:13px;font-weight:800;color:${INK};border-right:none;`)}">${escHtml(t)}</td>`;
 
-  const dualRows = both ? sortSubjects(r.dual.rows).map((row, i) => {
-    const remark = row.avg !== null
-      ? KJSEA.getSubjectRemark(row.avg, String(r.studentId) + row.key, i)
-      : ((row.mid?.absent || row.end?.absent) ? 'Absent — not assessed' : 'Marks not entered');
-    const endPts = validSub(row.end) ? (KJSEA.getGrade(row.end.score)?.points ?? '—') : '—';
-    const tch = teacherFor({ name: row.name, teacherName: row.teacherName });
-    return `
-    <tr>
-      <td style="${td(`text-align:center;font-size:13.9px;font-weight:700;color:${INK};`)}">${escHtml(knecCode(row) || String(i + 1))}</td>
-      <td style="${td(`text-align:left;font-weight:700;font-size:16px;color:${INK};`)}">${escHtml(row.name)}</td>
-      <td style="${td(cc())}">${scoreOf(row.mid)}</td>
-      <td style="${td(cc())}">${lvlCode(row.mid)}</td>
-      <td style="${td(cc())}">${scoreOf(row.end)}</td>
-      <td style="${td(cc())}">${lvlCode(row.end)}</td>
-      <td style="${td(cc())}">${endPts}</td>
-      <td style="${td(`text-align:left;font-size:14.5px;font-weight:600;color:${INK};line-height:1.2;`)}">${escHtml(remark)}</td>
-      <td style="${td(`text-align:left;font-size:14.5px;font-weight:800;color:${INK};line-height:1.2;border-right:none;`)}">${escHtml(tch)}</td>
-    </tr>`;
-  }).join('') : '';
+  const rowsHtml = both
+    ? sortSubjects(r.dual.rows).map((row, i) => {
+        const remark = row.avg !== null
+          ? KJSEA.getSubjectRemark(row.avg, String(r.studentId) + row.key, i)
+          : ((row.mid?.absent || row.end?.absent) ? 'Absent — not assessed' : 'Marks not entered');
+        const pts = validSub(row.end) ? (KJSEA.getGrade(row.end.score)?.points ?? '—') : '—';
+        const tch = teacherFor({ name: row.name, teacherName: row.teacherName });
+        return `<tr>${codeTd(row, i)}${areaTd(row.name)}
+          <td style="${cardTd(num())}">${scoreOf(row.mid)}</td><td style="${cardTd(num())}">${lvlCode(row.mid)}</td>
+          <td style="${cardTd(num())}">${scoreOf(row.end)}</td><td style="${cardTd(num())}">${lvlCode(row.end)}</td>
+          <td style="${cardTd(num())}">${pts}</td>${remarkTd(remark)}${teacherTd(tch)}</tr>`;
+      }).join('')
+    : sortSubjects(r.subjectResults).map((sub, i) => {
+        const isOut = sub.absent || sub.notEntered;
+        const g     = isOut ? null : KJSEA.getGrade(sub.score);
+        const remark = sub.absent ? 'Absent — not assessed'
+                     : sub.notEntered ? 'Marks not entered'
+                     : (sub.remark || KJSEA.getSubjectRemark(sub.score, String(r.studentId) + sub.name, i));
+        return `<tr>${codeTd(sub, i)}${areaTd(sub.name)}
+          <td style="${cardTd(num(15.5))}">${scoreOf(sub)}</td>
+          <td style="${cardTd(num(15.5))}">${isOut ? (sub.absent ? 'ABS' : '—') : (g?.grade || sub.grade || '—')}</td>
+          <td style="${cardTd(num(15.5))}">${isOut ? '—' : (g?.points ?? sub.points ?? '—')}</td>
+          ${remarkTd(remark)}${teacherTd(teacherFor(sub))}</tr>`;
+      }).join('');
 
-  const subjectRows = both ? dualRows : sortSubjects(r.subjectResults).map((sub, i) => {
-    const isOut    = sub.absent || sub.notEntered;
-    const code     = sub.grade || '';
-    const scoreTxt = sub.score !== null && sub.score !== undefined ? sub.score + '%' : (sub.absent ? 'ABS' : '—');
-    const remark   = sub.absent ? 'Absent — not assessed'
-                   : sub.notEntered ? 'Marks not entered'
-                   : (sub.remark || KJSEA.getSubjectRemark(sub.score, String(r.studentId) + sub.name, i));
-    const level    = isOut
-      ? `<div style="font-size:13.9px;font-weight:600;">${sub.absent ? 'Absent' : 'Not entered'}</div>`
-      : levelBlock(code);
+  /* ── Totals ─────────────────────────────────────────────── */
+  const DB = `border-top:4px double ${LINE};`;
+  const totNum = (inner, size = 14) => `<td style="${cardTd(DB + `text-align:center;font-weight:800;font-size:${size}px;color:${INK};padding:2px 2px;`)}">${inner}</td>`;
+  const fracOf = (tot, n, mult) => (n ? cardFrac(tot, n * mult) : '—');
+  const dLvl = (x) => (x && x.subjectCount) ? (KJSEA.getGrade(x.avgScore)?.grade || '—') : '—';
 
-    return `
-    <tr>
-      <td style="${td(`text-align:center;font-size:13.9px;font-weight:700;color:${INK};`)}">${escHtml(knecCode(sub) || String(i + 1))}</td>
-      <td style="${td(`text-align:left;font-weight:700;font-size:16px;color:${INK};`)}">${escHtml(sub.name)}</td>
-      <td style="${td(`text-align:center;font-weight:800;font-size:16.6px;color:${INK};`)}">${scoreTxt}</td>
-      <td style="${td(`text-align:left;color:${INK};`)}">${level}</td>
-      <td style="${td(`text-align:center;font-weight:800;font-size:16.6px;color:${INK};`)}">${isOut ? '—' : sub.points}</td>
-      <td style="${td(`text-align:left;font-size:14.5px;font-weight:600;color:${INK};line-height:1.2;`)}">${escHtml(remark)}</td>
-      <td style="${td(`text-align:left;font-size:14.5px;font-weight:800;color:${INK};line-height:1.2;border-right:none;`)}">${escHtml(teacherFor(sub))}</td>
-    </tr>`;
-  }).join('');
-
-  /* ── Learner details grid ───────────────────────────────── */
-  const cell = (label, value, { span = 1, last = false, bottom = true } = {}) => `
-    <div style="grid-column:span ${span};padding:3px 12px 5px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}${bottom ? `border-bottom:2px solid ${LINE};` : ''}">
-      <div style="font-size:13.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">${label}</div>
-      <div style="font-size:17.4px;font-weight:800;color:${INK};line-height:1.35;min-height:17px;">${value || '&nbsp;'}</div>
-    </div>`;
-
-  const learnerGrid = `
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:3px solid ${LINE};">
-      ${cell('Learner name',   escHtml(r.fullName),                   { span: 2 })}
-      ${cell('Class',          escHtml(prettyClass(r.streamName || s.cls))) }
-      ${cell('Gender',         escHtml(gender),                       { last: true })}
-      ${cell('Assessment no.', escHtml(r.assessmentNo || ''),         { bottom: false })}
-      ${cell('Admission no.',  escHtml(r.upiNumber || ''),            { bottom: false })}
-      ${cell('Academic year',  escHtml(s.year),                       { bottom: false, span: 2, last: true })}
-    </div>`;
-
-  /* ── Summary strip: average + overall performance level only ── */
-  const stat = (label, value, last = false) => `
-    <div style="padding:4px 12px;text-align:center;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
-      <div style="font-size:13.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">${label}</div>
-      <div style="font-size:20.8px;font-weight:800;color:${INK};line-height:1.15;">${value}</div>
-    </div>`;
-
-  const dAvg = (x) => (x && x.subjectCount) ? `${x.avgScore}%` : '—';
-  const statsStrip = both ? `
-    <div style="display:grid;grid-template-columns:1fr 1fr 2fr;border-bottom:3px solid ${LINE};">
-      ${stat('Mid term average', dAvg(r.dual.mid))}
-      ${stat('End term average', dAvg(r.dual.end))}
-      ${stat('Overall level (average of both)', `${escHtml(KJSEA.levelFull(r.meanGrade))} &nbsp;${escHtml(r.meanGrade || '')}`, true)}
-    </div>` : `
-    <div style="display:grid;grid-template-columns:1fr 2fr;border-bottom:3px solid ${LINE};">
-      ${stat('Average', `${r.avgScore}%`)}
-      ${stat('Overall performance level', `${escHtml(KJSEA.levelFull(r.meanGrade))} &nbsp;${escHtml(r.meanGrade || '')}`, true)}
-    </div>`;
-
-  /* Class teacher's comment: from the overall level (the average on a Mid + End card) */
+  /* ── Class teacher's comment: from the overall level (the average on a Mid + End card) ── */
   const trend = both && r.dual.mid?.subjectCount && r.dual.end?.subjectCount
     ? (() => { const d = r.dual.end.avgScore - r.dual.mid.avgScore;
                return d >= 3 ? ' Improved since mid term.' : d <= -3 ? ' Dipped since mid term; more effort is needed.' : ''; })()
     : '';
   const teacherComment = KJSEA.getTeacherComment(r.meanGrade, firstName, String(r.studentId)) + trend;
+  const closing = escHtml(teacherComment.split('.')[0]) + '.';
+
+  const totalRow = both
+    ? `<tr><td style="${cardTd(DB)}"></td>
+        <td style="${cardTd(DB + `font-weight:800;font-size:14px;letter-spacing:0.8px;color:${INK};`)}">TOTAL</td>
+        ${totNum(fracOf(r.dual.mid?.totalScore, r.dual.mid?.subjectCount, 100))}${totNum(dLvl(r.dual.mid))}
+        ${totNum(fracOf(r.dual.end?.totalScore, r.dual.end?.subjectCount, 100))}${totNum(dLvl(r.dual.end))}
+        ${totNum(fracOf(endPts(r.dual.end), r.dual.end?.subjectCount, 8))}
+        <td colspan="2" style="${cardTd(DB + `border-right:none;font-size:13px;font-weight:700;color:${INK};`)}">${closing}</td></tr>`
+    : `<tr><td style="${cardTd(DB)}"></td>
+        <td style="${cardTd(DB + `font-weight:800;font-size:14px;letter-spacing:0.8px;color:${INK};`)}">TOTAL</td>
+        ${totNum(fracOf(r.totalScore, r.subjectCount, 100), 15)}${totNum(escHtml(r.meanGrade || '—'), 15.5)}
+        ${totNum(fracOf(endPts(r), r.subjectCount, 8), 15)}
+        <td colspan="2" style="${cardTd(DB + `border-right:none;font-size:13px;font-weight:700;color:${INK};`)}">${closing}</td></tr>`;
+
+  /* ── Table head + column widths ─────────────────────────── */
+  const cols = both ? [6, 17, 7, 7, 7, 7, 6, 24, 19] : [7, 22, 8, 8, 6, 31, 18];
+  const colgroup = '<colgroup>' + cols.map(w => `<col style="width:${w}%">`).join('') + '</colgroup>';
+  const head = both
+    ? `<tr>${cardTh('Code', 0, 'center', false, 'rowspan="2"')}${cardTh('Learning area', 0, 'left', false, 'rowspan="2"')}${cardGroupTh('Mid term', 2)}${cardGroupTh('End term', 3)}${cardTh('Teacher&rsquo;s remark (average)', 0, 'left', false, 'rowspan="2"')}${cardTh('Teacher', 0, 'left', true, 'rowspan="2"')}</tr>
+       <tr>${cardSubTh('Score')}${cardSubTh('Level')}${cardSubTh('Score')}${cardSubTh('Level')}${cardSubTh('Pts')}</tr>`
+    : `<tr>${cardTh('Code')}${cardTh('Learning area', 0, 'left')}${cardTh('Score')}${cardTh('Level')}${cardTh('Pts<br/>/ 8')}${cardTh('Teacher&rsquo;s remark', 0, 'left')}${cardTh('Teacher', 0, 'left', true)}</tr>`;
+
+  /* ── Learner details + averages ─────────────────────────── */
+  const dAvg = (x) => (x && x.subjectCount) ? `${x.avgScore}%` : '—';
+  const levelText = `${escHtml(KJSEA.levelFull(r.meanGrade))} &nbsp;${escHtml(r.meanGrade || '')}`;
+  const learnerGrid = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:3px solid ${LINE};">
+      ${cardCell('Learner name',   escHtml(r.fullName), { span: 2 })}
+      ${cardCell('Class',          escHtml(prettyClass(r.streamName || s.cls)))}
+      ${cardCell('Gender',         escHtml(gender), { last: true })}
+      ${cardCell('Assessment no.', escHtml(r.assessmentNo || ''), { bottom: false })}
+      ${cardCell('Admission no.',  escHtml(r.upiNumber || ''), { bottom: false })}
+      ${both
+        ? cardCell('Academic year', escHtml(s.year), { span: 2, last: true, bottom: false })
+        : cardCell('Academic year', escHtml(s.year), { bottom: false }) + cardCell('Average', `${r.avgScore}%`, { last: true, bottom: false })}
+    </div>`;
+
+  const levelStrip = both
+    ? `<div style="display:grid;grid-template-columns:1fr 1fr 2fr;border-bottom:3px solid ${LINE};">
+         ${cardStat('Mid term average', dAvg(r.dual.mid))}
+         ${cardStat('End term average', dAvg(r.dual.end))}
+         ${cardStat('Overall level (average of both)', levelText, true)}
+       </div>`
+    : `<div style="display:flex;align-items:baseline;gap:12px;padding:3px 12px 7px;background:#ffffff;border-bottom:3px solid ${LINE};line-height:1.2;">
+         <span style="font-size:12.5px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;">Overall performance level</span>
+         <span style="font-size:19px;font-weight:800;color:${INK};">${levelText}</span>
+       </div>`;
 
   /* ── Pathway summary (calculations unchanged; no bars, no colour) ── */
   const pathwayKeys = ['stem', 'social', 'creative'];
-
   const pathwayCells = pathwayKeys.map((key, i) => {
     const pw       = r.pathways[key];
     const name     = KJSEA.PATHWAYS[key].name;
@@ -1547,146 +1656,60 @@ const buildReportCard = (r, s) => {
     const hasScore = pw.avg !== null;
     const code     = (pw.css || '').toUpperCase();
     const partial  = hasScore && pw.count < pw.expected
-      ? `<div style="font-size:12.4px;color:${MUTE};margin-top:4px;">${pw.count} of ${pw.expected} subjects counted</div>` : '';
+      ? ` &middot; ${pw.count} of ${pw.expected} subjects` : '';
     return `
-      <div style="flex:1;padding:6px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
-        <div style="font-size:14.5px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:${INK};margin-bottom:3px;">${name}</div>
-        <div style="font-size:13.6px;font-weight:600;color:${INK};line-height:1.35;min-height:0;">${escHtml(pw.subjects)}</div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin:3px 0;">
-          <span style="font-size:30.5px;font-weight:800;color:${INK};line-height:1.1;">${hasScore ? pw.avg + '%' : '—'}</span>
-          <span style="font-size:15.3px;font-weight:700;color:${INK};">${hasScore ? pw.points + '/' + pw.maxPts + ' pts' : ''}</span>
+      <div style="flex:1;min-width:0;padding:4px 10px 11px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
+        <div style="font-size:13px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:${INK};">${name}</div>
+        <div style="font-size:11.5px;font-weight:600;color:${INK};line-height:1.2;">${escHtml(pw.subjects)}</div>
+        <div style="display:flex;align-items:baseline;gap:7px;margin-top:2px;flex-wrap:wrap;">
+          <span style="font-size:23px;font-weight:800;color:${INK};line-height:1.1;">${hasScore ? pw.avg + '%' : '—'}</span>
+          <span style="font-size:12.5px;font-weight:700;color:${INK};">${hasScore ? `${pw.points}/${pw.maxPts} pts &nbsp;&middot;&nbsp; ${escHtml(code)}${partial}` : 'No data'}</span>
         </div>
-        <div style="font-size:13.9px;font-weight:600;color:${INK};line-height:1.25;">${hasScore ? `${escHtml(KJSEA.levelFull(code))} <strong>${escHtml(code)}</strong>` : 'No data'}</div>
-        ${partial}
       </div>`;
   }).join('');
 
-  /* ── Comments + sign-off ────────────────────────────────── */
-  const signBlock = (title, comment, person, personLabel, last = false) => `
-    <div style="padding:8px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
-      <div style="font-size:13.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">${title}</div>
-      <div style="font-size:16px;font-weight:600;color:${INK};line-height:1.4;font-style:italic;min-height:24px;">${escHtml(comment)}</div>
-      <div style="margin-top:8px;border-bottom:2px solid ${LINE};"></div>
-      <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:12.8px;font-weight:600;color:${INK};">
-        <span><strong style="font-size:15.5px;">${person ? escHtml(tidyName(person)) : '&nbsp;'}</strong><br/>${personLabel}</span>
-        <span style="align-self:flex-end;white-space:nowrap;">Date: ..........</span>
-      </div>
-    </div>`;
-
-  const dateCell = (label, value, last = false) => `
-    <div style="padding:6px 12px;background:#ffffff;${last ? '' : `border-right:2px solid ${LINE};`}">
-      <div style="font-size:13.4px;font-weight:800;color:${INK};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">${label}</div>
-      <div style="font-size:16.6px;font-weight:800;color:${INK};min-height:15px;">${value ? escHtml(value) : '..............................'}</div>
-    </div>`;
-
-  /* ── Grading key: code, full name, range, points ────────── */
+  /* ── Grading key: group headings, then code · range · points ── */
+  const groups = [];
+  KJSEA.SCALE.forEach(g => {
+    const last = groups[groups.length - 1];
+    if (last && last.full === g.full) last.n++; else groups.push({ full: g.full, n: 1 });
+  });
+  const keyGroups = groups.map((g, i) => `
+    <div style="grid-column:span ${g.n};text-align:center;padding:2px 0 5px;font-size:11px;letter-spacing:0;font-weight:800;text-transform:uppercase;color:${INK};white-space:nowrap;${i ? `border-left:2px solid ${LINE};` : ''}">${g.full}</div>`).join('');
   const keyCells = KJSEA.SCALE.map((g, i) => `
-    <div style="padding:5px 4px;text-align:center;background:#ffffff;${i < KJSEA.SCALE.length - 1 ? `border-right:2px solid ${LINE};` : ''}">
-      <div style="font-size:15.3px;font-weight:800;color:${INK};">${g.grade}</div>
-      <div style="font-size:13px;font-weight:700;color:${INK};line-height:1.2;">${g.full}</div>
-      <div style="font-size:13.6px;font-weight:800;color:${INK};margin-top:3px;">${g.min}–${g.max}%</div>
-      <div style="font-size:13px;font-weight:600;color:${INK};">${g.points} pts</div>
+    <div style="text-align:center;padding:3px 0 6px;${i ? `border-left:2px solid ${LINE};` : ''}">
+      <div style="font-size:14px;font-weight:800;color:${INK};">${g.grade}</div>
+      <div style="font-size:11.5px;font-weight:700;color:${INK};">${g.min}–${g.max}%</div>
+      <div style="font-size:11.5px;font-weight:600;color:${INK};">${g.points} pts</div>
     </div>`).join('');
 
-  /* ── Mid + End: header rows and total row ──────────────── */
-  const hth = (label, al = 'center', last = false, extra = '') =>
-    `<th ${extra} style="padding:6px 4px 10px;text-align:${al};font-size:13.2px;font-weight:800;letter-spacing:0.3px;text-transform:uppercase;line-height:1.2;color:${INK};background:#ffffff;border-right:${last ? 'none' : `2px solid ${LINE}`};border-bottom:3px solid ${LINE};">${label}</th>`;
-  const gth = (label, n) =>
-    `<th colspan="${n}" style="padding:5px 4px 8px;text-align:center;font-size:13.2px;font-weight:800;text-transform:uppercase;color:${INK};background:#ffffff;border-right:2px solid ${LINE};border-bottom:2px solid ${LINE};">${label}</th>`;
-  const dualHead = `
-      <tr>${hth('Code', 'center', false, 'rowspan="2"')}${hth('Learning area', 'left', false, 'rowspan="2"')}${gth('Mid term', 2)}${gth('End term', 3)}${hth('Teacher&rsquo;s remark', 'left', false, 'rowspan="2"')}${hth('Teacher', 'left', true, 'rowspan="2"')}</tr>
-      <tr>${hth('Score')}${hth('Level')}${hth('Score')}${hth('Level')}${hth('Pts')}</tr>`;
-
-  const dTot = (x, mx) => (x && x.subjectCount)
-    ? `${x.totalScore}<div style="font-size:12px;font-weight:700;">/${x.subjectCount * 100}</div>` : '—';
-  const dLvl = (x) => (x && x.subjectCount) ? (KJSEA.getGrade(x.avgScore)?.grade || '—') : '—';
-  const DB = `border-top:4px double ${LINE};`;
-  const dualTotal = both ? `<tr>
-        <td style="${td(DB)}"></td>
-        <td style="${td(DB + `font-weight:800;font-size:15.3px;letter-spacing:0.8px;color:${INK};`)}">TOTAL</td>
-        <td style="${td(DB + `text-align:center;font-weight:800;font-size:15px;color:${INK};`)}">${dTot(r.dual.mid)}</td>
-        <td style="${td(DB + `text-align:center;font-weight:800;font-size:16px;color:${INK};`)}">${dLvl(r.dual.mid)}</td>
-        <td style="${td(DB + `text-align:center;font-weight:800;font-size:15px;color:${INK};`)}">${dTot(r.dual.end)}</td>
-        <td style="${td(DB + `text-align:center;font-weight:800;font-size:16px;color:${INK};`)}">${dLvl(r.dual.end)}</td>
-        <td style="${td(DB + `text-align:center;font-weight:800;font-size:15px;color:${INK};`)}">${r.dual.end?.subjectCount ? `${endPts(r.dual.end)}<div style="font-size:12px;font-weight:700;">/${r.dual.end.subjectCount * 8}</div>` : '—'}</td>
-        <td colspan="2" style="${td(DB + `border-right:none;font-size:13.9px;font-weight:800;color:${INK};`)}">${escHtml(teacherComment.split('.')[0])}.</td>
-      </tr>` : '';
-
-  /* ── Page ───────────────────────────────────────────────── */
-  const dot = (pos) => `<span style="position:absolute;${pos}width:9px;height:9px;background:#000;transform:rotate(45deg);"></span>`;
-  return `
-<div style="position:relative;width:100%;max-width:754px;box-sizing:border-box;background:#ffffff;border:1.5px solid #000;padding:5px;margin:7px auto;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
-${dot('top:-6px;left:-6px;')}${dot('top:-6px;right:-6px;')}${dot('bottom:-6px;left:-6px;')}${dot('bottom:-6px;right:-6px;')}
-<div style="width:100%;box-sizing:border-box;background:#ffffff;color-scheme:light;-webkit-print-color-adjust:exact;print-color-adjust:exact;border:3px solid ${LINE};overflow:hidden;font-family:'DM Sans','Segoe UI',Arial,sans-serif;font-size:15.3px;color:${INK};margin:0 auto;font-variant-numeric:tabular-nums;">
-
-  <!-- Letterhead -->
-  <div style="display:flex;align-items:center;gap:14px;padding:8px 16px;background:#ffffff;border-bottom:3px solid ${LINE};">
-    <div style="width:50px;height:50px;background:#ffffff;color:${INK};border:2px solid ${LINE};border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:26.3px;font-weight:800;letter-spacing:1px;flex-shrink:0;">${escHtml(initials)}</div>
-    <div style="flex:1;min-width:0;">
-      ${schoolHeader(s, 24)}
-    </div>
-    <div style="text-align:right;flex-shrink:0;">
-      <div style="font-size:17.4px;font-weight:800;letter-spacing:1.2px;color:${INK};">LEARNER PROGRESS REPORT</div>
-      <div style="font-size:14.5px;font-weight:600;color:${INK};margin-top:3px;">Term ${escHtml(s.term)} &nbsp;&bull;&nbsp; ${escHtml(s.exam)} Assessment &nbsp;&bull;&nbsp; ${escHtml(s.year)}</div>
-    </div>
-  </div>
-
+  return cardFrame(`
+  ${cardHeader(s, `Term ${escHtml(s.term)} &nbsp;&bull;&nbsp; ${escHtml(s.exam)} Assessment &nbsp;&bull;&nbsp; ${escHtml(s.year)}`)}
   ${learnerGrid}
-  ${statsStrip}
+  ${levelStrip}
 
-  ${sectionBar('Subject performance')}
+  ${cardBar('Subject performance')}
   <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
-    ${both ? '<colgroup>' + [6, 17, 8, 7, 8, 7, 6, 28, 13].map(w => `<col style="width:${w}%">`).join('') + '</colgroup>' : ''}
-    <thead>
-      ${both ? dualHead : `<tr>
-        ${th('Code', 6)}${th('Learning area', 17, 'left')}${th('Score', 9)}${th('Performance level', 20, 'left')}${th('Points<br/>(out of 8)', 7)}${th('Teacher&rsquo;s remark', 30, 'left')}${th('Teacher', 11, 'left', true)}
-      </tr>`}
-    </thead>
-    <tbody>
-      ${subjectRows}
-      ${both ? dualTotal : `<tr>
-        <td style="${td(`border-top:4px double ${LINE};`)}"></td>
-        <td style="${td(`border-top:4px double ${LINE};font-weight:800;font-size:15.3px;letter-spacing:0.8px;color:${INK};`)}">TOTAL</td>
-        <td style="${td(`border-top:4px double ${LINE};text-align:center;font-weight:800;font-size:16px;white-space:nowrap;color:${INK};`)}">${r.totalScore}/${maxTotal}</td>
-        <td style="${td(`border-top:4px double ${LINE};color:${INK};`)}">${levelBlock(r.meanGrade)}</td>
-        <td style="${td(`border-top:4px double ${LINE};text-align:center;font-weight:800;font-size:16px;color:${INK};`)}">${r.totalPoints}/${maxPoints}</td>
-        <td colspan="2" style="${td(`border-top:4px double ${LINE};border-right:none;font-size:13.9px;font-weight:700;color:${INK};`)}">${escHtml(teacherComment.split('.')[0])}.</td>
-      </tr>`}
-    </tbody>
+    ${colgroup}
+    <thead>${head}</thead>
+    <tbody>${rowsHtml}${totalRow}</tbody>
   </table>
 
-  ${sectionBar('Pathway summary', both ? 'Based on the average of Mid &amp; End Term' : 'Average of the KNEC subjects for each pathway')}
+  ${cardBar('Pathway summary', both ? 'Average of Mid &amp; End Term' : 'Average of the KNEC subjects for each pathway')}
   <div style="display:flex;border-bottom:3px solid ${LINE};">${pathwayCells}</div>
 
-  ${sectionBar('Comments')}
+  ${cardBar('Comments')}
   <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid ${LINE};">
-    ${signBlock("Class teacher's comment", teacherComment, ((s.classTeachers || {})[r.streamName] || s.teacher), 'Class teacher &mdash; signature')}
-    ${signBlock("Head of Institution's comment",     KJSEA.getPrincipalComment(r, r.meanGrade), s.principal, 'Head of Institution &mdash; signature &amp; stamp', true)}
+    ${cardSign("Class teacher's comment", teacherComment, ((s.classTeachers || {})[r.streamName] || s.teacher), 'Class teacher')}
+    ${cardSign("Head of Institution's comment", KJSEA.getPrincipalComment(r, r.meanGrade), s.principal, 'Signature &amp; stamp', true)}
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid ${LINE};">
-    ${dateCell('Term closing date', s.closingDate)}
-    ${dateCell('Next term opens',   s.nextTerm, true)}
-  </div>
+  ${cardDatesRow(s)}
 
-  <div style="display:flex;align-items:flex-end;gap:10px;padding:10px 12px 6px;background:#ffffff;border-bottom:3px solid ${LINE};font-size:15.5px;color:${INK};">
-    <span style="white-space:nowrap;font-weight:700;">Parent / Guardian signature:</span>
-    <div style="flex:1;border-bottom:2px solid ${LINE};height:14px;"></div>
-    <span style="white-space:nowrap;">Date: ______________</span>
-  </div>
-
-  ${sectionBar('Grading key', 'Performance level, score range and points')}
+  ${cardBar('Grading key', 'Performance level, score range and points')}
+  <div style="display:grid;grid-template-columns:repeat(8,1fr);border-bottom:2px solid ${LINE};">${keyGroups}</div>
   <div style="display:grid;grid-template-columns:repeat(8,1fr);border-bottom:2px solid ${LINE};">${keyCells}</div>
-  <div style="padding:4px 12px;background:#ffffff;border-bottom:3px solid ${LINE};font-size:12.8px;font-weight:600;color:${INK};">${both ? 'Remarks, pathways and overall level use the average of Mid and End Term. Marks are rounded to whole numbers.' : 'Marks are rounded to the nearest whole number before the performance level is worked out.'}</div>
-
-  <!-- Footer -->
-  <div style="background:#ffffff;display:flex;justify-content:space-between;align-items:center;padding:6px 14px;font-size:13.4px;font-weight:700;color:${INK};">
-    <span>Powered by Scholar Analytics</span>
-    <span>Parent / Guardian copy</span>
-  </div>
-
-</div>
-</div>`;
+  ${cardFooter('Marks are rounded to the nearest whole number. ')}`);
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -1710,7 +1733,8 @@ const buildClassSheet = (allResults, s) => {
   subjectList.splice(0, subjectList.length, ...sortSubjects(subjectList));
   const sameSubj = (x, subj) => normName(x.name) === normName(subj.name);
   /* "English (901)" — learning-area name followed by its KNEC code in brackets */
-  const areaLabel = (x) => { const c = knecCode(x); return escHtml(x.name) + (c ? ` (${c})` : ''); };
+  /* Class sheet: learning-area name only. KNEC codes (901…911) are printed on Grade 7–9 report cards only. */
+  const areaLabel = (x) => escHtml(x.name);
 
   const avg      = div(results.reduce((a, r) => a + r.avgScore, 0), n).toFixed(1);
   const meanPts  = div(results.reduce((a, r) => a + r.avgPoints, 0), n).toFixed(2);
@@ -2086,40 +2110,30 @@ const printPages = (htmls, landscape) => {
     return;
   }
 
-  /* cards: measure each at the page width, shrink to fit one page */
+  /* cards: laid out at the SAME width as the preview and the PDF (so nothing re-wraps),
+     then scaled to fit one page and centred */
+  const CARD_W = 754;
   const probe = document.createElement('div');
-  probe.style.cssText = `position:fixed;left:-99999px;top:0;width:${pageW}px;background:#fff;`;
+  probe.style.cssText = `position:fixed;left:-99999px;top:0;width:${CARD_W}px;background:#fff;`;
   document.body.appendChild(probe);
 
-  const heightAt = (html, width) => {
-    probe.style.width = width + 'px';
+  const heightOf = (html) => {
     probe.innerHTML = html;
     return (probe.firstElementChild || probe).getBoundingClientRect().height;
   };
 
   const useZoom = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('zoom', '0.5');
   const pages = htmls.map((h0, i) => {
-    const html = String(h0).replace(/max-width:754px/g, 'max-width:none');   // fill the page width
-    let k = 1;
-    const h1 = heightAt(html, pageW);
-    if (h1 > pageH) {
-      k = (pageH / h1) * 0.99;
-      for (let n = 0; n < 6; n++) {            // wider layout wraps less, so refine until the card fills the page
-        const h = heightAt(html, pageW / k);
-        const nk = Math.min(1, (pageH / h) * 0.995);
-        if (Math.abs(nk - k) < 0.002) { k = Math.min(k, nk); break; }
-        k = nk;
-      }
-      if (heightAt(html, pageW / k) * k > pageH) k *= 0.985;
-    }
-    const inner = pageW / k;
+    const html = String(h0);
+    const h = heightOf(html);
+    const k = Math.min(pageW / CARD_W, (pageH / h) * 0.995, 1);
     const last = i === htmls.length - 1;
     return `<div style="width:210mm;height:296mm;padding:${margin}mm;background:#fff;overflow:hidden;box-sizing:border-box;` +
            `${last ? '' : 'break-after:page;page-break-after:always;'}">` +
            `<div style="width:${pageW}px;height:${pageH}px;overflow:hidden;box-sizing:border-box;">` +
            (useZoom
-             ? `<div style="width:${inner}px;zoom:${k};">${html}</div></div></div>`
-             : `<div style="width:${inner}px;transform:scale(${k});transform-origin:top left;">${html}</div></div></div>`);
+             ? `<div style="width:${CARD_W}px;zoom:${k};margin:0 auto;">${html}</div></div></div>`
+             : `<div style="width:${CARD_W * k}px;margin:0 auto;"><div style="width:${CARD_W}px;transform:scale(${k});transform-origin:top left;">${html}</div></div></div></div>`);
   });
 
   probe.remove();
