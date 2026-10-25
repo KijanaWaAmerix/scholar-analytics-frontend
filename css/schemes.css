@@ -1,0 +1,125 @@
+/* ═══════════════════════════════════════════════════════════
+   SCHOLAR ANALYTICS — Schemes of Work Page
+   File: css/schemes.css  Version: 1.0
+═══════════════════════════════════════════════════════════ */
+
+.sch-setup { margin-bottom: 18px; }
+
+.sch-form {
+  display              : grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap                  : 14px;
+  padding              : 18px;
+}
+
+.sch-field label {
+  display      : block;
+  margin-bottom: 5px;
+  font-size    : var(--text-xs);
+  font-weight  : 600;
+  color        : var(--text-mid);
+}
+
+.sch-field select,
+.sch-field input,
+.sch-holiday-row input {
+  width        : 100%;
+  padding      : 10px 12px;
+  border       : 1px solid #d1dceb;
+  border-radius: 8px;
+  font         : inherit;
+  background   : #fff;
+  color        : var(--text-dark);
+}
+
+.sch-field select:disabled { background: var(--bg-light); color: var(--text-light); }
+
+.sch-static {
+  padding      : 10px 12px;
+  border       : 1px dashed #d1dceb;
+  border-radius: 8px;
+  background   : var(--bg-light);
+  color        : var(--text-mid);
+}
+
+.sch-holidays { padding: 0 18px 8px; }
+
+.sch-holidays > label {
+  display      : block;
+  margin-bottom: 5px;
+  font-size    : var(--text-xs);
+  font-weight  : 600;
+  color        : var(--text-mid);
+}
+.sch-holidays > label span { font-weight: 400; color: var(--text-soft); }
+
+.sch-holiday-row { display: flex; gap: 10px; max-width: 360px; }
+.sch-holiday-row input { flex: 1; }
+
+.sch-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+.sch-chip {
+  display      : inline-flex;
+  align-items  : center;
+  gap          : 6px;
+  padding      : 4px 6px 4px 12px;
+  border-radius: var(--radius-full);
+  background   : var(--primary-pale);
+  border       : 1px solid var(--info-border);
+  font-size    : var(--text-xs);
+  color        : var(--primary);
+}
+.sch-chip button {
+  border: 0; background: transparent; cursor: pointer; color: inherit;
+  width: 20px; height: 20px; border-radius: 50%; line-height: 1;
+}
+.sch-chip button:hover { background: var(--danger-light); color: var(--danger); }
+
+.sch-actions {
+  display    : flex;
+  align-items: center;
+  gap        : 14px;
+  flex-wrap  : wrap;
+  padding    : 10px 18px 18px;
+}
+.sch-error { color: var(--danger); font-size: var(--text-sm); font-weight: 600; }
+
+#schResult .analytics-kpi-grid { margin-bottom: 18px; }
+
+.sch-shortfall {
+  margin-bottom: 18px;
+  padding      : 12px 16px;
+  background   : var(--warning-light);
+  border       : 1px solid var(--warning-border);
+  border-radius: 8px;
+  color        : #9a5b00;
+  font-size    : var(--text-sm);
+  font-weight  : 600;
+}
+
+.sch-note {
+  margin       : 0 18px 14px;
+  padding      : 10px 14px;
+  background   : var(--info-light);
+  border       : 1px solid var(--info-border);
+  border-radius: 8px;
+  font-size    : var(--text-sm);
+  color        : var(--primary);
+}
+
+.sch-table tr.sch-ht td {
+  background    : var(--warning-light);
+  color         : #9a5b00;
+  font-weight   : 700;
+  text-align    : center;
+  letter-spacing: .06em;
+}
+.sch-table tr.sch-week-start td { border-top: 2px solid #e3eaf3; }
+
+@media (max-width: 900px) {
+  .sch-form { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 520px) {
+  .sch-form { grid-template-columns: 1fr; padding: 14px; }
+  .sch-holiday-row { max-width: none; }
+}
