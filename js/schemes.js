@@ -10,8 +10,9 @@ initSidebar(user);
 
 const $ = (id) => document.getElementById(id);
 
-let designs  = [];
-let holidays = [];
+let designs    = [];
+let holidays   = [];
+let lastResult = null;   /* the scheme on screen: { rows, summary } */
 
 /* Text from the server goes into the page as text, never as markup */
 const esc = (value) =>
@@ -79,6 +80,10 @@ const onDesignChange = () => {
 
   $('schPerWeek').textContent =
     `${design.lessonsPerWeek} (${design.lessonMinutes} minutes each)`;
+
+  /* The title follows the chosen design, and can still be edited */
+  $('schArea').value  = design.learningArea || '';
+  $('schGrade').value = `Grade ${design.grade}`;
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -166,6 +171,7 @@ const generate = async () => {
    SHOW THE RESULT
 ══════════════════════════════════════════════════════════ */
 const renderResult = ({ summary, rows }) => {
+  lastResult = { summary, rows };
   $('kpiPlaced').textContent = `${summary.lessonsPlaced} of ${summary.lessonsRequired}`;
   $('kpiWeeks').textContent  = summary.weeksUsed;
   $('kpiFits').textContent   = summary.fits ? 'Yes' : 'No';
@@ -206,6 +212,203 @@ const renderResult = ({ summary, rows }) => {
   $('schResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
+
+/* ══════════════════════════════════════════════════════════
+   TITLE OF THE DOCUMENT
+   School and teacher come from the account; the teacher's name
+   and TSC No. are remembered on this device for next time.
+══════════════════════════════════════════════════════════ */
+const TITLE_KEY = `sa_scheme_title_${user?._id || user?.id || user?.email || 'user'}`;
+
+const readSaved = () => {
+  try { return JSON.parse(localStorage.getItem(TITLE_KEY)) || {}; } catch { return {}; }
+};
+const writeSaved = (data) => {
+  try { localStorage.setItem(TITLE_KEY, JSON.stringify(data)); } catch { /* private window: skip */ }
+};
+
+const initTitleFields = () => {
+  const school = Auth.getSchool() || {};
+  const saved  = readSaved();
+  const acad   = school.academic || {};
+
+  $('schSchool').value  = saved.school  || school.schoolName || school.name || '';
+  $('schTeacher').value = saved.teacher || user.fullName || '';
+  $('schTsc').value     = saved.tsc     || '';
+  $('schYear').value    = acad.currentYear || school.currentYear || new Date().getFullYear();
+  $('schTerm').value    = String(acad.currentTerm || school.currentTerm || 1);
+
+  ['schSchool', 'schTeacher', 'schTsc'].forEach((id) =>
+    $(id).addEventListener('change', () =>
+      writeSaved({ school: $('schSchool').value.trim(), teacher: $('schTeacher').value.trim(), tsc: $('schTsc').value.trim() })));
+};
+
+const readTitle = () => ({
+  school : $('schSchool').value.trim(),
+  teacher: $('schTeacher').value.trim(),
+  tsc    : $('schTsc').value.trim(),
+  year   : $('schYear').value.trim(),
+  area   : $('schArea').value.trim(),
+  grade  : $('schGrade').value.trim(),
+  term   : $('schTerm').value,
+});
+
+const titleProblem = (t) => {
+  if (!t.school)  return 'Please enter the school name.';
+  if (!t.teacher) return 'Please enter the name of the teacher.';
+  if (!t.area)    return 'Please enter the learning area.';
+  if (!t.grade)   return 'Please enter the grade the scheme is used in.';
+  if (!/^\d{4}$/.test(t.year)) return 'Please enter the year, for example 2026.';
+  return '';
+};
+
+/* "8" and "grade 8" both become "Grade 8" */
+const gradeLabel = (g) => (/^\d/.test(g) ? `Grade ${g}` : g.replace(/^grade\b/i, 'Grade'));
+
+/* ══════════════════════════════════════════════════════════
+   BUILD THE DOCUMENTS
+══════════════════════════════════════════════════════════ */
+const dateLabel = (r) => `${r.day.charAt(0)}${r.day.slice(1).toLowerCase()} ${fmtDate(r.date)}`;
+
+const buildSchemeSpec = (t, rows) => {
+  const body = [];
+  let lastWeek = null;
+
+  rows.forEach((r) => {
+    if (r.type === 'HALF_TERM') {
+      body.push({ band: `HALF TERM  ·  ${fmtDate(r.from)} – ${fmtDate(r.to)} ${t.year}` });
+      return;
+    }
+    const first = r.week !== lastWeek;
+    lastWeek = r.week;
+    /* The last five columns (outcomes ... reflection) are filled in by the lesson content step */
+    body.push([
+      first ? String(r.week) : '', String(r.lessonOfWeek), dateLabel(r),
+      r.strand, r.subStrand, '', '', '', '', '', '',
+    ]);
+  });
+
+  return {
+    orientation: 'landscape',
+    title      : 'SCHEME OF WORK',
+    subtitle   : `${gradeLabel(t.grade)} ${t.area} – TERM ${t.term} – ${t.year}`.toUpperCase(),
+    meta: [
+      [['SCHOOL', t.school],        ['LEARNING AREA', t.area]],
+      [['TEACHER', t.teacher],      ['GRADE', t.grade]],
+      [['TSC NO.', t.tsc],          ['TERM / YEAR', `Term ${t.term} / ${t.year}`]],
+    ],
+    columns: [
+      { header: 'Week',                       width: 4.5 },
+      { header: 'Lesson',                     width: 5.8 },
+      { header: 'Date',                       width: 7.8 },
+      { header: 'Strand',                     width: 9   },
+      { header: 'Sub-strand',                 width: 8.5 },
+      { header: 'Specific learning outcomes', width: 15 },
+      { header: 'Learning experiences',       width: 15.9 },
+      { header: 'Key inquiry questions',      width: 9   },
+      { header: 'Learning resources',         width: 8   },
+      { header: 'Assessment',                 width: 8.5 },
+      { header: 'Reflection',                 width: 8   },
+    ],
+    rows   : body,
+    endLine: 'REFLECTION / INSPECTOR:',
+  };
+};
+
+/* One page for each week */
+const buildRecordSpecs = (t, rows) => {
+  const weeks = new Map();
+  rows.filter((r) => r.type === 'LESSON').forEach((r) => {
+    if (!weeks.has(r.week)) weeks.set(r.week, []);
+    weeks.get(r.week).push(r);
+  });
+
+  return [...weeks.entries()].map(([week, list]) => ({
+    orientation: 'portrait',
+    title      : 'RECORD OF WORK COVERED',
+    subtitle   : `${gradeLabel(t.grade)} ${t.area} – TERM ${t.term} – WEEK ${week}`.toUpperCase(),
+    meta: [
+      [['SCHOOL', t.school]],
+      [['TEACHER', t.teacher],     ['TSC NO.', t.tsc]],
+      [['LEARNING AREA', t.area],  ['GRADE / YEAR', `${t.grade} / ${t.year}`]],
+    ],
+    columns: [
+      { header: 'Date',         width: 14 },
+      { header: 'Lesson',       width: 10 },
+      { header: 'Work covered', width: 42 },
+      { header: 'Comments',     width: 21 },
+      { header: 'Signature',    width: 13 },
+    ],
+    rows: list.map((r) => [
+      dateLabel(r), `Lesson ${r.lessonOfWeek}`,
+      `${r.subStrand}: lesson ${r.lessonInSubStrand} of ${r.lessonsInSubStrand}`, '', '',
+    ]),
+    extra: {
+      columns: [
+        { header: '',         width: 30 },
+        { header: 'Comments', width: 48 },
+        { header: 'Signature', width: 22 },
+      ],
+      rows: [
+        ['SUBJECT HEAD', '', ''],
+        ['HEAD OF DEPARTMENT', '', ''],
+        ["PRINCIPAL'S COMMENT", '', ''],
+      ],
+    },
+  }));
+};
+
+/* ══════════════════════════════════════════════════════════
+   DOWNLOAD / PRINT
+══════════════════════════════════════════════════════════ */
+const exportDoc = async (kind, format, button) => {
+  showError('');
+  if (!lastResult) return showError('Generate the scheme first.');
+
+  const t = readTitle();
+  const problem = titleProblem(t);
+  if (problem) {
+    showError(problem);
+    $('schSchool').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  const libsReady = window.jspdf?.jsPDF && window.docx;
+  if (!libsReady || !window.DocExport) {
+    return showError('The download tools did not load. Check your internet connection and refresh the page.');
+  }
+
+  const specs = kind === 'scheme'
+    ? [buildSchemeSpec(t, lastResult.rows)]
+    : buildRecordSpecs(t, lastResult.rows);
+
+  if (!specs.length) return showError('There are no lessons to put in this document.');
+
+  const base = [
+    kind === 'scheme' ? 'Scheme_of_Work' : 'Record_of_Work',
+    DocExport.safeName(gradeLabel(t.grade)),
+    DocExport.safeName(t.area),
+    `Term${t.term}`, t.year,
+  ].join('_');
+
+  const original = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Please wait…';
+
+  try {
+    await new Promise((r) => setTimeout(r, 30));          /* let the button repaint first */
+    if (format === 'pdf')        { DocExport.downloadPdf(specs, base);  showToast('PDF downloaded.', 'success'); }
+    else if (format === 'docx')  { await DocExport.downloadDocx(specs, base); showToast('Word file downloaded.', 'success'); }
+    else                         { DocExport.printPdf(specs); }
+  } catch (err) {
+    console.error(err);
+    showError('Could not create the file. Please try again.');
+  } finally {
+    button.disabled = false;
+    button.innerHTML = original;
+  }
+};
+
 /* ══════════════════════════════════════════════════════════
    WIRE UP
 ══════════════════════════════════════════════════════════ */
@@ -219,5 +422,10 @@ $('schChips').addEventListener('click', (e) => {
   renderChips();
 });
 $('schGenerate').addEventListener('click', generate);
+document.querySelector('.sch-downloads').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-doc]');
+  if (btn) exportDoc(btn.dataset.doc, btn.dataset.fmt, btn);
+});
 
+initTitleFields();
 loadDesigns();
