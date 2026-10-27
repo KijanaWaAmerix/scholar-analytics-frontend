@@ -160,3 +160,13 @@
 .sch-toggle input { width: 18px; height: 18px; accent-color: #000; }
 
 .sch-week-pick { padding: 14px 18px 4px; max-width: 280px; }
+
+/* Exam papers */
+.ep-topics-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 18px 0; }
+.ep-hint { color: #000; font-size: 0.85rem; }
+.ep-topics { padding: 12px 18px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 18px; }
+.ep-topic { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid #000; cursor: pointer; }
+.ep-topic input { width: 18px; height: 18px; margin-top: 2px; accent-color: #000; }
+.ep-topic small { display: block; opacity: 0.8; }
+.ep-strand { grid-column: 1 / -1; font-weight: 700; margin-top: 6px; }
+@media (max-width: 700px) { .ep-topics { grid-template-columns: 1fr; } }
