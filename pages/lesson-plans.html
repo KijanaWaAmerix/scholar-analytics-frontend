@@ -96,213 +96,83 @@
 
       <div class="page-header">
         <div class="page-header-left">
-          <h2 class="page-header-title">Lesson Plans</h2>
-          <p class="page-header-sub">Use the same topics and term dates. You get one lesson plan page for every lesson.</p>
+          <h2 class="page-header-title">Lesson Plan</h2>
+          <p class="page-header-sub">Fill in the details at the top, choose the lesson, and get one lesson plan.</p>
         </div>
       </div>
 
-      <!-- Title of the document -->
       <div class="analytics-card sch-setup">
         <div class="analytics-card-header">
-          <h3 class="analytics-card-title"><i class="fas fa-id-card"></i> Title of the document</h3>
+          <h3 class="analytics-card-title"><i class="fas fa-id-card"></i> Top of the lesson plan</h3>
         </div>
         <div class="sch-form">
           <div class="sch-field">
-            <label for="schSchool">School</label>
-            <input type="text" id="schSchool" maxlength="120" autocomplete="organization"/>
+            <label for="lpSchool">School</label>
+            <input type="text" id="lpSchool" maxlength="120" autocomplete="organization"/>
           </div>
           <div class="sch-field">
-            <label for="schTeacher">Name of the teacher</label>
-            <input type="text" id="schTeacher" maxlength="120" autocomplete="name"/>
+            <label for="lpTeacher">Name of the teacher</label>
+            <input type="text" id="lpTeacher" maxlength="120" autocomplete="name"/>
           </div>
           <div class="sch-field">
-            <label for="schTsc">TSC No.</label>
-            <input type="text" id="schTsc" maxlength="30" inputmode="numeric" autocomplete="off"/>
+            <label for="lpDesign">Learning area and grade</label>
+            <select id="lpDesign"><option value="">Loading…</option></select>
           </div>
           <div class="sch-field">
-            <label for="schYear">Year</label>
-            <input type="number" id="schYear" min="2020" max="2100"/>
+            <label for="lpRoll">Roll (number of learners)</label>
+            <input type="number" id="lpRoll" min="0" max="200"/>
           </div>
           <div class="sch-field">
-            <label for="schArea">Learning area</label>
-            <input type="text" id="schArea" maxlength="80"/>
+            <label for="lpStrand">Strand</label>
+            <input type="text" id="lpStrand" readonly/>
           </div>
           <div class="sch-field">
-            <label for="schGrade">Grade the scheme is used in</label>
-            <input type="text" id="schGrade" maxlength="40" placeholder="e.g. Grade 8 or Grade 8 East"/>
+            <label for="lpSub">Sub-strand</label>
+            <select id="lpSub" disabled></select>
           </div>
           <div class="sch-field">
-            <label for="schTerm">Term</label>
-            <select id="schTerm">
-              <option value="1">Term 1</option>
-              <option value="2">Term 2</option>
-              <option value="3">Term 3</option>
-            </select>
+            <label for="lpLesson">Lesson in the sub-strand</label>
+            <select id="lpLesson" disabled></select>
           </div>
           <div class="sch-field">
-            <label>&nbsp;</label>
-            <div class="sch-static sch-hint">Your name and TSC No. are remembered for next time.</div>
+            <label for="lpDate">Date</label>
+            <input type="date" id="lpDate"/>
+          </div>
+          <div class="sch-field">
+            <label for="lpTime">Time</label>
+            <input type="text" id="lpTime" maxlength="30" placeholder="e.g. 8:00 - 8:40"/>
           </div>
         </div>
-      </div>
-
-      <!-- Set up -->
-      <div class="analytics-card sch-setup">
-        <div class="analytics-card-header">
-          <h3 class="analytics-card-title"><i class="fas fa-sliders"></i> Set up the term</h3>
-        </div>
-
-        <div class="sch-form">
-          <div class="sch-field">
-            <label for="schDesign">Grade and subject</label>
-            <select id="schDesign"><option value="">Loading…</option></select>
-          </div>
-          <div class="sch-field">
-            <label for="schStart">Start at</label>
-            <select id="schStart" disabled></select>
-          </div>
-          <div class="sch-field">
-            <label for="schEnd">End at</label>
-            <select id="schEnd" disabled></select>
-          </div>
-          <div class="sch-field">
-            <label>Lessons per week</label>
-            <div class="sch-static" id="schPerWeek">--</div>
-          </div>
-
-          <div class="sch-field">
-            <label for="schTermStart">Term starts</label>
-            <input type="date" id="schTermStart"/>
-          </div>
-          <div class="sch-field">
-            <label for="schTermEnd">Term ends</label>
-            <input type="date" id="schTermEnd"/>
-          </div>
-          <div class="sch-field">
-            <label for="schHtStart">Half term starts</label>
-            <input type="date" id="schHtStart"/>
-          </div>
-          <div class="sch-field">
-            <label for="schHtEnd">Half term ends</label>
-            <input type="date" id="schHtEnd"/>
-          </div>
-        </div>
-
-        <div class="sch-holidays">
-          <label for="schHoliday">Public holidays or days with no lessons <span>(optional)</span></label>
-          <div class="sch-holiday-row">
-            <input type="date" id="schHoliday"/>
-            <button type="button" class="btn btn-secondary btn-sm" id="schAddHoliday">
-              <i class="fas fa-plus"></i> Add day
-            </button>
-          </div>
-          <div class="sch-chips" id="schChips"></div>
-        </div>
-
         <div class="sch-actions">
-          <button type="button" class="btn btn-primary" id="schGenerate">
-            <i class="fas fa-wand-magic-sparkles"></i> Load the lessons
+          <button type="button" class="btn btn-primary" id="lpWrite">
+            <i class="fas fa-wand-magic-sparkles"></i> Write the lesson plan
           </button>
-          <span class="sch-error" id="schError" role="alert"></span>
+          <span class="sch-error" id="lpError" role="alert"></span>
         </div>
       </div>
 
-      <!-- Result -->
-      <div id="schResult" hidden>
-
-        <div class="analytics-card sch-writer">
-          <div class="analytics-card-header">
-            <h3 class="analytics-card-title"><i class="fas fa-pen-to-square"></i> Lesson content</h3>
-          </div>
-          <p class="sch-writer-text" id="schWriterText">Write the outcomes, activities, questions and lesson plan steps for every lesson in this scheme. Lessons already written for this topic load straight away.</p>
-          <div class="sch-actions">
-            <button type="button" class="btn btn-primary" id="schWrite"><i class="fas fa-wand-magic-sparkles"></i> Write lesson content</button>
-            <span class="sch-writer-status" id="schWriteStatus" role="status"></span>
-          </div>
-          <div class="sch-progress" id="schProgress" hidden><div class="sch-progress-bar" id="schProgressBar"></div></div>
-        </div>
-
+      <div id="lpResult" hidden>
         <div class="analytics-card sch-downloads">
           <div class="analytics-card-header">
             <h3 class="analytics-card-title"><i class="fas fa-download"></i> Download or print</h3>
           </div>
           <div class="sch-doc-row">
-            <div class="sch-doc-name"><strong>Scheme of work</strong><span>All weeks, one table</span></div>
+            <div class="sch-doc-name"><strong>Lesson plan</strong><span id="lpDocName">One lesson, one page</span></div>
             <div class="sch-doc-btns">
-              <button type="button" class="btn btn-primary btn-sm" data-doc="scheme" data-fmt="pdf"><i class="fas fa-file-pdf"></i> PDF</button>
-              <button type="button" class="btn btn-secondary btn-sm" data-doc="scheme" data-fmt="docx"><i class="fas fa-file-word"></i> Word</button>
-              <button type="button" class="btn btn-secondary btn-sm" data-doc="scheme" data-fmt="print"><i class="fas fa-print"></i> Print</button>
+              <button type="button" class="btn btn-primary btn-sm" data-fmt="pdf"><i class="fas fa-file-pdf"></i> PDF</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-fmt="docx"><i class="fas fa-file-word"></i> Word</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-fmt="print"><i class="fas fa-print"></i> Print</button>
             </div>
           </div>
-          <div class="sch-doc-row">
-            <div class="sch-doc-name"><strong>Record of work covered</strong><span>One page for each week, with the sign-off rows</span></div>
-            <div class="sch-doc-btns">
-              <button type="button" class="btn btn-primary btn-sm" data-doc="record" data-fmt="pdf"><i class="fas fa-file-pdf"></i> PDF</button>
-              <button type="button" class="btn btn-secondary btn-sm" data-doc="record" data-fmt="docx"><i class="fas fa-file-word"></i> Word</button>
-              <button type="button" class="btn btn-secondary btn-sm" data-doc="record" data-fmt="print"><i class="fas fa-print"></i> Print</button>
-            </div>
-          </div>
-          <div class="sch-doc-row">
-            <div class="sch-doc-name"><strong>Lesson plans</strong><span>One page for each lesson (needs the lesson content)</span></div>
-            <div class="sch-doc-btns">
-              <button type="button" class="btn btn-primary btn-sm" data-doc="plans" data-fmt="pdf"><i class="fas fa-file-pdf"></i> PDF</button>
-              <button type="button" class="btn btn-secondary btn-sm" data-doc="plans" data-fmt="docx"><i class="fas fa-file-word"></i> Word</button>
-              <button type="button" class="btn btn-secondary btn-sm" data-doc="plans" data-fmt="print"><i class="fas fa-print"></i> Print</button>
-            </div>
-          </div>
-          <p class="sch-doc-note" id="schDocNote">Write the lesson content first. Until then the outcomes, activities and questions columns of the scheme stay empty.</p>
+          <p class="sch-doc-note" id="lpSource"></p>
         </div>
-
-        <div class="analytics-kpi-grid">
-          <div class="kpi-card" data-color="blue">
-            <div class="kpi-icon"><i class="fas fa-list-check"></i></div>
-            <div class="kpi-info">
-              <p class="kpi-label">Lessons placed</p>
-              <p class="kpi-value" id="kpiPlaced">--</p>
-            </div>
-          </div>
-          <div class="kpi-card" data-color="green">
-            <div class="kpi-icon"><i class="fas fa-calendar-week"></i></div>
-            <div class="kpi-info">
-              <p class="kpi-label">Weeks used</p>
-              <p class="kpi-value" id="kpiWeeks">--</p>
-            </div>
-          </div>
-          <div class="kpi-card" data-color="purple">
-            <div class="kpi-icon"><i class="fas fa-circle-check"></i></div>
-            <div class="kpi-info">
-              <p class="kpi-label">Fits the term</p>
-              <p class="kpi-value" id="kpiFits">--</p>
-            </div>
-          </div>
-          <div class="kpi-card" data-color="orange">
-            <div class="kpi-icon"><i class="fas fa-umbrella-beach"></i></div>
-            <div class="kpi-info">
-              <p class="kpi-label">Half term</p>
-              <p class="kpi-value" id="kpiHalfTerm">--</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="sch-shortfall" id="schShortfall" hidden></div>
 
         <div class="analytics-card">
           <div class="analytics-card-header">
-            <h3 class="analytics-card-title"><i class="fas fa-table-list"></i> Lesson layout</h3>
-          </div>
-          <div class="sch-note">
-            <i class="fas fa-circle-info"></i>
-            This shows which lesson falls on which date. Use Write lesson content above to fill in the outcomes, activities and questions.
+            <h3 class="analytics-card-title"><i class="fas fa-eye"></i> Preview</h3>
           </div>
           <div class="table-wrapper">
-            <table class="students-table sch-table">
-              <thead>
-                <tr>
-                  <th>Week</th><th>Lesson</th><th>Date</th><th>Strand</th><th>Sub-strand</th><th>Lesson of topic</th>
-                </tr>
-              </thead>
-              <tbody id="schBody"></tbody>
-            </table>
+            <table class="students-table sch-table"><tbody id="lpPreview"></tbody></table>
           </div>
         </div>
       </div>
@@ -318,6 +188,6 @@
 <script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/docs-export.js"></script>
-<script src="../js/schemes.js"></script>
+<script src="../js/lesson-plans.js"></script>
 </body>
 </html>

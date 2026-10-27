@@ -12,6 +12,14 @@ const $ = (id) => document.getElementById(id);
 
 /* Which document this page makes: scheme, plans or record */
 const PAGE = document.body.dataset.doc || 'scheme';
+if (PAGE !== 'scheme') document.querySelector('.sch-toggle')?.remove();
+else {
+  const box = $('schShowDates');
+  try { box.checked = localStorage.getItem('sa_scheme_dates') === '1'; } catch { /* skip */ }
+  box.addEventListener('change', () => {
+    try { localStorage.setItem('sa_scheme_dates', box.checked ? '1' : '0'); } catch { /* skip */ }
+  });
+}
 document.querySelectorAll('.sch-doc-row').forEach((row) => {
   const btn = row.querySelector('button[data-doc]');
   if (btn && btn.dataset.doc !== PAGE) row.remove();
@@ -217,6 +225,11 @@ const renderResult = ({ summary, rows }) => {
   lastResult = { summary, rows };
   lessonData = null;
   $('schWriteStatus').textContent = '';
+  if ($('schWeek')) {
+    const weeks = [...new Set(rows.filter((r) => r.type === 'LESSON').map((r) => r.week))];
+    $('schWeek').innerHTML = '<option value="">All weeks</option>' +
+      weeks.map((w) => `<option value="${esc(w)}">Week ${esc(w)}</option>`).join('');
+  }
   $('schProgress').hidden = true;
   $('schDocNote').hidden = false;
   $('kpiPlaced').textContent = `${summary.lessonsPlaced} of ${summary.lessonsRequired}`;
@@ -322,7 +335,7 @@ const lessonFor = (r) => lessonData?.map[`${r.subStrandId}:${r.lessonInSubStrand
 
 const bullets = (items) => (items || []).map((i) => `• ${i}`).join('\n');
 
-const buildSchemeSpec = (t, rows) => {
+const buildSchemeSpec = (t, rows, withDates = false) => {
   const body = [];
   let lastWeek = null;
 
@@ -336,6 +349,7 @@ const buildSchemeSpec = (t, rows) => {
     const c = lessonFor(r);
     body.push([
       first ? String(r.week) : '', String(r.lessonOfWeek),
+      ...(withDates ? [dateLabel(r)] : []),
       r.strand, r.subStrand,
       c ? bullets(c.outcomes) : '',
       c ? bullets(c.experiences) : '',
@@ -355,131 +369,82 @@ const buildSchemeSpec = (t, rows) => {
       [['TEACHER', t.teacher],      ['GRADE', t.grade]],
       [['TSC NO.', t.tsc],          ['TERM / YEAR', `Term ${t.term} / ${t.year}`]],
     ],
-    columns: [
-      { header: 'Week',                       width: 4.5 },
-      { header: 'Lesson',                     width: 5.5 },
-      { header: 'Strand',                     width: 10  },
-      { header: 'Sub-strand',                 width: 9.5 },
-      { header: 'Specific learning outcomes', width: 17  },
-      { header: 'Learning experiences',       width: 18  },
-      { header: 'Key inquiry questions',      width: 10  },
-      { header: 'Learning resources',         width: 8   },
-      { header: 'Assessment',                 width: 8.5 },
-      { header: 'Reflection',                 width: 9   },
-    ],
+    columns: withDates
+      ? [
+          { header: 'Week',                       width: 4.5 },
+          { header: 'Lesson',                     width: 5.3 },
+          { header: 'Date',                       width: 7.5 },
+          { header: 'Strand',                     width: 9   },
+          { header: 'Sub-strand',                 width: 8.7 },
+          { header: 'Specific learning outcomes', width: 15  },
+          { header: 'Learning experiences',       width: 16  },
+          { header: 'Key inquiry questions',      width: 9   },
+          { header: 'Learning resources',         width: 8   },
+          { header: 'Assessment',                 width: 8.5 },
+          { header: 'Reflection',                 width: 8.5 },
+        ]
+      : [
+          { header: 'Week',                       width: 4.5 },
+          { header: 'Lesson',                     width: 5.5 },
+          { header: 'Strand',                     width: 10  },
+          { header: 'Sub-strand',                 width: 9.5 },
+          { header: 'Specific learning outcomes', width: 17  },
+          { header: 'Learning experiences',       width: 18  },
+          { header: 'Key inquiry questions',      width: 10  },
+          { header: 'Learning resources',         width: 8   },
+          { header: 'Assessment',                 width: 8.5 },
+          { header: 'Reflection',                 width: 9   },
+        ],
     rows   : body,
     endLine: 'REFLECTION / INSPECTOR:',
   };
 };
 
-/* One section for each sub-strand, in the order they are taught */
-const buildRecordSpecs = (t, rows) => {
-  const subs = new Map();
+/* Record of work: one page for each week (or the week the teacher picked) */
+const buildRecordSpecs = (t, rows, onlyWeek) => {
+  const weeks = new Map();
   rows.filter((r) => r.type === 'LESSON').forEach((r) => {
-    if (!subs.has(r.subStrandId)) subs.set(r.subStrandId, []);
-    subs.get(r.subStrandId).push(r);
+    if (onlyWeek && String(r.week) !== String(onlyWeek)) return;
+    if (!weeks.has(r.week)) weeks.set(r.week, []);
+    weeks.get(r.week).push(r);
   });
 
-  return [...subs.values()].map((list) => {
-    const first = list[0];
-    return {
-      orientation: 'portrait',
-      title      : 'RECORD OF WORK COVERED',
-      subtitle   : `${gradeLabel(t.grade)} ${t.area} – TERM ${t.term} – ${t.year}`.toUpperCase(),
-      meta: [
-        [['SCHOOL', t.school]],
-        [['TEACHER', t.teacher],     ['TSC NO.', t.tsc]],
-        [['LEARNING AREA', t.area],  ['GRADE / YEAR', `${t.grade} / ${t.year}`]],
-        [['STRAND', first.strand]],
-        [['SUB-STRAND', `${first.subStrand} (${first.lessonsInSubStrand} lessons)`]],
-      ],
+  return [...weeks.entries()].map(([week, list]) => ({
+    orientation: 'portrait',
+    title      : 'RECORD OF WORK COVERED',
+    subtitle   : `${gradeLabel(t.grade)} ${t.area} – TERM ${t.term} – WEEK ${week}`.toUpperCase(),
+    meta: [
+      [['SCHOOL', t.school]],
+      [['TEACHER', t.teacher],     ['TSC NO.', t.tsc]],
+      [['LEARNING AREA', t.area],  ['GRADE', gradeLabel(t.grade)]],
+      [['TERM', `Term ${t.term}`], ['WEEK', String(week)]],
+      [['YEAR', t.year]],
+    ],
+    columns: [
+      { header: 'Date',         width: 14 },
+      { header: 'Lesson',       width: 10 },
+      { header: 'Work covered', width: 42 },
+      { header: 'Comments',     width: 21 },
+      { header: 'Signature',    width: 13 },
+    ],
+    rows: list.map((r) => {
+      const c = lessonFor(r);
+      const where = `${r.subStrand} (lesson ${r.lessonInSubStrand} of ${r.lessonsInSubStrand})`;
+      return [dateLabel(r), `Lesson ${r.lessonOfWeek}`, c ? `${where}: ${c.focus}` : where, '', ''];
+    }),
+    extra: {
       columns: [
-        { header: 'Date',         width: 14 },
-        { header: 'Lesson',       width: 10 },
-        { header: 'Work covered', width: 42 },
-        { header: 'Comments',     width: 21 },
-        { header: 'Signature',    width: 13 },
+        { header: '',         width: 30 },
+        { header: 'Comments', width: 48 },
+        { header: 'Signature', width: 22 },
       ],
-      rows: list.map((r) => {
-        const c = lessonFor(r);
-        return [
-          `${dateLabel(r)}`, `${r.lessonInSubStrand} of ${r.lessonsInSubStrand}`,
-          c ? c.focus : '', '', '',
-        ];
-      }),
-      extra: {
-        columns: [
-          { header: '',         width: 30 },
-          { header: 'Comments', width: 48 },
-          { header: 'Signature', width: 22 },
-        ],
-        rows: [
-          ['SUBJECT HEAD', '', ''],
-          ['HEAD OF DEPARTMENT', '', ''],
-          ["PRINCIPAL'S COMMENT", '', ''],
-        ],
-      },
-    };
-  });
-};
-
-/* ══════════════════════════════════════════════════════════
-   LESSON PLANS — one page for each lesson. Kiswahili lessons use
-   Kiswahili headings; every other subject is English only.
-══════════════════════════════════════════════════════════ */
-const PLAN_TEXT = {
-  en: { school: 'SCHOOL', teacher: 'TEACHER', tsc: 'TSC NO.', area: 'LEARNING AREA', grade: 'GRADE', term: 'TERM / YEAR',
-        strand: 'Strand', sub: 'Sub-strand', date: 'Date', lesson: 'Lesson', minutes: 'minutes', head: ['Section', 'Details'] },
-  sw: { school: 'SHULE', teacher: 'MWALIMU', tsc: 'NAMBA YA TSC', area: 'SOMO', grade: 'DARAJA', term: 'MUHULA / MWAKA',
-        strand: 'Mada', sub: 'Mada ndogo', date: 'Tarehe', lesson: 'Somo', minutes: 'dakika', head: ['Kipengele', 'Maelezo'] },
-};
-
-const buildPlanSpecs = (t, rows) => {
-  const lang = lessonData.lang;
-  const L = lessonData.labels;
-  const X = PLAN_TEXT[lang];
-  const minutes = currentDesign()?.lessonMinutes || 40;
-
-  return rows.filter((r) => r.type === 'LESSON').map((r) => {
-    const c = lessonFor(r);
-    const dev = (c?.development || [])
-      .map((d) => `${d.title}\n${(d.steps || []).map((s, i) => `${i + 1}. ${s}`).join('\n')}`)
-      .join('\n\n');
-
-    const body = [
-      [X.strand, r.strand],
-      [X.sub, `${r.subStrand} (${r.lessonInSubStrand}/${r.lessonsInSubStrand})`],
-      [X.date, `${dateLabel(r)} ${t.year}`],
-      [L.outcomes, c ? `${L.outcomesLead}\n${bullets(c.outcomes)}` : ''],
-      [L.kiq, c ? bullets(c.kiqs) : ''],
-      [L.experiences, c ? `${L.experiencesLead}\n${bullets(c.experiences)}` : ''],
-      [L.resources, c ? bullets(c.resources) : ''],
-      [L.organisation, c ? c.organisation : ''],
-      [`${L.introduction} (5 ${X.minutes})`, c ? bullets(c.introduction) : ''],
-      [`${L.development} (${minutes - 10} ${X.minutes})`, dev],
-      [L.extended, c ? bullets(c.extended) : ''],
-      [`${L.conclusion} (5 ${X.minutes})`, c ? bullets(c.conclusion) : ''],
-      [L.assessment, c ? bullets(c.assessment) : ''],
-      [L.reflection, ''],
-    ];
-
-    return {
-      orientation: 'portrait',
-      title      : L.lessonPlan,
-      subtitle   : `${gradeLabel(t.grade)} ${t.area} – ${X.lesson} ${r.lessonNo}`.toUpperCase(),
-      meta: [
-        [[X.school, t.school]],
-        [[X.teacher, t.teacher], [X.tsc, t.tsc]],
-        [[X.area, t.area], [X.grade, t.grade]],
-        [[X.term, `${t.term} / ${t.year}`]],
+      rows: [
+        ['SUBJECT HEAD', '', ''],
+        ['HEAD OF DEPARTMENT', '', ''],
+        ["PRINCIPAL'S COMMENT", '', ''],
       ],
-      columns: [
-        { header: X.head[0], width: 24 },
-        { header: X.head[1], width: 76 },
-      ],
-      rows: body,
-    };
-  });
+    },
+  }));
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -602,18 +567,13 @@ const exportDoc = async (kind, format, button) => {
     return showError('The download tools did not load. Check your internet connection and refresh the page.');
   }
 
-  if (kind === 'plans' && !lessonData) {
-    return showError('Write the lesson content first, then download the lesson plans.');
-  }
-
-  const specs = kind === 'scheme' ? [buildSchemeSpec(t, lastResult.rows)]
-              : kind === 'plans'  ? buildPlanSpecs(t, lastResult.rows)
-              : buildRecordSpecs(t, lastResult.rows);
+  const specs = kind === 'scheme' ? [buildSchemeSpec(t, lastResult.rows, $('schShowDates')?.checked)]
+              : buildRecordSpecs(t, lastResult.rows, $('schWeek')?.value);
 
   if (!specs.length) return showError('There are no lessons to put in this document.');
 
   const base = [
-    kind === 'scheme' ? 'Scheme_of_Work' : kind === 'plans' ? 'Lesson_Plans' : 'Record_of_Work',
+    kind === 'scheme' ? 'Scheme_of_Work' : 'Record_of_Work',
     DocExport.safeName(gradeLabel(t.grade)),
     DocExport.safeName(t.area),
     `Term${t.term}`, t.year,
