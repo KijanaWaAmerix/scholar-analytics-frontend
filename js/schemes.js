@@ -10,6 +10,13 @@ initSidebar(user);
 
 const $ = (id) => document.getElementById(id);
 
+/* Which document this page makes: scheme, plans or record */
+const PAGE = document.body.dataset.doc || 'scheme';
+document.querySelectorAll('.sch-doc-row').forEach((row) => {
+  const btn = row.querySelector('button[data-doc]');
+  if (btn && btn.dataset.doc !== PAGE) row.remove();
+});
+
 let designs    = [];
 let holidays   = [];
 let lastResult = null;   /* the scheme on screen: { rows, summary } */
@@ -53,6 +60,7 @@ const loadDesigns = async () => {
     .join('');
 
   onDesignChange();
+  restoreSetup();
 };
 
 const currentDesign = () => designs.find((d) => d.key === $('schDesign').value);
@@ -136,6 +144,33 @@ const validateInputs = () => {
   return '';
 };
 
+const SETUP_KEY = `sa_scheme_setup_${user?._id || user?.id || user?.email || 'user'}`;
+const SETUP_FIELDS = ['schDesign', 'schStart', 'schEnd', 'schTermStart', 'schTermEnd', 'schHtStart', 'schHtEnd'];
+
+const saveSetup = () => {
+  try {
+    const data = { holidays };
+    SETUP_FIELDS.forEach((id) => { data[id] = $(id).value; });
+    localStorage.setItem(SETUP_KEY, JSON.stringify(data));
+  } catch { /* private window: skip */ }
+};
+
+const restoreSetup = () => {
+  let data;
+  try { data = JSON.parse(localStorage.getItem(SETUP_KEY)); } catch { data = null; }
+  if (!data) return;
+
+  if (data.schDesign && designs.some((d) => d.key === data.schDesign)) {
+    $('schDesign').value = data.schDesign;
+    onDesignChange();
+  }
+  ['schStart', 'schEnd'].forEach((id) => {
+    if (data[id] && [...$(id).options].some((o) => o.value === data[id])) $(id).value = data[id];
+  });
+  ['schTermStart', 'schTermEnd', 'schHtStart', 'schHtEnd'].forEach((id) => { if (data[id]) $(id).value = data[id]; });
+  if (Array.isArray(data.holidays)) { holidays = data.holidays.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)); renderChips(); }
+};
+
 const generate = async () => {
   showError('');
 
@@ -144,8 +179,10 @@ const generate = async () => {
 
   const problem = validateInputs();
   if (problem) return showError(problem);
+  saveSetup();
 
   const btn = $('schGenerate');
+  const btnLabel = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating…';
 
@@ -169,7 +206,7 @@ const generate = async () => {
     renderResult(res.data);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Generate scheme';
+    btn.innerHTML = btnLabel;
   }
 };
 
@@ -298,7 +335,7 @@ const buildSchemeSpec = (t, rows) => {
     lastWeek = r.week;
     const c = lessonFor(r);
     body.push([
-      first ? String(r.week) : '', String(r.lessonOfWeek), dateLabel(r),
+      first ? String(r.week) : '', String(r.lessonOfWeek),
       r.strand, r.subStrand,
       c ? bullets(c.outcomes) : '',
       c ? bullets(c.experiences) : '',
@@ -320,67 +357,70 @@ const buildSchemeSpec = (t, rows) => {
     ],
     columns: [
       { header: 'Week',                       width: 4.5 },
-      { header: 'Lesson',                     width: 5.8 },
-      { header: 'Date',                       width: 7.8 },
-      { header: 'Strand',                     width: 9   },
-      { header: 'Sub-strand',                 width: 8.5 },
-      { header: 'Specific learning outcomes', width: 15 },
-      { header: 'Learning experiences',       width: 15.9 },
-      { header: 'Key inquiry questions',      width: 9   },
+      { header: 'Lesson',                     width: 5.5 },
+      { header: 'Strand',                     width: 10  },
+      { header: 'Sub-strand',                 width: 9.5 },
+      { header: 'Specific learning outcomes', width: 17  },
+      { header: 'Learning experiences',       width: 18  },
+      { header: 'Key inquiry questions',      width: 10  },
       { header: 'Learning resources',         width: 8   },
       { header: 'Assessment',                 width: 8.5 },
-      { header: 'Reflection',                 width: 8   },
+      { header: 'Reflection',                 width: 9   },
     ],
     rows   : body,
     endLine: 'REFLECTION / INSPECTOR:',
   };
 };
 
-/* One page for each week */
+/* One section for each sub-strand, in the order they are taught */
 const buildRecordSpecs = (t, rows) => {
-  const weeks = new Map();
+  const subs = new Map();
   rows.filter((r) => r.type === 'LESSON').forEach((r) => {
-    if (!weeks.has(r.week)) weeks.set(r.week, []);
-    weeks.get(r.week).push(r);
+    if (!subs.has(r.subStrandId)) subs.set(r.subStrandId, []);
+    subs.get(r.subStrandId).push(r);
   });
 
-  return [...weeks.entries()].map(([week, list]) => ({
-    orientation: 'portrait',
-    title      : 'RECORD OF WORK COVERED',
-    subtitle   : `${gradeLabel(t.grade)} ${t.area} – TERM ${t.term} – WEEK ${week}`.toUpperCase(),
-    meta: [
-      [['SCHOOL', t.school]],
-      [['TEACHER', t.teacher],     ['TSC NO.', t.tsc]],
-      [['LEARNING AREA', t.area],  ['GRADE / YEAR', `${t.grade} / ${t.year}`]],
-    ],
-    columns: [
-      { header: 'Date',         width: 14 },
-      { header: 'Lesson',       width: 10 },
-      { header: 'Work covered', width: 42 },
-      { header: 'Comments',     width: 21 },
-      { header: 'Signature',    width: 13 },
-    ],
-    rows: list.map((r) => {
-      const c = lessonFor(r);
-      return [
-        dateLabel(r), `Lesson ${r.lessonOfWeek}`,
-        c ? `${r.subStrand}: ${c.focus}` : `${r.subStrand}: lesson ${r.lessonInSubStrand} of ${r.lessonsInSubStrand}`,
-        '', '',
-      ];
-    }),
-    extra: {
+  return [...subs.values()].map((list) => {
+    const first = list[0];
+    return {
+      orientation: 'portrait',
+      title      : 'RECORD OF WORK COVERED',
+      subtitle   : `${gradeLabel(t.grade)} ${t.area} – TERM ${t.term} – ${t.year}`.toUpperCase(),
+      meta: [
+        [['SCHOOL', t.school]],
+        [['TEACHER', t.teacher],     ['TSC NO.', t.tsc]],
+        [['LEARNING AREA', t.area],  ['GRADE / YEAR', `${t.grade} / ${t.year}`]],
+        [['STRAND', first.strand]],
+        [['SUB-STRAND', `${first.subStrand} (${first.lessonsInSubStrand} lessons)`]],
+      ],
       columns: [
-        { header: '',         width: 30 },
-        { header: 'Comments', width: 48 },
-        { header: 'Signature', width: 22 },
+        { header: 'Date',         width: 14 },
+        { header: 'Lesson',       width: 10 },
+        { header: 'Work covered', width: 42 },
+        { header: 'Comments',     width: 21 },
+        { header: 'Signature',    width: 13 },
       ],
-      rows: [
-        ['SUBJECT HEAD', '', ''],
-        ['HEAD OF DEPARTMENT', '', ''],
-        ["PRINCIPAL'S COMMENT", '', ''],
-      ],
-    },
-  }));
+      rows: list.map((r) => {
+        const c = lessonFor(r);
+        return [
+          `${dateLabel(r)}`, `${r.lessonInSubStrand} of ${r.lessonsInSubStrand}`,
+          c ? c.focus : '', '', '',
+        ];
+      }),
+      extra: {
+        columns: [
+          { header: '',         width: 30 },
+          { header: 'Comments', width: 48 },
+          { header: 'Signature', width: 22 },
+        ],
+        rows: [
+          ['SUBJECT HEAD', '', ''],
+          ['HEAD OF DEPARTMENT', '', ''],
+          ["PRINCIPAL'S COMMENT", '', ''],
+        ],
+      },
+    };
+  });
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -547,7 +587,7 @@ const writeContent = async () => {
 ══════════════════════════════════════════════════════════ */
 const exportDoc = async (kind, format, button) => {
   showError('');
-  if (!lastResult) return showError('Generate the scheme first.');
+  if (!lastResult) return showError('Please generate first.');
 
   const t = readTitle();
   const problem = titleProblem(t);
