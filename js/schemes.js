@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════
    SCHOLAR ANALYTICS — Schemes of Work Page
    File: js/schemes.js  Version: 1.0
-   Connected to: GET /api/schemes/designs, POST /api/schemes/preview
+   Connected to: GET /api/schemes/designs, POST /api/schemes/preview, POST /api/schemes/content
 ═══════════════════════════════════════════════════════════ */
 
 const user = requireAuth(['admin', 'teacher', 'superadmin']);
@@ -13,6 +13,8 @@ const $ = (id) => document.getElementById(id);
 let designs    = [];
 let holidays   = [];
 let lastResult = null;   /* the scheme on screen: { rows, summary } */
+let lessonData = null;   /* written lessons: { lang, labels, map: { 'subId:n': { source, content } } } */
+let writing    = false;
 
 /* Text from the server goes into the page as text, never as markup */
 const esc = (value) =>
@@ -172,6 +174,10 @@ const generate = async () => {
 ══════════════════════════════════════════════════════════ */
 const renderResult = ({ summary, rows }) => {
   lastResult = { summary, rows };
+  lessonData = null;
+  $('schWriteStatus').textContent = '';
+  $('schProgress').hidden = true;
+  $('schDocNote').hidden = false;
   $('kpiPlaced').textContent = `${summary.lessonsPlaced} of ${summary.lessonsRequired}`;
   $('kpiWeeks').textContent  = summary.weeksUsed;
   $('kpiFits').textContent   = summary.fits ? 'Yes' : 'No';
@@ -270,6 +276,11 @@ const gradeLabel = (g) => (/^\d/.test(g) ? `Grade ${g}` : g.replace(/^grade\b/i,
 ══════════════════════════════════════════════════════════ */
 const dateLabel = (r) => `${r.day.charAt(0)}${r.day.slice(1).toLowerCase()} ${fmtDate(r.date)}`;
 
+/* Written content for a row of the scheme, or null */
+const lessonFor = (r) => lessonData?.map[`${r.subStrandId}:${r.lessonInSubStrand}`]?.content || null;
+
+const bullets = (items) => (items || []).map((i) => `• ${i}`).join('\n');
+
 const buildSchemeSpec = (t, rows) => {
   const body = [];
   let lastWeek = null;
@@ -281,10 +292,16 @@ const buildSchemeSpec = (t, rows) => {
     }
     const first = r.week !== lastWeek;
     lastWeek = r.week;
-    /* The last five columns (outcomes ... reflection) are filled in by the lesson content step */
+    const c = lessonFor(r);
     body.push([
       first ? String(r.week) : '', String(r.lessonOfWeek), dateLabel(r),
-      r.strand, r.subStrand, '', '', '', '', '', '',
+      r.strand, r.subStrand,
+      c ? bullets(c.outcomes) : '',
+      c ? bullets(c.experiences) : '',
+      c ? bullets(c.kiqs) : '',
+      c ? bullets(c.resources) : '',
+      c ? bullets(c.assessment) : '',
+      '',
     ]);
   });
 
@@ -339,10 +356,14 @@ const buildRecordSpecs = (t, rows) => {
       { header: 'Comments',     width: 21 },
       { header: 'Signature',    width: 13 },
     ],
-    rows: list.map((r) => [
-      dateLabel(r), `Lesson ${r.lessonOfWeek}`,
-      `${r.subStrand}: lesson ${r.lessonInSubStrand} of ${r.lessonsInSubStrand}`, '', '',
-    ]),
+    rows: list.map((r) => {
+      const c = lessonFor(r);
+      return [
+        dateLabel(r), `Lesson ${r.lessonOfWeek}`,
+        c ? `${r.subStrand}: ${c.focus}` : `${r.subStrand}: lesson ${r.lessonInSubStrand} of ${r.lessonsInSubStrand}`,
+        '', '',
+      ];
+    }),
     extra: {
       columns: [
         { header: '',         width: 30 },
@@ -356,6 +377,165 @@ const buildRecordSpecs = (t, rows) => {
       ],
     },
   }));
+};
+
+/* ══════════════════════════════════════════════════════════
+   LESSON PLANS — one page for each lesson. Kiswahili lessons use
+   Kiswahili headings; every other subject is English only.
+══════════════════════════════════════════════════════════ */
+const PLAN_TEXT = {
+  en: { school: 'SCHOOL', teacher: 'TEACHER', tsc: 'TSC NO.', area: 'LEARNING AREA', grade: 'GRADE', term: 'TERM / YEAR',
+        strand: 'Strand', sub: 'Sub-strand', date: 'Date', lesson: 'Lesson', minutes: 'minutes', head: ['Section', 'Details'] },
+  sw: { school: 'SHULE', teacher: 'MWALIMU', tsc: 'NAMBA YA TSC', area: 'SOMO', grade: 'DARAJA', term: 'MUHULA / MWAKA',
+        strand: 'Mada', sub: 'Mada ndogo', date: 'Tarehe', lesson: 'Somo', minutes: 'dakika', head: ['Kipengele', 'Maelezo'] },
+};
+
+const buildPlanSpecs = (t, rows) => {
+  const lang = lessonData.lang;
+  const L = lessonData.labels;
+  const X = PLAN_TEXT[lang];
+  const minutes = currentDesign()?.lessonMinutes || 40;
+
+  return rows.filter((r) => r.type === 'LESSON').map((r) => {
+    const c = lessonFor(r);
+    const dev = (c?.development || [])
+      .map((d) => `${d.title}\n${(d.steps || []).map((s, i) => `${i + 1}. ${s}`).join('\n')}`)
+      .join('\n\n');
+
+    const body = [
+      [X.strand, r.strand],
+      [X.sub, `${r.subStrand} (${r.lessonInSubStrand}/${r.lessonsInSubStrand})`],
+      [X.date, `${dateLabel(r)} ${t.year}`],
+      [L.outcomes, c ? `${L.outcomesLead}\n${bullets(c.outcomes)}` : ''],
+      [L.kiq, c ? bullets(c.kiqs) : ''],
+      [L.experiences, c ? `${L.experiencesLead}\n${bullets(c.experiences)}` : ''],
+      [L.resources, c ? bullets(c.resources) : ''],
+      [L.organisation, c ? c.organisation : ''],
+      [`${L.introduction} (5 ${X.minutes})`, c ? bullets(c.introduction) : ''],
+      [`${L.development} (${minutes - 10} ${X.minutes})`, dev],
+      [L.extended, c ? bullets(c.extended) : ''],
+      [`${L.conclusion} (5 ${X.minutes})`, c ? bullets(c.conclusion) : ''],
+      [L.assessment, c ? bullets(c.assessment) : ''],
+      [L.reflection, ''],
+    ];
+
+    return {
+      orientation: 'portrait',
+      title      : L.lessonPlan,
+      subtitle   : `${gradeLabel(t.grade)} ${t.area} – ${X.lesson} ${r.lessonNo}`.toUpperCase(),
+      meta: [
+        [[X.school, t.school]],
+        [[X.teacher, t.teacher], [X.tsc, t.tsc]],
+        [[X.area, t.area], [X.grade, t.grade]],
+        [[X.term, `${t.term} / ${t.year}`]],
+      ],
+      columns: [
+        { header: X.head[0], width: 24 },
+        { header: X.head[1], width: 76 },
+      ],
+      rows: body,
+    };
+  });
+};
+
+/* ══════════════════════════════════════════════════════════
+   WRITE THE LESSON CONTENT
+   Asked for in steps of up to 5 lessons, so one slow request
+   never holds the whole scheme up.
+══════════════════════════════════════════════════════════ */
+const STEP = 5;
+
+/* { subStrandId: [lesson numbers used by the scheme] } -> list of runs of up to STEP */
+const planRequests = (rows) => {
+  const bySub = new Map();
+  rows.filter((r) => r.type === 'LESSON').forEach((r) => {
+    if (!bySub.has(r.subStrandId)) bySub.set(r.subStrandId, new Set());
+    bySub.get(r.subStrandId).add(r.lessonInSubStrand);
+  });
+
+  const out = [];
+  bySub.forEach((set, subStrandId) => {
+    const nums = [...set].sort((a, b) => a - b);
+    let run = [];
+    nums.forEach((n) => {
+      if (run.length && (n !== run[run.length - 1] + 1 || run.length === STEP)) {
+        out.push({ subStrandId, from: run[0], to: run[run.length - 1] });
+        run = [];
+      }
+      run.push(n);
+    });
+    if (run.length) out.push({ subStrandId, from: run[0], to: run[run.length - 1] });
+  });
+  return out;
+};
+
+const askContent = async (design, req) => {
+  const body = { designKey: design.key, ...req };
+  let res = await API.post('/schemes/content', body);
+  if (!res?.ok && (!res?.status || res.status >= 500)) {
+    res = await API.post('/schemes/content', body);   /* one more try for a slow or sleeping server */
+  }
+  return res;
+};
+
+const writeContent = async () => {
+  if (writing || !lastResult) return;
+  showError('');
+  const design = currentDesign();
+  if (!design) return;
+
+  const requests = planRequests(lastResult.rows);
+  if (!requests.length) return showError('There are no lessons to write.');
+
+  writing = true;
+  const btn = $('schWrite');
+  btn.disabled = true;
+  $('schProgress').hidden = false;
+  $('schProgressBar').style.width = '0%';
+
+  const data = { lang: 'en', labels: null, map: {} };
+  let fromAi = 0, fromDesign = 0, stopped = '';
+
+  for (let i = 0; i < requests.length; i += 1) {
+    const req = requests[i];
+    $('schWriteStatus').textContent = `Writing lessons… ${i + 1} of ${requests.length}`;
+
+    const res = await askContent(design, req);
+    if (!res?.ok) {
+      stopped = res?.data?.message || 'Could not reach the server.';
+      break;
+    }
+
+    data.lang = res.data.lang;
+    data.labels = res.data.labels;
+    res.data.lessons.forEach((l) => {
+      data.map[`${req.subStrandId}:${l.lessonNo}`] = { source: l.source, content: l.content };
+      if (l.source === 'design') fromDesign += 1; else fromAi += 1;
+    });
+    $('schProgressBar').style.width = `${Math.round(((i + 1) / requests.length) * 100)}%`;
+  }
+
+  writing = false;
+  btn.disabled = false;
+
+  if (data.labels) {
+    lessonData = data;
+    $('schDocNote').hidden = true;
+  }
+
+  const total = fromAi + fromDesign;
+  if (stopped) {
+    $('schWriteStatus').textContent = total ? `Stopped after ${total} lessons.` : '';
+    showError(stopped);
+  } else if (fromDesign && !fromAi) {
+    $('schWriteStatus').textContent = `${total} lessons ready, taken from the curriculum design.`;
+    showToast('Lessons were built from the curriculum design.', 'success');
+  } else if (fromDesign) {
+    $('schWriteStatus').textContent = `${total} lessons ready. ${fromDesign} came from the curriculum design.`;
+  } else {
+    $('schWriteStatus').textContent = `${total} lessons ready.`;
+    showToast('Lesson content is ready.', 'success');
+  }
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -378,14 +558,18 @@ const exportDoc = async (kind, format, button) => {
     return showError('The download tools did not load. Check your internet connection and refresh the page.');
   }
 
-  const specs = kind === 'scheme'
-    ? [buildSchemeSpec(t, lastResult.rows)]
-    : buildRecordSpecs(t, lastResult.rows);
+  if (kind === 'plans' && !lessonData) {
+    return showError('Write the lesson content first, then download the lesson plans.');
+  }
+
+  const specs = kind === 'scheme' ? [buildSchemeSpec(t, lastResult.rows)]
+              : kind === 'plans'  ? buildPlanSpecs(t, lastResult.rows)
+              : buildRecordSpecs(t, lastResult.rows);
 
   if (!specs.length) return showError('There are no lessons to put in this document.');
 
   const base = [
-    kind === 'scheme' ? 'Scheme_of_Work' : 'Record_of_Work',
+    kind === 'scheme' ? 'Scheme_of_Work' : kind === 'plans' ? 'Lesson_Plans' : 'Record_of_Work',
     DocExport.safeName(gradeLabel(t.grade)),
     DocExport.safeName(t.area),
     `Term${t.term}`, t.year,
@@ -422,6 +606,7 @@ $('schChips').addEventListener('click', (e) => {
   renderChips();
 });
 $('schGenerate').addEventListener('click', generate);
+$('schWrite').addEventListener('click', writeContent);
 document.querySelector('.sch-downloads').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-doc]');
   if (btn) exportDoc(btn.dataset.doc, btn.dataset.fmt, btn);
