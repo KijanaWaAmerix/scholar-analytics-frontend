@@ -155,3 +155,8 @@
 .sch-writer-status { color: #000; font-size: 0.9rem; }
 .sch-progress { margin-top: 12px; height: 12px; border: 1px solid #000; background: #fff; }
 .sch-progress-bar { height: 100%; width: 0; background: #000; transition: width 0.3s; }
+
+.sch-toggle { display: flex; align-items: center; gap: 10px; padding: 14px 18px 4px; font-weight: 600; cursor: pointer; }
+.sch-toggle input { width: 18px; height: 18px; accent-color: #000; }
+
+.sch-week-pick { padding: 14px 18px 4px; max-width: 280px; }
