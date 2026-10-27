@@ -126,6 +126,10 @@ const validateInputs = () => {
   const ts = $('schTermStart').value, te = $('schTermEnd').value;
   const hs = $('schHtStart').value,   he = $('schHtEnd').value;
 
+  const year = $('schYear').value.trim();
+  if (/^\d{4}$/.test(year) && ts.slice(0, 4) !== year) {
+    return `The term starts in ${ts.slice(0, 4)}, but the year is ${year}. Please correct the dates or the year.`;
+  }
   if (te < ts) return 'The term cannot end before it starts.';
   if (he < hs) return 'Half term cannot end before it starts.';
   if (hs < ts || he > te) return 'Half term must fall inside the term.';
