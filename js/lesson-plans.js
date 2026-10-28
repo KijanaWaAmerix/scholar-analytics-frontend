@@ -209,8 +209,10 @@ const render = () => {
   $('lpPreview').innerHTML = rows.map(([k, v]) =>
     `<tr><th style="width:26%;text-align:left;vertical-align:top">${esc(k)}</th><td style="white-space:pre-line">${esc(v)}</td></tr>`).join('');
   $('lpDocName').textContent = `${current.fields.sub} – lesson ${current.lesson.lessonNo}`;
-  $('lpSource').textContent = current.lesson.source === 'design'
-    ? 'This lesson was built from the curriculum design. Try again later for a fuller version.'
+  const src = current.lesson.source;
+  $('lpSource').textContent =
+      src === 'notes'  ? 'This lesson was built from your saved notes and the curriculum design, without AI. Try again later for a fuller version.'
+    : src === 'design' ? 'This lesson was built from the curriculum design only. Try again later, or add notes for this topic.'
     : '';
   $('lpResult').hidden = false;
   $('lpResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
