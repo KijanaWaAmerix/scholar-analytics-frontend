@@ -598,6 +598,37 @@ const exportDoc = async (kind, format, button) => {
 };
 
 /* ══════════════════════════════════════════════════════════
+   SET-UP CHECK (admins): does storage and Gemini work?
+══════════════════════════════════════════════════════════ */
+const runSetupCheck = async () => {
+  const btn = $('schCheck');
+  btn.disabled = true;
+  $('schCheckBusy').textContent = 'Testing…';
+  try {
+    const res = await API.get('/schemes/status');
+    if (!res?.ok) {
+      $('schCheckBusy').textContent = '';
+      return showError(res?.data?.message || 'Could not run the check. Please try again.');
+    }
+    const d = res.data;
+    const line = (name, ok, text) => `<li><strong>${esc(name)}</strong> ${ok ? 'Works.' : 'Not working.'} ${esc(text || '')}</li>`;
+    $('schCheckList').innerHTML =
+      line('Server', d.node.ok, `Node ${d.node.version}. ${d.node.message || ''}`) +
+      line('Storage', d.storage.ok, d.storage.message) +
+      line('Gemini', d.gemini.ok, `${d.gemini.message} (model: ${d.gemini.model})`);
+    $('schCheckList').hidden = false;
+    $('schCheckBusy').textContent = '';
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+if (PAGE === 'scheme' && ['admin', 'superadmin'].includes(user.role)) {
+  $('schCheckCard').hidden = false;
+  $('schCheck').addEventListener('click', runSetupCheck);
+}
+
+/* ══════════════════════════════════════════════════════════
    WIRE UP
 ══════════════════════════════════════════════════════════ */
 $('schDesign').addEventListener('change', onDesignChange);

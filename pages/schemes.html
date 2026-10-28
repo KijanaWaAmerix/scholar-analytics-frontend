@@ -102,6 +102,18 @@
         </div>
       </div>
 
+      <!-- Set-up check (school admins only) -->
+      <div class="analytics-card sch-setup" id="schCheckCard" hidden>
+        <div class="analytics-card-header">
+          <h3 class="analytics-card-title"><i class="fas fa-stethoscope"></i> Check the lesson writing set-up</h3>
+        </div>
+        <div class="sch-actions">
+          <button type="button" class="btn btn-secondary" id="schCheck"><i class="fas fa-plug-circle-check"></i> Test storage and Gemini</button>
+          <span class="sch-writer-status" id="schCheckBusy" role="status"></span>
+        </div>
+        <ul class="sch-check-list" id="schCheckList" hidden></ul>
+      </div>
+
       <!-- Title of the document -->
       <div class="analytics-card sch-setup">
         <div class="analytics-card-header">
