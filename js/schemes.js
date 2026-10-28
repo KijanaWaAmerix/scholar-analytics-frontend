@@ -519,7 +519,7 @@ const writeContent = async () => {
     data.labels = res.data.labels;
     res.data.lessons.forEach((l) => {
       data.map[`${req.subStrandId}:${l.lessonNo}`] = { source: l.source, content: l.content };
-      if (l.source === 'design') fromDesign += 1; else fromAi += 1;
+      if (l.source === 'design' || l.source === 'notes') fromDesign += 1; else fromAi += 1;
     });
     $('schProgressBar').style.width = `${Math.round(((i + 1) / requests.length) * 100)}%`;
   }
@@ -615,7 +615,8 @@ const runSetupCheck = async () => {
     $('schCheckList').innerHTML =
       line('Server', d.node.ok, `Node ${d.node.version}. ${d.node.message || ''}`) +
       line('Storage', d.storage.ok, d.storage.message) +
-      line('Gemini', d.gemini.ok, `${d.gemini.message} (model: ${d.gemini.model})`);
+      line('Gemini', d.gemini.ok, `${d.gemini.message} (model: ${d.gemini.model})`) +
+      (d.backup ? line('Backup AI', d.backup.ok, d.backup.message) : '');
     $('schCheckList').hidden = false;
     $('schCheckBusy').textContent = '';
   } finally {
