@@ -228,6 +228,13 @@
             <h3 class="analytics-card-title"><i class="fas fa-pen-to-square"></i> Lesson content</h3>
           </div>
           <p class="sch-writer-text" id="schWriterText">Write the outcomes, activities, questions and lesson plan steps for every lesson in this scheme. Lessons already written for this topic load straight away.</p>
+          <div class="sch-field sch-week-pick">
+            <label for="schSource">Where the lessons come from</label>
+            <select id="schSource">
+              <option value="auto">Automatic: saved, then Gemini</option>
+              <option value="saved">Saved lessons only (no Gemini)</option>
+            </select>
+          </div>
           <div class="sch-actions">
             <button type="button" class="btn btn-primary" id="schWrite"><i class="fas fa-wand-magic-sparkles"></i> Write lesson content</button>
             <span class="sch-writer-status" id="schWriteStatus" role="status"></span>

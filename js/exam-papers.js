@@ -114,12 +114,12 @@ const write = async () => {
     if (!plan?.ok) return showError(plan?.data?.message || 'Could not plan the paper. Please try again.');
 
     const parts = plan.data.parts.filter((p) => p.mcq + p.structured > 0);
-    const got = { mcq: [], structured: [], short: { mcq: 0, structured: 0 } };
+    const got = { mcq: [], structured: [], short: { mcq: 0, structured: 0 }, saved: 0, aiError: '' };
 
     for (let i = 0; i < parts.length; i += 1) {
       const p = parts[i];
       $('epStatus').textContent = `Writing questions… ${i + 1} of ${parts.length} (${p.subStrand})`;
-      const body = { designKey: design.key, subStrandId: p.subStrandId, mcq: p.mcq, structured: p.structured };
+      const body = { designKey: design.key, subStrandId: p.subStrandId, mcq: p.mcq, structured: p.structured, source: $('epSource').value };
       let res = await API.post('/papers/part', body);
       if (!res?.ok && (!res?.status || res.status >= 500)) res = await API.post('/papers/part', body);
 
@@ -133,11 +133,17 @@ const write = async () => {
       got.structured.push(...res.data.structured);
       got.short.mcq += res.data.short.mcq;
       got.short.structured += res.data.short.structured;
+      got.saved += res.data.saved || 0;
+      got.aiError = res.data.aiError || got.aiError;
       $('epProgressBar').style.width = `${Math.round(((i + 1) / parts.length) * 100)}%`;
     }
 
     const total = got.mcq.length + got.structured.reduce((n, q) => n + q.marks, 0);
-    if (!total) return showError('No questions could be written. Please try again.');
+    if (!total) {
+      return showError($('epSource').value === 'saved'
+        ? 'There are no saved questions for these topics yet. Choose Automatic so Gemini can write some, which are then saved.'
+        : `No questions could be written${got.aiError ? ` (${got.aiError})` : ''}. Please try again, or choose Saved questions only.`);
+    }
 
     const bands = await API.post('/papers/bands', { total });
     paper = { design, t, ...got, total, bands: bands?.ok ? bands.data.bands : [] };
@@ -173,9 +179,13 @@ const render = () => {
 
   const warn = $('epWarn');
   const short = paper.short;
+  const fromSaved = paper.saved ? `${paper.saved} question${paper.saved === 1 ? ' was' : 's were'} taken from your saved questions${paper.aiError ? ' because Gemini was not available' : ''}. ` : '';
   if (short.mcq || short.structured) {
     warn.hidden = false;
-    warn.textContent = `${short.mcq + short.structured} question${short.mcq + short.structured === 1 ? '' : 's'} could not be written well enough. Write the paper again, or ask for fewer questions.`;
+    warn.textContent = `${fromSaved}${short.mcq + short.structured} question${short.mcq + short.structured === 1 ? '' : 's'} could not be found. Write the paper again, or ask for fewer questions.`;
+  } else if (fromSaved) {
+    warn.hidden = false;
+    warn.textContent = fromSaved;
   } else {
     warn.hidden = true;
   }

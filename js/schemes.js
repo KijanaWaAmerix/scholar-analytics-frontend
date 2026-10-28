@@ -479,7 +479,7 @@ const planRequests = (rows) => {
 };
 
 const askContent = async (design, req) => {
-  const body = { designKey: design.key, ...req };
+  const body = { designKey: design.key, ...req, source: $('schSource')?.value || 'auto' };
   let res = await API.post('/schemes/content', body);
   if (!res?.ok && (!res?.status || res.status >= 500)) {
     res = await API.post('/schemes/content', body);   /* one more try for a slow or sleeping server */

@@ -124,6 +124,14 @@
             <input type="text" id="epTime" maxlength="30" placeholder="e.g. 1 hour 30 minutes"/>
           </div>
           <div class="sch-field">
+            <label for="epSource">Where the questions come from</label>
+            <select id="epSource">
+              <option value="auto">Automatic: Gemini, then saved questions</option>
+              <option value="gemini">Gemini only</option>
+              <option value="saved">Saved questions only (no Gemini)</option>
+            </select>
+          </div>
+          <div class="sch-field">
             <label for="epTerm">Term</label>
             <select id="epTerm"><option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option></select>
           </div>
