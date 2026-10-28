@@ -187,7 +187,7 @@ const write = async () => {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Writing…';
 
   try {
-    const body = { designKey: design.key, subStrandId: $('lpSub').value, from: n, to: n };
+    const body = { designKey: design.key, subStrandId: $('lpSub').value, from: n, to: n, source: $('lpFrom').value };
     let res = await API.post('/schemes/content', body);
     if (!res?.ok && (!res?.status || res.status >= 500)) res = await API.post('/schemes/content', body);
 
