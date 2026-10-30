@@ -339,7 +339,8 @@ const gradeLabel = (g) => (/^\d/.test(g) ? `Grade ${g}` : g.replace(/^grade\b/i,
 const dateLabel = (r) => `${r.day.charAt(0)}${r.day.slice(1).toLowerCase()} ${fmtDate(r.date)}`;
 
 /* Written content for a row of the scheme, or null */
-const lessonFor = (r) => lessonData?.map[`${r.subStrandId}:${r.lessonInSubStrand}`]?.content || null;
+/* Written lessons win; otherwise what the curriculum design itself says for this lesson (sent with the scheme) */
+const lessonFor = (r) => lessonData?.map[`${r.subStrandId}:${r.lessonInSubStrand}`]?.content || r.fromDesign || null;
 
 const bullets = (items) => (items || []).map((i) => `• ${i}`).join('\n');
 
