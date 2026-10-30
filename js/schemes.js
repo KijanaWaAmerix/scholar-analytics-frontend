@@ -132,8 +132,6 @@ const validateInputs = () => {
   const needed = [
     ['schTermStart', 'the day the term starts'],
     ['schTermEnd',   'the day the term ends'],
-    ['schHtStart',   'the day half term starts'],
-    ['schHtEnd',     'the day half term ends'],
   ];
   for (const [id, label] of needed) {
     if (!$(id).value) return `Please enter ${label}.`;
@@ -142,11 +140,10 @@ const validateInputs = () => {
   const ts = $('schTermStart').value, te = $('schTermEnd').value;
   const hs = $('schHtStart').value,   he = $('schHtEnd').value;
 
-  const year = $('schYear').value.trim();
-  if (/^\d{4}$/.test(year) && ts.slice(0, 4) !== year) {
-    return `The term starts in ${ts.slice(0, 4)}, but the year is ${year}. Please correct the dates or the year.`;
-  }
   if (te < ts) return 'The term cannot end before it starts.';
+  /* Half term is optional: leave both dates empty for a term without one */
+  if (!hs && !he) return '';
+  if (!hs || !he) return 'Please enter both the day half term starts and the day it ends, or leave both empty.';
   if (he < hs) return 'Half term cannot end before it starts.';
   if (hs < ts || he > te) return 'Half term must fall inside the term.';
   return '';
@@ -187,6 +184,8 @@ const generate = async () => {
 
   const problem = validateInputs();
   if (problem) return showError(problem);
+  /* the document year is the year the term starts */
+  $('schYear').value = $('schTermStart').value.slice(0, 4);
   saveSetup();
 
   const btn = $('schGenerate');
@@ -201,8 +200,8 @@ const generate = async () => {
       endSubStrand  : $('schEnd').value,
       termStart     : $('schTermStart').value,
       termEnd       : $('schTermEnd').value,
-      halfTermStart : $('schHtStart').value,
-      halfTermEnd   : $('schHtEnd').value,
+      halfTermStart : $('schHtStart').value || undefined,
+      halfTermEnd   : $('schHtEnd').value || undefined,
       holidays,
     });
 
@@ -239,7 +238,9 @@ const renderResult = ({ summary, rows }) => {
   const ht = rows.find((r) => r.type === 'HALF_TERM');
   $('kpiHalfTerm').textContent = ht
     ? `${fmtDate(ht.from)} – ${fmtDate(ht.to)}`
-    : `${fmtDate($('schHtStart').value)} – ${fmtDate($('schHtEnd').value)}`;
+    : ($('schHtStart').value && $('schHtEnd').value
+      ? `${fmtDate($('schHtStart').value)} – ${fmtDate($('schHtEnd').value)}`
+      : 'None');
 
   const short = $('schShortfall');
   if (!summary.fits) {
@@ -297,6 +298,13 @@ const initTitleFields = () => {
   $('schTsc').value     = saved.tsc     || '';
   $('schYear').value    = acad.currentYear || school.currentYear || new Date().getFullYear();
   $('schTerm').value    = String(acad.currentTerm || school.currentTerm || 1);
+
+  /* The year on the document follows the day the term starts (a term can start in 2027 while it is still 2026) */
+  const followYear = () => {
+    const d = $('schTermStart').value;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) $('schYear').value = d.slice(0, 4);
+  };
+  $('schTermStart').addEventListener('change', followYear);
 
   ['schSchool', 'schTeacher', 'schTsc'].forEach((id) =>
     $(id).addEventListener('change', () =>
