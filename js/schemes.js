@@ -57,6 +57,10 @@ const loadDesigns = async () => {
   }
 
   designs = res.data.designs || [];
+  /* Designs live in Backblaze; say so when the server could not reach it, instead of showing a short list silently */
+  if (res.data.storageProblem) {
+    showError(`Only some subjects are shown because the server could not read Backblaze: ${res.data.storageProblem}`);
+  }
 
   if (!designs.length) {
     $('schDesign').innerHTML = '<option value="">No designs available</option>';
