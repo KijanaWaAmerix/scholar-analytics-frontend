@@ -245,8 +245,10 @@ const buildPaperSpec = () => {
     title      : t.title.toUpperCase(),
     subtitle   : `${gradeLabel(d.grade)} ${d.learningArea} – TERM ${t.term} – ${t.year}`.toUpperCase(),
     meta: [
-      ...metaBase(t, d),
-      [['NAME', ''], ['ADM NO.', '']],
+      [['SCHOOL', t.school]],
+      [['LEARNING AREA', d.learningArea]],
+      [['NAME', ''], ['GRADE', '']],          /* left empty for the learner to fill in */
+      [['ADM NO.', ''], ['DATE', '']],
       [['TIME', t.time], ['TOTAL MARKS', String(paper.total)]],
       ...(bandsText() ? [[['MARKS BANDS', bandsText()]]] : []),
     ],
@@ -301,9 +303,9 @@ const exportDoc = async (kind, format, button) => {
   if (!(window.jspdf?.jsPDF && window.docx && window.DocExport)) {
     return showError('The download tools did not load. Check your internet connection and refresh the page.');
   }
-  const spec = kind === 'paper' ? buildPaperSpec() : buildSchemeSpec();
+  const specs = kind === 'paper' ? [buildPaperSpec()] : kind === 'scheme' ? [buildSchemeSpec()] : [buildPaperSpec(), buildSchemeSpec()];
   const { design: d, t } = paper;
-  const base = [kind === 'paper' ? 'Exam_Paper' : 'Marking_Scheme',
+  const base = [kind === 'paper' ? 'Exam_Paper' : kind === 'scheme' ? 'Marking_Scheme' : 'Exam_With_Answers',
     DocExport.safeName(gradeLabel(d.grade)), DocExport.safeName(d.learningArea), `Term${t.term}`, t.year].join('_');
 
   const original = button.innerHTML;
@@ -311,9 +313,9 @@ const exportDoc = async (kind, format, button) => {
   button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Please wait…';
   try {
     await new Promise((r) => setTimeout(r, 30));
-    if (format === 'pdf')       { DocExport.downloadPdf([spec], base); showToast('PDF downloaded.', 'success'); }
-    else if (format === 'docx') { await DocExport.downloadDocx([spec], base); showToast('Word file downloaded.', 'success'); }
-    else                        { DocExport.printPdf([spec]); }
+    if (format === 'pdf')       { DocExport.downloadPdf(specs, base); showToast('PDF downloaded.', 'success'); }
+    else if (format === 'docx') { await DocExport.downloadDocx(specs, base); showToast('Word file downloaded.', 'success'); }
+    else                        { DocExport.printPdf(specs); }
   } catch (err) {
     console.error(err);
     showError('Could not create the file. Please try again.');
