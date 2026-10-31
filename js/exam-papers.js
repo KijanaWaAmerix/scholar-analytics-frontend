@@ -245,8 +245,10 @@ const buildPaperSpec = () => {
     title      : t.title.toUpperCase(),
     subtitle   : `${gradeLabel(d.grade)} ${d.learningArea} – TERM ${t.term} – ${t.year}`.toUpperCase(),
     meta: [
-      ...metaBase(t, d),
-      [['NAME', ''], ['ADM NO.', '']],
+      [['SCHOOL', t.school]],
+      [['LEARNING AREA', d.learningArea]],
+      [['NAME', ''], ['GRADE', '']],          /* left empty for the learner to fill in */
+      [['ADM NO.', ''], ['DATE', '']],
       [['TIME', t.time], ['TOTAL MARKS', String(paper.total)]],
       ...(bandsText() ? [[['MARKS BANDS', bandsText()]]] : []),
     ],
