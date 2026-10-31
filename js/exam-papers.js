@@ -140,9 +140,9 @@ const write = async () => {
 
     const total = got.mcq.length + got.structured.reduce((n, q) => n + q.marks, 0);
     if (!total) {
-      return showError($('epSource').value === 'saved'
-        ? 'There are no saved questions for these topics yet. Choose Automatic so Gemini can write some, which are then saved.'
-        : `No questions could be written${got.aiError ? ` (${got.aiError})` : ''}. Please try again, or choose Saved questions only.`);
+      return showError($('epSource').value === 'notes'
+        ? 'The notes for these topics have too few definitions or lists to make questions from. Choose Notes + AI, or pick other sub-strands.'
+        : `No questions could be written${got.aiError ? ` (${got.aiError})` : ''}. Please try again, or choose Notes only.`);
     }
 
     const bands = await API.post('/papers/bands', { total });
