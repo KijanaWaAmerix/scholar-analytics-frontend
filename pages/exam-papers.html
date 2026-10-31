@@ -126,9 +126,8 @@
           <div class="sch-field">
             <label for="epSource">Where the questions come from</label>
             <select id="epSource">
-              <option value="auto">Automatic: Gemini, then saved questions</option>
-              <option value="gemini">Gemini only</option>
-              <option value="saved">Saved questions only (no Gemini)</option>
+              <option value="auto">Notes + AI (AI writes from your notes)</option>
+              <option value="notes">Notes only (no AI)</option>
             </select>
           </div>
           <div class="sch-field">
@@ -192,7 +191,7 @@
             </div>
           </div>
           <p class="sch-doc-note" id="epWarn" hidden></p>
-          <p class="sch-doc-note">Read the paper and the marking scheme before you give it to learners. The questions are written by Gemini and a teacher must check them.</p>
+          <p class="sch-doc-note">Read the paper and the marking scheme before you give it to learners. The questions are made from your notes, with AI unless you chose notes only. A teacher must check them.</p>
         </div>
 
         <div class="analytics-card">
@@ -200,6 +199,7 @@
             <h3 class="analytics-card-title"><i class="fas fa-eye"></i> Preview</h3>
           </div>
           <div class="table-wrapper">
+            <label style="display:block;margin:0 0 8px"><input type="checkbox" id="epShowAnswers" checked/> Show answers beside the questions (this view only; the paper you download has none)</label>
             <table class="students-table sch-table"><tbody id="epPreview"></tbody></table>
           </div>
         </div>

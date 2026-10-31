@@ -140,9 +140,9 @@ const write = async () => {
 
     const total = got.mcq.length + got.structured.reduce((n, q) => n + q.marks, 0);
     if (!total) {
-      return showError($('epSource').value === 'saved'
-        ? 'There are no saved questions for these topics yet. Choose Automatic so Gemini can write some, which are then saved.'
-        : `No questions could be written${got.aiError ? ` (${got.aiError})` : ''}. Please try again, or choose Saved questions only.`);
+      return showError($('epSource').value === 'notes'
+        ? 'The notes for these topics have too few definitions or lists to make questions from. Choose Notes + AI, or pick other sub-strands.'
+        : `No questions could be written${got.aiError ? ` (${got.aiError})` : ''}. Please try again, or choose Notes only.`);
     }
 
     const bands = await API.post('/papers/bands', { total });
@@ -163,16 +163,21 @@ const sectionMarks = () => ({
 const render = () => {
   const m = sectionMarks();
   const rows = [];
+  const side = $('epShowAnswers') ? $('epShowAnswers').checked : true;   /* answers beside each question, for the teacher */
+  const cols = side ? 3 : 2;
+  const cell = (html) => (side ? `<td style="width:34%;white-space:pre-line;background:#f3f8f3;font-size:.92em">${html}</td>` : '');
   if (paper.mcq.length) {
-    rows.push(`<tr><th colspan="2">SECTION A: MULTIPLE CHOICE (${m.a} MARKS)</th></tr>`);
+    rows.push(`<tr><th colspan="${cols}">SECTION A: MULTIPLE CHOICE (${m.a} MARKS)</th></tr>`);
     paper.mcq.forEach((q, i) => rows.push(
       `<tr><td style="width:6%"><strong>${i + 1}</strong></td><td style="white-space:pre-line">${esc(q.question)}\n${
-        q.options.map((o, k) => `${LETTERS[k]}. ${esc(o)}`).join('\n')}</td></tr>`));
+        q.options.map((o, k) => `${LETTERS[k]}. ${esc(o)}`).join('\n')}</td>${
+        cell(`<strong>${esc(q.answer)}.</strong> ${esc(q.options[LETTERS.indexOf(q.answer)] || '')}${q.explanation ? `\n<em>${esc(q.explanation)}</em>` : ''}`)}</tr>`));
   }
   if (paper.structured.length) {
-    rows.push(`<tr><th colspan="2">SECTION B: STRUCTURED QUESTIONS (${m.b} MARKS)</th></tr>`);
+    rows.push(`<tr><th colspan="${cols}">SECTION B: STRUCTURED QUESTIONS (${m.b} MARKS)</th></tr>`);
     paper.structured.forEach((q, i) => rows.push(
-      `<tr><td style="width:6%"><strong>${paper.mcq.length + i + 1}</strong></td><td style="white-space:pre-line">${esc(structuredText(q, false))}</td></tr>`));
+      `<tr><td style="width:6%"><strong>${paper.mcq.length + i + 1}</strong></td><td style="white-space:pre-line">${esc(structuredText(q, false))}</td>${
+        cell(q.parts.map((p, k) => `${q.parts.length > 1 ? `${letter(k)} ` : ''}${p.answer.map((x) => `• ${esc(x)}`).join('\n')}`).join('\n'))}</tr>`));
   }
   $('epPreview').innerHTML = rows.join('');
   $('epPaperInfo').textContent = `${paper.total} marks · ${paper.mcq.length} multiple choice, ${paper.structured.length} structured`;
@@ -320,6 +325,7 @@ const exportDoc = async (kind, format, button) => {
 
 /* ── Wire up ──────────────────────────────────────────────── */
 $('epDesign').addEventListener('change', renderTopics);
+if ($('epShowAnswers')) $('epShowAnswers').addEventListener('change', () => { if (paper) render(); });
 $('epAll').addEventListener('click', () => {
   const boxes = [...$('epTopics').querySelectorAll('input')];
   boxes.forEach((b, i) => { b.checked = i < 8; });
