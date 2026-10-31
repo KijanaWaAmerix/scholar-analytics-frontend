@@ -104,9 +104,6 @@ const onDesignChange = () => {
   }).join('');
 
   start.innerHTML = options;
-  $('schSkip').innerHTML = options;
-  $('schStartLesson').value = '';
-  $('schEndLesson').value = '';
   end.innerHTML   = options;
   start.disabled  = end.disabled = false;
 
@@ -216,9 +213,6 @@ const generate = async () => {
       designKey     : design.key,
       startSubStrand: $('schStart').value,
       endSubStrand  : $('schEnd').value,
-      startLesson   : $('schStartLesson').value ? Number($('schStartLesson').value) : undefined,
-      endLesson     : $('schEndLesson').value ? Number($('schEndLesson').value) : undefined,
-      skipSubStrands: Array.from($('schSkip').selectedOptions).map((o) => o.value),
       termStart     : $('schTermStart').value,
       termEnd       : $('schTermEnd').value,
       halfTermStart : $('schHtStart').value || undefined,
