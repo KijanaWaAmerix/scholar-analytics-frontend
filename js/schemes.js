@@ -88,9 +88,20 @@ const onDesignChange = () => {
     return;
   }
 
-  const options = design.subStrands
-    .map((s) => `<option value="${esc(s.id)}">${esc(s.id)} ${esc(s.name)} (${esc(s.lessons)} lessons)</option>`)
-    .join('');
+  /* Sub-strands grouped under their strand, so a strand and all its sub-strands can be seen together */
+  const groups = [];
+  for (const s of design.subStrands) {
+    let g = groups.find((x) => x.id === s.strandId);
+    if (!g) { g = { id: s.strandId, name: s.strand, subs: [] }; groups.push(g); }
+    g.subs.push(s);
+  }
+  const options = groups.map((g) => {
+    const total = g.subs.reduce((n, s) => n + (Number(s.lessons) || 0), 0);
+    const inner = g.subs
+      .map((s) => `<option value="${esc(s.id)}">${esc(s.id)} ${esc(s.name)} (${esc(s.lessons)} lessons)</option>`)
+      .join('');
+    return `<optgroup label="Strand ${esc(g.id)}: ${esc(g.name)} (${total} lessons)">${inner}</optgroup>`;
+  }).join('');
 
   start.innerHTML = options;
   $('schSkip').innerHTML = options;
