@@ -88,11 +88,25 @@ const onDesignChange = () => {
     return;
   }
 
-  const options = design.subStrands
-    .map((s) => `<option value="${esc(s.id)}">${esc(s.id)} ${esc(s.name)} (${esc(s.lessons)} lessons)</option>`)
-    .join('');
+  /* Sub-strands grouped under their strand, so a strand and all its sub-strands can be seen together */
+  const groups = [];
+  for (const s of design.subStrands) {
+    let g = groups.find((x) => x.id === s.strandId);
+    if (!g) { g = { id: s.strandId, name: s.strand, subs: [] }; groups.push(g); }
+    g.subs.push(s);
+  }
+  const options = groups.map((g) => {
+    const total = g.subs.reduce((n, s) => n + (Number(s.lessons) || 0), 0);
+    const inner = g.subs
+      .map((s) => `<option value="${esc(s.id)}">${esc(s.id)} ${esc(s.name)} (${esc(s.lessons)} lessons)</option>`)
+      .join('');
+    return `<optgroup label="Strand ${esc(g.id)}: ${esc(g.name)} (${total} lessons)">${inner}</optgroup>`;
+  }).join('');
 
   start.innerHTML = options;
+  $('schSkip').innerHTML = options;
+  $('schStartLesson').value = '';
+  $('schEndLesson').value = '';
   end.innerHTML   = options;
   start.disabled  = end.disabled = false;
 
@@ -202,6 +216,9 @@ const generate = async () => {
       designKey     : design.key,
       startSubStrand: $('schStart').value,
       endSubStrand  : $('schEnd').value,
+      startLesson   : $('schStartLesson').value ? Number($('schStartLesson').value) : undefined,
+      endLesson     : $('schEndLesson').value ? Number($('schEndLesson').value) : undefined,
+      skipSubStrands: Array.from($('schSkip').selectedOptions).map((o) => o.value),
       termStart     : $('schTermStart').value,
       termEnd       : $('schTermEnd').value,
       halfTermStart : $('schHtStart').value || undefined,
@@ -387,26 +404,26 @@ const buildSchemeSpec = (t, rows, withDates = false) => {
           { header: 'Week',                       width: 4.5 },
           { header: 'Lesson',                     width: 5.3 },
           { header: 'Date',                       width: 7.5 },
-          { header: 'Strand',                     width: 9   },
+          { header: 'Strand',                     width: 8   },
           { header: 'Sub-strand',                 width: 8.7 },
           { header: 'Specific learning outcomes', width: 15  },
           { header: 'Learning experiences',       width: 16  },
-          { header: 'Key inquiry questions',      width: 9   },
+          { header: 'Key inquiry questions',      width: 11  },
           { header: 'Learning resources',         width: 8   },
           { header: 'Assessment',                 width: 8.5 },
-          { header: 'Reflection',                 width: 8.5 },
+          { header: 'Reflection',                 width: 7.5 },
         ]
       : [
           { header: 'Week',                       width: 4.5 },
           { header: 'Lesson',                     width: 5.5 },
-          { header: 'Strand',                     width: 10  },
+          { header: 'Strand',                     width: 9   },
           { header: 'Sub-strand',                 width: 9.5 },
           { header: 'Specific learning outcomes', width: 17  },
           { header: 'Learning experiences',       width: 18  },
-          { header: 'Key inquiry questions',      width: 10  },
+          { header: 'Key inquiry questions',      width: 12  },
           { header: 'Learning resources',         width: 8   },
           { header: 'Assessment',                 width: 8.5 },
-          { header: 'Reflection',                 width: 9   },
+          { header: 'Reflection',                 width: 8   },
         ],
     rows   : body,
     endLine: 'REFLECTION / INSPECTOR:',
