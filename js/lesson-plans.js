@@ -211,6 +211,8 @@ const write = async () => {
 
   try {
     const body = { designKey: design.key, subStrandId: $('lpSub').value, from: n, to: n, source: $('lpFrom').value };
+    const topic = $('lpTopic') ? $('lpTopic').value.trim() : '';
+    if (topic) body.topic = topic;      /* the teacher says where the lesson is; the notes are searched for it */
     let res = await API.post('/schemes/content', body);
     if (!res?.ok && (!res?.status || res.status >= 500)) res = await API.post('/schemes/content', body);
 
