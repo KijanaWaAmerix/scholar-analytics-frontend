@@ -77,9 +77,35 @@ const onSubChange = () => {
   const sel = $('lpLesson');
   if (!s) { sel.disabled = true; return; }
   $('lpStrand').value = s.strand;
-  sel.innerHTML = Array.from({ length: s.lessons }, (_, i) =>
-    `<option value="${i + 1}">Lesson ${i + 1} of ${s.lessons}</option>`).join('');
+  const draw = (focus) => {
+    const keep = sel.value;
+    sel.innerHTML = Array.from({ length: s.lessons }, (_, i) => {
+      const f = focus[i + 1] ? ` · ${focus[i + 1]}` : '';
+      return `<option value="${i + 1}">${i + 1}${esc(f)}</option>`;
+    }).join('');
+    if (keep) sel.value = keep;
+  };
+  draw({});
   sel.disabled = false;
+  labelLessons(s, draw);
+};
+
+/* Name each lesson by what it teaches, so "3" becomes "3 · Pressure in liquids" */
+let labelToken = 0;
+const labelLessons = async (s, draw) => {
+  const token = ++labelToken;
+  const design = currentDesign();
+  if (!design) return;
+  try {
+    const res = await API.post('/schemes/content', { designKey: design.key, subStrandId: s.id, from: 1, to: s.lessons, source: 'saved' });
+    if (token !== labelToken || !res?.ok) return;
+    const focus = {};
+    for (const l of res.data.lessons || []) {
+      const t = String(l.content?.focus || '').replace(/\s+/g, ' ').trim();
+      if (t) focus[l.lessonNo] = t.length > 70 ? `${t.slice(0, 67)}…` : t;
+    }
+    draw(focus);
+  } catch { /* the plain numbers stay */ }
 };
 
 /* ── Text of the lesson plan ──────────────────────────────── */
