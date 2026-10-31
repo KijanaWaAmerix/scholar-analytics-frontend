@@ -97,13 +97,10 @@ const labelLessons = async (s, draw) => {
   const design = currentDesign();
   if (!design) return;
   try {
-    const res = await API.post('/schemes/content', { designKey: design.key, subStrandId: s.id, from: 1, to: s.lessons, source: 'saved' });
+    const res = await API.post('/schemes/topics', { designKey: design.key, subStrandId: s.id });
     if (token !== labelToken || !res?.ok) return;
     const focus = {};
-    for (const l of res.data.lessons || []) {
-      const t = String(l.content?.focus || '').replace(/\s+/g, ' ').trim();
-      if (t) focus[l.lessonNo] = t.length > 70 ? `${t.slice(0, 67)}…` : t;
-    }
+    (res.data.topics || []).forEach((t, i) => { if (t) focus[i + 1] = t; });
     draw(focus);
   } catch { /* the plain numbers stay */ }
 };
