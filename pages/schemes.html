@@ -179,6 +179,19 @@
             <select id="schEnd" disabled></select>
           </div>
           <div class="sch-field">
+            <label for="schStartLesson">Start at lesson (optional)</label>
+            <input type="number" id="schStartLesson" min="1" placeholder="1 = from the first lesson">
+          </div>
+          <div class="sch-field">
+            <label for="schEndLesson">End at lesson (optional)</label>
+            <input type="number" id="schEndLesson" min="1" placeholder="blank = to the last lesson">
+          </div>
+          <div class="sch-field">
+            <label for="schSkip">Skip sub-strands (optional)</label>
+            <select id="schSkip" multiple size="5"></select>
+            <small>Hold Ctrl to pick several. Skipped topics are left out of the scheme.</small>
+          </div>
+          <div class="sch-field">
             <label>Lessons per week</label>
             <div class="sch-static" id="schPerWeek">--</div>
           </div>
