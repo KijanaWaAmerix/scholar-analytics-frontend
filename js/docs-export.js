@@ -371,7 +371,63 @@ const lineStyles = { lineColor: BLACK, lineWidth: LINE_W, textColor: BLACK, fill
     saveBlob(blob, `${filenameBase}.docx`);
   };
 
-  return { downloadPdf, downloadDocx, printPdf, safeName };
+  /* ── Column widths that follow the content ─────────────────
+     A column of long text next to a column of short text should get more
+     of the page, otherwise the long one wraps into a tall strip and every
+     row becomes tall. Row height is about (characters / width), so giving
+     each flexible column a share of the width in proportion to the text it
+     holds makes the columns about the same height.
+       columns : [{ header, width }]   fixed ones keep their width
+       flex    : indexes of the columns that may change
+       rows    : the spec rows (bands are skipped)
+     The flexible columns share whatever the fixed ones leave of 100. */
+  const fitWidths = (columns, rows, flex, { min = 7, max = 30 } = {}) => {
+    const lines = rows.filter(Array.isArray);
+    const demand = flex.map((i) => {
+      if (!lines.length) return 1;
+      const total = lines.reduce((sum, r) => {
+        const text = String(r[i] || '');
+        const longest = text.split('\n').reduce((m, l) => Math.max(m, l.length), 0);
+        return sum + text.length + longest * 2;      // long words/lines need width too
+      }, 0);
+      return Math.max(total / lines.length, 12);
+    });
+    const fixed  = columns.reduce((sum, c, i) => sum + (flex.includes(i) ? 0 : c.width), 0);
+    const budget = 100 - fixed;
+    let share = demand.map((d) => d);
+    /* a column is never narrower than its longest word (and heading word), so words never split */
+    const word = (text) => String(text || '').split(/[\s\n]+/).reduce((m, w) => Math.max(m, w.length), 0);
+    const floors = flex.map((i) => {
+      const longest = Math.max(word(columns[i].header) * 1.08, ...lines.map((r) => word(r[i])));
+      return Math.min(max, Math.max(min, longest * 0.6 + 1.8));
+    });
+    let result = null;
+    for (let pass = 0; pass < 6; pass++) {
+      const open = share.map((v, k) => (result && result[k] !== null ? null : v));
+      const taken = (result || []).reduce((s, v) => s + (v || 0), 0);
+      const sum = open.reduce((s, v) => s + (v || 0), 0) || 1;
+      const next = (result || share.map(() => null)).slice();
+      let changed = false;
+      open.forEach((v, k) => {
+        if (v === null) return;
+        const w = (v / sum) * (budget - taken);
+        if (w < floors[k]) { next[k] = floors[k]; changed = true; }
+        else if (w > max) { next[k] = max; changed = true; }
+      });
+      result = next;
+      if (!changed) break;
+    }
+    const taken = result.reduce((s, v) => s + (v || 0), 0);
+    const open = share.reduce((s, v, k) => s + (result[k] === null ? v : 0), 0) || 1;
+    return columns.map((c, i) => {
+      const k = flex.indexOf(i);
+      if (k < 0) return c;
+      const w = result[k] !== null ? result[k] : (share[k] / open) * (budget - taken);
+      return { ...c, width: Math.round(w * 10) / 10 };
+    });
+  };
+
+  return { downloadPdf, downloadDocx, printPdf, safeName, fitWidths };
 })();
 
 window.DocExport = DocExport;
