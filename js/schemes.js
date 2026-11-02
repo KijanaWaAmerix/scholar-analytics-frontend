@@ -358,6 +358,22 @@ const dateLabel = (r) => `${r.day.charAt(0)}${r.day.slice(1).toLowerCase()} ${fm
 const lessonFor = (r) => lessonData?.map[`${r.subStrandId}:${r.lessonInSubStrand}`]?.content || r.fromDesign || null;
 
 const bullets = (items) => (items || []).map((i) => `• ${i}`).join('\n');
+/* A long list of resources runs on in one paragraph, so it does not make the row tall */
+const runOn = (items) => ((items || []).length > 3 ? items.join('; ') : bullets(items));
+
+const schemeColumns = (withDates) => [
+  { header: 'Week',                       width: 4.5 },
+  { header: 'Lesson',                     width: 5.3 },
+  ...(withDates ? [{ header: 'Date', width: 7.5 }] : []),
+  { header: 'Strand',                     width: 8 },
+  { header: 'Sub-strand',                 width: 8 },
+  { header: 'Specific learning outcomes', width: 15 },
+  { header: 'Learning experiences',       width: 16 },
+  { header: 'Key inquiry questions',      width: 11 },
+  { header: 'Learning resources',         width: 10 },
+  { header: 'Assessment',                 width: 8.5 },
+  { header: 'Reflection',                 width: 8.5 },
+];
 
 const buildSchemeSpec = (t, rows, withDates = false) => {
   const body = [];
@@ -378,11 +394,15 @@ const buildSchemeSpec = (t, rows, withDates = false) => {
       c ? bullets(c.outcomes) : '',
       c ? bullets(c.experiences) : '',
       c ? bullets(c.kiqs) : '',
-      c ? bullets(c.resources) : '',
+      c ? runOn(c.resources) : '',
       c ? bullets(c.assessment) : '',
       '',
     ]);
   });
+
+  const columns = schemeColumns(withDates);
+  /* the text columns share the page by how much they hold, so no column wraps into a tall strip */
+  const flex = columns.map((c, i) => i).filter((i) => !['Week', 'Lesson', 'Date', 'Reflection'].includes(columns[i].header));
 
   return {
     orientation: 'landscape',
@@ -393,32 +413,7 @@ const buildSchemeSpec = (t, rows, withDates = false) => {
       [['TEACHER', t.teacher],      ['GRADE', t.grade]],
       [['TSC NO.', t.tsc],          ['TERM / YEAR', `Term ${t.term} / ${t.year}`]],
     ],
-    columns: withDates
-      ? [
-          { header: 'Week',                       width: 4.5 },
-          { header: 'Lesson',                     width: 5.3 },
-          { header: 'Date',                       width: 7.5 },
-          { header: 'Strand',                     width: 8   },
-          { header: 'Sub-strand',                 width: 8.7 },
-          { header: 'Specific learning outcomes', width: 15  },
-          { header: 'Learning experiences',       width: 16  },
-          { header: 'Key inquiry questions',      width: 11  },
-          { header: 'Learning resources',         width: 8   },
-          { header: 'Assessment',                 width: 8.5 },
-          { header: 'Reflection',                 width: 7.5 },
-        ]
-      : [
-          { header: 'Week',                       width: 4.5 },
-          { header: 'Lesson',                     width: 5.5 },
-          { header: 'Strand',                     width: 9   },
-          { header: 'Sub-strand',                 width: 9.5 },
-          { header: 'Specific learning outcomes', width: 17  },
-          { header: 'Learning experiences',       width: 18  },
-          { header: 'Key inquiry questions',      width: 12  },
-          { header: 'Learning resources',         width: 8   },
-          { header: 'Assessment',                 width: 8.5 },
-          { header: 'Reflection',                 width: 8   },
-        ],
+    columns: DocExport.fitWidths(columns, body, flex),
     rows   : body,
     endLine: 'REFLECTION / INSPECTOR:',
   };
