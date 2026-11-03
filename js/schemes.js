@@ -15,9 +15,9 @@ const PAGE = document.body.dataset.doc || 'scheme';
 if (PAGE !== 'scheme') document.querySelector('.sch-toggle')?.remove();
 else {
   const box = $('schShowDates');
-  try { box.checked = localStorage.getItem('sa_scheme_dates') === '1'; } catch { /* skip */ }
+  try { box.checked = localStorage.getItem('sa_scheme_dates_v2') === '1'; } catch { /* skip */ }
   box.addEventListener('change', () => {
-    try { localStorage.setItem('sa_scheme_dates', box.checked ? '1' : '0'); } catch { /* skip */ }
+    try { localStorage.setItem('sa_scheme_dates_v2', box.checked ? '1' : '0'); } catch { /* skip */ }
   });
 }
 document.querySelectorAll('.sch-doc-row').forEach((row) => {
@@ -41,6 +41,18 @@ const fmtDate = (iso) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', timeZone: 'UTC',
   });
+
+/* "Mon 4 Jan" */
+const fmtDay = (iso) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC',
+  });
+
+/* "Week 1" with the days the week runs from and to: "(Mon 4 Jan – Fri 8 Jan 2027)" */
+const weekRange = (r) => (r.weekFrom && r.weekTo
+  ? `${fmtDay(r.weekFrom)} – ${fmtDay(r.weekTo)} ${r.weekTo.slice(0, 4)}`
+  : '');
+const weekLabel = (r) => (weekRange(r) ? `Week ${r.week}\n(${weekRange(r)})` : `Week ${r.week}`);
 
 const showError = (message) => { $('schError').textContent = message || ''; };
 
@@ -275,7 +287,7 @@ const renderResult = ({ summary, rows }) => {
     const startOfWeek = r.week !== lastWeek;
     lastWeek = r.week;
     return `<tr class="${startOfWeek ? 'sch-week-start' : ''}">
-      <td><strong>${esc(r.week)}</strong></td>
+      <td><strong>${esc(r.week)}</strong>${startOfWeek && weekRange(r) ? `<br><small>${esc(weekRange(r))}</small>` : ''}</td>
       <td>${esc(r.lessonOfWeek)}</td>
       <td>${esc(r.day)} ${esc(fmtDate(r.date))}</td>
       <td>${esc(r.strand)}</td>
@@ -362,7 +374,7 @@ const bullets = (items) => (items || []).map((i) => `• ${i}`).join('\n');
 const runOn = (items) => ((items || []).length > 3 ? items.join('; ') : bullets(items));
 
 const schemeColumns = (withDates) => [
-  { header: 'Week',                       width: 4.5 },
+  { header: 'Week',                       width: 10 },
   { header: 'Lesson',                     width: 5.3 },
   ...(withDates ? [{ header: 'Date', width: 7.5 }] : []),
   { header: 'Strand',                     width: 8 },
@@ -388,7 +400,7 @@ const buildSchemeSpec = (t, rows, withDates = false) => {
     lastWeek = r.week;
     const c = lessonFor(r);
     body.push([
-      first ? String(r.week) : '', String(r.lessonOfWeek),
+      first ? weekLabel(r) : '', String(r.lessonOfWeek),
       ...(withDates ? [dateLabel(r)] : []),
       r.strand, r.subStrand,
       c ? bullets(c.outcomes) : '',
