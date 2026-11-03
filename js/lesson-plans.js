@@ -53,10 +53,19 @@ const loadDesigns = async () => {
     $('lpDesign').innerHTML = '<option value="">No designs available</option>';
     return;
   }
-  $('lpDesign').innerHTML = designs
-    .map((d) => `<option value="${esc(d.key)}">Grade ${esc(d.grade)} · ${esc(d.learningArea)}</option>`)
-    .join('');
+  const grades = [...new Set(designs.map((d) => String(d.grade)))].sort((a, b) => Number(a) - Number(b));
+  $('lpPickGrade').innerHTML = grades.map((g) => `<option value="${esc(g)}">Grade ${esc(g)}</option>`).join('');
+  fillSubjects();
   onDesignChange();
+};
+
+/* Only the subjects of the chosen grade */
+const fillSubjects = () => {
+  const grade = $('lpPickGrade').value;
+  $('lpDesign').innerHTML = designs
+    .filter((d) => String(d.grade) === grade)
+    .map((d) => `<option value="${esc(d.key)}">${esc(d.learningArea)}</option>`)
+    .join('');
 };
 
 const currentSub = () => currentDesign()?.subStrands.find((s) => s.id === $('lpSub').value);
@@ -72,37 +81,37 @@ const onDesignChange = () => {
   onSubChange();
 };
 
+/* The topics of the chosen sub-strand. No lesson numbers: the teacher picks what is to be taught,
+   because a class seldom gets all the suggested lessons. */
+let topicGroups = [];
 const onSubChange = () => {
   const s = currentSub();
   const sel = $('lpLesson');
+  topicGroups = [];
   if (!s) { sel.disabled = true; return; }
   $('lpStrand').value = s.strand;
-  const draw = (focus) => {
-    const keep = sel.value;
-    sel.innerHTML = Array.from({ length: s.lessons }, (_, i) => {
-      const f = focus[i + 1] ? ` · ${focus[i + 1]}` : '';
-      return `<option value="${i + 1}">${i + 1}${esc(f)}</option>`;
-    }).join('');
-    if (keep) sel.value = keep;
-  };
-  draw({});
-  sel.disabled = false;
-  labelLessons(s, draw);
+  sel.innerHTML = '<option value="0">Loading the topics…</option>';
+  sel.disabled = true;
+  loadTopics(s);
 };
 
-/* Name each lesson by what it teaches, so "3" becomes "3 · Pressure in liquids" */
 let labelToken = 0;
-const labelLessons = async (s, draw) => {
+const loadTopics = async (s) => {
   const token = ++labelToken;
   const design = currentDesign();
+  const sel = $('lpLesson');
   if (!design) return;
+  let groups = [];
   try {
     const res = await API.post('/schemes/topics', { designKey: design.key, subStrandId: s.id });
-    if (token !== labelToken || !res?.ok) return;
-    const focus = {};
-    (res.data.topics || []).forEach((t, i) => { if (t) focus[i + 1] = t; });
-    draw(focus);
-  } catch { /* the plain numbers stay */ }
+    if (token !== labelToken) return;
+    if (res?.ok) groups = res.data.groups || [];
+  } catch { /* the whole sub-strand is offered below */ }
+  /* If the topics could not be loaded, the sub-strand itself is one topic */
+  if (!groups.length) groups = [{ no: 1, label: s.name, from: 1, to: Number(s.lessons) || 1, covers: [] }];
+  topicGroups = groups;
+  sel.innerHTML = groups.map((g, i) => `<option value="${i}">${esc(g.label)}</option>`).join('');
+  sel.disabled = false;
 };
 
 /* ── Text of the lesson plan ──────────────────────────────── */
@@ -155,7 +164,7 @@ const buildSpec = (cur) => {
   return {
     orientation: 'portrait',
     title      : L.lessonPlan,
-    subtitle   : `${gradeLabel(f.grade)} ${f.area} – ${X.lesson} ${cur.lesson.lessonNo}`.toUpperCase(),
+    subtitle   : `${gradeLabel(f.grade)} ${f.area} – ${cur.topicLabel}`.toUpperCase(),
     meta: [
       [[X.school, f.school]],
       [[X.teacher, f.teacher], [X.roll, f.roll]],
@@ -203,16 +212,21 @@ const write = async () => {
   if (problem) return showError(problem);
 
   const design = currentDesign();
-  const n = Number($('lpLesson').value);
+  const group = topicGroups[Number($('lpLesson').value)] || topicGroups[0];
+  if (!group) return showError('Please wait for the topics to load, then choose one.');
   const btn = $('lpWrite');
   const label = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Writing…';
 
   try {
-    const body = { designKey: design.key, subStrandId: $('lpSub').value, from: n, to: n, source: $('lpFrom').value };
-    const topic = $('lpTopic') ? $('lpTopic').value.trim() : '';
-    if (topic) body.topic = topic;      /* the teacher says where the lesson is; the notes are searched for it */
+    /* A topic plan is planned from the notes found for the topic (the typed topic wins over the list) */
+    const typed = $('lpTopic') ? $('lpTopic').value.trim() : '';
+    const listed = [group.label, ...(group.covers || []).filter((c) => c !== group.label)].join('. ');
+    const body = {
+      designKey: design.key, subStrandId: $('lpSub').value, from: group.from, to: group.to,
+      source: $('lpFrom').value, topic: typed || listed,
+    };
     let res = await API.post('/schemes/content', body);
     if (!res?.ok && (!res?.status || res.status >= 500)) res = await API.post('/schemes/content', body);
 
@@ -221,6 +235,7 @@ const write = async () => {
     current = {
       lang: res.data.lang, labels: res.data.labels, lesson: res.data.lessons[0],
       fields: f, designMinutes: design.lessonMinutes || 40,
+      topicLabel: typed ? (typed.length > 60 ? `${typed.slice(0, 57)}…` : typed) : group.label,
     };
     render();
   } finally {
@@ -233,7 +248,7 @@ const render = () => {
   const rows = sections(current);
   $('lpPreview').innerHTML = rows.map(([k, v]) =>
     `<tr><th style="width:26%;text-align:left;vertical-align:top">${esc(k)}</th><td style="white-space:pre-line">${esc(v)}</td></tr>`).join('');
-  $('lpDocName').textContent = `${current.fields.sub} – lesson ${current.lesson.lessonNo}`;
+  $('lpDocName').textContent = `${current.fields.sub} – ${current.topicLabel}`;
   const src = current.lesson.source;
   $('lpSource').textContent =
       src === 'notes'  ? 'This lesson was built from your saved notes and the curriculum design, without AI. Try again later for a fuller version.'
@@ -253,7 +268,7 @@ const exportDoc = async (format, button) => {
 
   const f = current.fields;
   const spec = buildSpec(current);
-  const base = ['Lesson_Plan', DocExport.safeName(gradeLabel(f.grade)), DocExport.safeName(f.sub), `Lesson${current.lesson.lessonNo}`].join('_');
+  const base = ['Lesson_Plan', DocExport.safeName(gradeLabel(f.grade)), DocExport.safeName(f.sub), DocExport.safeName(current.topicLabel).slice(0, 40)].join('_');
 
   const original = button.innerHTML;
   button.disabled = true;
@@ -274,6 +289,7 @@ const exportDoc = async (format, button) => {
 
 /* ── Wire up ──────────────────────────────────────────────── */
 $('lpDesign').addEventListener('change', onDesignChange);
+$('lpPickGrade').addEventListener('change', () => { fillSubjects(); onDesignChange(); });
 $('lpSub').addEventListener('change', onSubChange);
 $('lpWrite').addEventListener('click', write);
 document.querySelector('.sch-downloads').addEventListener('click', (e) => {

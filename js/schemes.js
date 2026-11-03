@@ -79,12 +79,21 @@ const loadDesigns = async () => {
     return;
   }
 
-  $('schDesign').innerHTML = designs
-    .map((d) => `<option value="${esc(d.key)}">Grade ${esc(d.grade)} · ${esc(d.learningArea)}</option>`)
-    .join('');
+  /* Grade first; the subjects shown are the ones of that grade only */
+  const grades = [...new Set(designs.map((d) => String(d.grade)))].sort((a, b) => Number(a) - Number(b));
+  $('schPickGrade').innerHTML = grades.map((g) => `<option value="${esc(g)}">Grade ${esc(g)}</option>`).join('');
+  fillSubjects();
 
   onDesignChange();
   restoreSetup();
+};
+
+const fillSubjects = () => {
+  const grade = $('schPickGrade').value;
+  $('schDesign').innerHTML = designs
+    .filter((d) => String(d.grade) === grade)
+    .map((d) => `<option value="${esc(d.key)}">${esc(d.learningArea)}</option>`)
+    .join('');
 };
 
 /* "Begin at lesson": 1 to the number of lessons in the chosen start sub-strand, so a term can
@@ -209,7 +218,10 @@ const restoreSetup = () => {
   try { data = JSON.parse(localStorage.getItem(SETUP_KEY)); } catch { data = null; }
   if (!data) return;
 
-  if (data.schDesign && designs.some((d) => d.key === data.schDesign)) {
+  const saved = designs.find((d) => d.key === data.schDesign);
+  if (saved) {
+    $('schPickGrade').value = String(saved.grade);
+    fillSubjects();
     $('schDesign').value = data.schDesign;
     onDesignChange();
   }
@@ -461,7 +473,7 @@ const buildSchemeSpec = (t, rows, withDates = false) => {
 };
 
 /* Record of work: one page for each week (or the week the teacher picked) */
-const buildRecordSpecs = (t, rows, onlyWeek) => {
+const buildRecordSpecs = (t, rows, onlyWeek, topicOf = {}) => {
   const weeks = new Map();
   rows.filter((r) => r.type === 'LESSON').forEach((r) => {
     if (onlyWeek && String(r.week) !== String(onlyWeek)) return;
@@ -488,9 +500,9 @@ const buildRecordSpecs = (t, rows, onlyWeek) => {
       { header: 'Signature',    width: 13 },
     ],
     rows: list.map((r) => {
-      const c = lessonFor(r);
-      const where = `${r.subStrand} (lesson ${r.lessonInSubStrand} of ${r.lessonsInSubStrand})`;
-      return [dateLabel(r), `Lesson ${r.lessonOfWeek}`, c ? `${where}: ${c.focus}` : where, '', ''];
+      /* the topic taught, not a lesson number: "Fire triangle and fire control" */
+      const topic = topicOf[`${r.subStrandId}:${r.lessonInSubStrand}`] || lessonFor(r)?.focus || '';
+      return [dateLabel(r), `Lesson ${r.lessonOfWeek}`, topic ? `${r.subStrand}: ${topic}` : r.subStrand, '', ''];
     }),
     extra: {
       columns: [
@@ -610,6 +622,23 @@ const writeContent = async () => {
 /* ══════════════════════════════════════════════════════════
    DOWNLOAD / PRINT
 ══════════════════════════════════════════════════════════ */
+/* { 'subStrandId:lessonNo': topic name } for the sub-strands in the scheme */
+const topicNames = async (rows) => {
+  const design = currentDesign();
+  const map = {};
+  if (!design) return map;
+  const ids = [...new Set(rows.filter((r) => r.type === 'LESSON').map((r) => r.subStrandId))];
+  await Promise.all(ids.map(async (id) => {
+    try {
+      const res = await API.post('/schemes/topics', { designKey: design.key, subStrandId: id });
+      (res?.data?.groups || []).forEach((g) => {
+        for (let n = g.from; n <= g.to; n++) map[`${id}:${n}`] = g.label;
+      });
+    } catch { /* the lesson's own focus is used */ }
+  }));
+  return map;
+};
+
 const exportDoc = async (kind, format, button) => {
   showError('');
   if (!lastResult) return showError('Please generate first.');
@@ -628,7 +657,7 @@ const exportDoc = async (kind, format, button) => {
   }
 
   const specs = kind === 'scheme' ? [buildSchemeSpec(t, lastResult.rows, $('schShowDates')?.checked)]
-              : buildRecordSpecs(t, lastResult.rows, $('schWeek')?.value);
+              : buildRecordSpecs(t, lastResult.rows, $('schWeek')?.value, await topicNames(lastResult.rows));
 
   if (!specs.length) return showError('There are no lessons to put in this document.');
 
@@ -693,6 +722,7 @@ if (PAGE === 'scheme' && ['admin', 'superadmin'].includes(user.role)) {
    WIRE UP
 ══════════════════════════════════════════════════════════ */
 $('schDesign').addEventListener('change', onDesignChange);
+$('schPickGrade').addEventListener('change', () => { fillSubjects(); onDesignChange(); });
 $('schStart').addEventListener('change', () => fillStartLessons(1));
 $('schAddHoliday').addEventListener('click', addHoliday);
 $('schHoliday').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addHoliday(); } });
