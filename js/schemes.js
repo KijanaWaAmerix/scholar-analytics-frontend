@@ -15,9 +15,9 @@ const PAGE = document.body.dataset.doc || 'scheme';
 if (PAGE !== 'scheme') document.querySelector('.sch-toggle')?.remove();
 else {
   const box = $('schShowDates');
-  try { box.checked = localStorage.getItem('sa_scheme_dates') === '1'; } catch { /* skip */ }
+  try { box.checked = localStorage.getItem('sa_scheme_dates_v2') === '1'; } catch { /* skip */ }
   box.addEventListener('change', () => {
-    try { localStorage.setItem('sa_scheme_dates', box.checked ? '1' : '0'); } catch { /* skip */ }
+    try { localStorage.setItem('sa_scheme_dates_v2', box.checked ? '1' : '0'); } catch { /* skip */ }
   });
 }
 document.querySelectorAll('.sch-doc-row').forEach((row) => {
@@ -41,6 +41,18 @@ const fmtDate = (iso) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', timeZone: 'UTC',
   });
+
+/* "Mon 4 Jan" */
+const fmtDay = (iso) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC',
+  });
+
+/* "Week 1" with the days the week runs from and to: "(Mon 4 Jan – Fri 8 Jan 2027)" */
+const weekRange = (r) => (r.weekFrom && r.weekTo
+  ? `${fmtDay(r.weekFrom)} – ${fmtDay(r.weekTo)} ${r.weekTo.slice(0, 4)}`
+  : '');
+const weekLabel = (r) => (weekRange(r) ? `Week ${r.week}\n(${weekRange(r)})` : `Week ${r.week}`);
 
 const showError = (message) => { $('schError').textContent = message || ''; };
 
@@ -75,6 +87,21 @@ const loadDesigns = async () => {
   restoreSetup();
 };
 
+/* "Begin at lesson": 1 to the number of lessons in the chosen start sub-strand, so a term can
+   carry on from where the last one stopped inside a sub-strand */
+const fillStartLessons = (keep = 1) => {
+  const design = currentDesign();
+  const sub = design?.subStrands.find((s) => s.id === $('schStart').value);
+  const box = $('schStartLesson');
+  const total = Number(sub?.lessons) || 0;
+  box.innerHTML = Array.from({ length: total }, (_, i) => {
+    const n = i + 1;
+    return `<option value="${n}">${n} of ${total}${n === 1 ? ' (from the beginning)' : ''}</option>`;
+  }).join('');
+  box.disabled = !total;
+  box.value = String(Math.min(Math.max(Number(keep) || 1, 1), total || 1));
+};
+
 const currentDesign = () => designs.find((d) => d.key === $('schDesign').value);
 
 const onDesignChange = () => {
@@ -84,6 +111,7 @@ const onDesignChange = () => {
 
   if (!design) {
     start.disabled = end.disabled = true;
+    $('schStartLesson').innerHTML = ''; $('schStartLesson').disabled = true;
     $('schPerWeek').textContent = '--';
     return;
   }
@@ -110,6 +138,7 @@ const onDesignChange = () => {
   /* By default the scheme covers the whole design, first topic to last */
   start.selectedIndex = 0;
   end.selectedIndex   = design.subStrands.length - 1;
+  fillStartLessons(1);
 
   $('schPerWeek').textContent =
     `${design.lessonsPerWeek} (${design.lessonMinutes} minutes each)`;
@@ -165,7 +194,7 @@ const validateInputs = () => {
 };
 
 const SETUP_KEY = `sa_scheme_setup_${user?._id || user?.id || user?.email || 'user'}`;
-const SETUP_FIELDS = ['schDesign', 'schStart', 'schEnd', 'schTermStart', 'schTermEnd', 'schHtStart', 'schHtEnd'];
+const SETUP_FIELDS = ['schDesign', 'schStart', 'schStartLesson', 'schEnd', 'schTermStart', 'schTermEnd', 'schHtStart', 'schHtEnd'];
 
 const saveSetup = () => {
   try {
@@ -184,9 +213,11 @@ const restoreSetup = () => {
     $('schDesign').value = data.schDesign;
     onDesignChange();
   }
-  ['schStart', 'schEnd'].forEach((id) => {
-    if (data[id] && [...$(id).options].some((o) => o.value === data[id])) $(id).value = data[id];
-  });
+  if (data.schStart && [...$('schStart').options].some((o) => o.value === data.schStart)) {
+    $('schStart').value = data.schStart;
+    fillStartLessons(data.schStartLesson);
+  }
+  if (data.schEnd && [...$('schEnd').options].some((o) => o.value === data.schEnd)) $('schEnd').value = data.schEnd;
   ['schTermStart', 'schTermEnd', 'schHtStart', 'schHtEnd'].forEach((id) => { if (data[id]) $(id).value = data[id]; });
   if (Array.isArray(data.holidays)) { holidays = data.holidays.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)); renderChips(); }
 };
@@ -212,6 +243,7 @@ const generate = async () => {
     const res = await API.post('/schemes/preview', {
       designKey     : design.key,
       startSubStrand: $('schStart').value,
+      startLesson   : Number($('schStartLesson').value) > 1 ? Number($('schStartLesson').value) : undefined,
       endSubStrand  : $('schEnd').value,
       termStart     : $('schTermStart').value,
       termEnd       : $('schTermEnd').value,
@@ -267,6 +299,15 @@ const renderResult = ({ summary, rows }) => {
     short.hidden = true;
   }
 
+  /* Where the scheme stopped inside a sub-strand, so the next term can carry on from there */
+  const last = summary.lastLesson;
+  if (last && last.lessonInSubStrand < last.lessonsInSubStrand) {
+    short.hidden = false;
+    short.textContent = (short.textContent ? `${short.textContent}  ` : '') +
+      `This scheme stops at ${last.subStrandId} ${last.subStrand}, lesson ${last.lessonInSubStrand} of ${last.lessonsInSubStrand}. ` +
+      `For the next term, choose ${last.subStrandId} in "Start at" and "Begin at lesson" ${last.lessonInSubStrand + 1}.`;
+  }
+
   let lastWeek = null;
   $('schBody').innerHTML = rows.map((r) => {
     if (r.type === 'HALF_TERM') {
@@ -275,7 +316,7 @@ const renderResult = ({ summary, rows }) => {
     const startOfWeek = r.week !== lastWeek;
     lastWeek = r.week;
     return `<tr class="${startOfWeek ? 'sch-week-start' : ''}">
-      <td><strong>${esc(r.week)}</strong></td>
+      <td><strong>${esc(r.week)}</strong>${startOfWeek && weekRange(r) ? `<br><small>${esc(weekRange(r))}</small>` : ''}</td>
       <td>${esc(r.lessonOfWeek)}</td>
       <td>${esc(r.day)} ${esc(fmtDate(r.date))}</td>
       <td>${esc(r.strand)}</td>
@@ -362,7 +403,7 @@ const bullets = (items) => (items || []).map((i) => `• ${i}`).join('\n');
 const runOn = (items) => ((items || []).length > 3 ? items.join('; ') : bullets(items));
 
 const schemeColumns = (withDates) => [
-  { header: 'Week',                       width: 4.5 },
+  { header: 'Week',                       width: 10 },
   { header: 'Lesson',                     width: 5.3 },
   ...(withDates ? [{ header: 'Date', width: 7.5 }] : []),
   { header: 'Strand',                     width: 8 },
@@ -388,7 +429,7 @@ const buildSchemeSpec = (t, rows, withDates = false) => {
     lastWeek = r.week;
     const c = lessonFor(r);
     body.push([
-      first ? String(r.week) : '', String(r.lessonOfWeek),
+      first ? weekLabel(r) : '', String(r.lessonOfWeek),
       ...(withDates ? [dateLabel(r)] : []),
       r.strand, r.subStrand,
       c ? bullets(c.outcomes) : '',
@@ -652,6 +693,7 @@ if (PAGE === 'scheme' && ['admin', 'superadmin'].includes(user.role)) {
    WIRE UP
 ══════════════════════════════════════════════════════════ */
 $('schDesign').addEventListener('change', onDesignChange);
+$('schStart').addEventListener('change', () => fillStartLessons(1));
 $('schAddHoliday').addEventListener('click', addHoliday);
 $('schHoliday').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addHoliday(); } });
 $('schChips').addEventListener('click', (e) => {
