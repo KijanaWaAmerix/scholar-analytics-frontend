@@ -98,7 +98,7 @@
       <div class="page-header">
         <div class="page-header-left">
           <h2 class="page-header-title">Lesson Plan</h2>
-          <p class="page-header-sub">Fill in the details at the top, choose the lesson, and get one lesson plan.</p>
+          <p class="page-header-sub">Fill in the details at the top, choose the topic, and get one comprehensive lesson plan.</p>
         </div>
       </div>
 
@@ -116,7 +116,11 @@
             <input type="text" id="lpTeacher" maxlength="120" autocomplete="name"/>
           </div>
           <div class="sch-field">
-            <label for="lpDesign">Learning area and grade</label>
+            <label for="lpPickGrade">Grade</label>
+            <select id="lpPickGrade"><option value="">Loading…</option></select>
+          </div>
+          <div class="sch-field">
+            <label for="lpDesign">Subject</label>
             <select id="lpDesign"><option value="">Loading…</option></select>
           </div>
           <div class="sch-field">
@@ -132,12 +136,12 @@
             <select id="lpSub" disabled></select>
           </div>
           <div class="sch-field">
-            <label for="lpLesson">Lesson (number · topic)</label>
+            <label for="lpLesson">Topic</label>
             <select id="lpLesson" disabled></select>
           </div>
           <div class="sch-field" style="grid-column:1/-1">
-            <label for="lpTopic">What will this lesson cover? (optional)</label>
-            <textarea id="lpTopic" rows="3" maxlength="3000" placeholder="Type the topic or paste a few lines, for example: Calculating pressure in liquids using P = hρg. The notes are searched for it and the lesson is planned from what is found. Leave blank to use the lesson number above."></textarea>
+            <label for="lpTopic">Or type your own topic (optional)</label>
+            <textarea id="lpTopic" rows="3" maxlength="3000" placeholder="Type the topic or paste a few lines, for example: Calculating pressure in liquids using P = hρg. The notes are searched for it and the lesson is planned from what is found. Leave blank to use the topic chosen above."></textarea>
           </div>
           <div class="sch-field">
             <label for="lpFrom">Where the lesson comes from</label>
