@@ -212,8 +212,8 @@ const render = () => {
 
   const warn = $('epWarn');
   const short = paper.short;
-  const nNotes = [...paper.mcq, ...paper.structured].filter((q) => q.source === 'notes').length;
-  const fromSaved = nNotes ? `${nNotes} question${nNotes === 1 ? ' was' : 's were'} made straight from the notes because the bank has too few for ${nNotes === 1 ? 'that topic' : 'those topics'}. ` : '';
+  const nBank = [...paper.mcq, ...paper.structured].filter((q) => q.source === 'saved').length;
+  const fromSaved = nBank ? `${nBank} question${nBank === 1 ? ' was' : 's were'} taken from the question bank because the notes could not supply enough. ` : '';
   if (short.mcq || short.structured) {
     warn.hidden = false;
     warn.textContent = `${fromSaved}${short.mcq + short.structured} question${short.mcq + short.structured === 1 ? '' : 's'} could not be found. Write the paper again, or ask for fewer questions.`;
