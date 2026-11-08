@@ -95,9 +95,8 @@ const write = async () => {
   if (!t.school) return showError('Please enter the school name.');
   if (!/^\d{4}$/.test(t.year)) return showError('Please enter the year, for example 2026.');
   if (!subs.length) return showError('Choose at least one topic.');
-  if (subs.length > 8) return showError('Choose at most 8 topics.');
-  if (!Number.isInteger(mcq) || mcq < 0 || mcq > 60) return showError('Multiple choice questions must be from 0 to 60.');
-  if (!Number.isInteger(structured) || structured < 0 || structured > 20) return showError('Structured questions must be from 0 to 20.');
+  if (!Number.isInteger(mcq) || mcq < 0) return showError('Multiple choice questions must be a whole number, 0 or more.');
+  if (!Number.isInteger(structured) || structured < 0) return showError('Structured questions must be a whole number, 0 or more.');
   if (mcq + structured < 1) return showError('Ask for at least one question.');
 
   writing = true;
@@ -330,8 +329,7 @@ $('epDesign').addEventListener('change', renderTopics);
 if ($('epShowAnswers')) $('epShowAnswers').addEventListener('change', () => { if (paper) render(); });
 $('epAll').addEventListener('click', () => {
   const boxes = [...$('epTopics').querySelectorAll('input')];
-  boxes.forEach((b, i) => { b.checked = i < 8; });
-  if (boxes.length > 8) showError('Only the first 8 topics were selected. A paper can cover up to 8.');
+  boxes.forEach((b) => { b.checked = true; });
 });
 $('epNone').addEventListener('click', () => $('epTopics').querySelectorAll('input').forEach((b) => { b.checked = false; }));
 $('epWrite').addEventListener('click', write);
