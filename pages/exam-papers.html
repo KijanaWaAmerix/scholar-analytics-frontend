@@ -98,7 +98,7 @@
       <div class="page-header">
         <div class="page-header-left">
           <h2 class="page-header-title">Exam Papers</h2>
-          <p class="page-header-sub">Choose the topics and how many questions you want. You get a KJSEA-style paper and its marking scheme.</p>
+          <p class="page-header-sub">Choose the topics and how many questions you want. Questions come from the question bank and your notes. You get a KJSEA-style paper and its marking scheme.</p>
         </div>
       </div>
 
@@ -116,19 +116,16 @@
             <input type="text" id="epTitle" maxlength="80" value="END OF TERM EXAMINATION"/>
           </div>
           <div class="sch-field">
-            <label for="epDesign">Learning area and grade</label>
+            <label for="epPickGrade">Grade</label>
+            <select id="epPickGrade"><option value="">Loading…</option></select>
+          </div>
+          <div class="sch-field">
+            <label for="epDesign">Learning area</label>
             <select id="epDesign"><option value="">Loading…</option></select>
           </div>
           <div class="sch-field">
             <label for="epTime">Time allowed</label>
             <input type="text" id="epTime" maxlength="30" placeholder="e.g. 1 hour 30 minutes"/>
-          </div>
-          <div class="sch-field">
-            <label for="epSource">Where the questions come from</label>
-            <select id="epSource">
-              <option value="auto">Notes + AI (AI writes from your notes)</option>
-              <option value="notes">Notes only (no AI)</option>
-            </select>
           </div>
           <div class="sch-field">
             <label for="epTerm">Term</label>
@@ -140,13 +137,29 @@
           </div>
           <div class="sch-field">
             <label for="epMcq">Multiple choice questions (1 mark each)</label>
-            <input type="number" id="epMcq" min="0" max="60" value="20"/>
+            <input type="number" id="epMcq" min="0" value="40"/>
           </div>
           <div class="sch-field">
-            <label for="epStr">Structured questions</label>
-            <input type="number" id="epStr" min="0" max="20" value="5"/>
+            <label for="epStr">Structured questions (scenario with 2–5 parts)</label>
+            <input type="number" id="epStr" min="0" value="8"/>
           </div>
         </div>
+      </div>
+
+      <div class="analytics-card sch-setup" id="epBankCard" hidden>
+        <div class="analytics-card-header">
+          <h3 class="analytics-card-title"><i class="fas fa-database"></i> Question bank (admin)</h3>
+        </div>
+        <div class="ep-topics-bar">
+          <button type="button" class="btn btn-secondary" id="epFill">
+            <i class="fas fa-wand-magic-sparkles"></i> Add more questions for every topic
+          </button>
+          <span class="ep-hint">Gemini reads your notes and writes new varied questions for every topic of the learning area chosen above. They are saved and used by everyone's papers. Press it again for more.</span>
+        </div>
+        <div class="sch-actions">
+          <span class="sch-writer-status" id="epFillStatus" role="status"></span>
+        </div>
+        <div class="sch-progress" id="epFillProgress" hidden><div class="sch-progress-bar" id="epFillBar"></div></div>
       </div>
 
       <div class="analytics-card sch-setup">
@@ -156,7 +169,7 @@
         <div class="ep-topics-bar">
           <button type="button" class="btn btn-secondary btn-sm" id="epAll">Select all</button>
           <button type="button" class="btn btn-secondary btn-sm" id="epNone">Clear</button>
-          <span class="ep-hint">Choose up to 8 sub-strands. Questions are shared out by the number of lessons in each.</span>
+          <span class="ep-hint">Choose as many sub-strands as you like. Every one gets at least one question, and the rest are shared by the number of lessons in each.</span>
         </div>
         <div class="ep-topics" id="epTopics"></div>
         <div class="sch-actions">
