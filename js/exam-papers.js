@@ -53,10 +53,19 @@ const loadDesigns = async () => {
   }
   designs = res.data.designs || [];
   if (!designs.length) { $('epDesign').innerHTML = '<option value="">No designs available</option>'; return; }
-  $('epDesign').innerHTML = designs
-    .map((d) => `<option value="${esc(d.key)}">Grade ${esc(d.grade)} · ${esc(d.learningArea)}</option>`)
-    .join('');
+  const grades = [...new Set(designs.map((d) => String(d.grade)))].sort((a, b) => Number(a) - Number(b));
+  $('epPickGrade').innerHTML = grades.map((g) => `<option value="${esc(g)}">Grade ${esc(g)}</option>`).join('');
+  fillAreas();
   renderTopics();
+};
+
+/* Only the learning areas of the chosen grade */
+const fillAreas = () => {
+  const grade = $('epPickGrade').value;
+  $('epDesign').innerHTML = designs
+    .filter((d) => String(d.grade) === grade)
+    .map((d) => `<option value="${esc(d.key)}">${esc(d.learningArea)}</option>`)
+    .join('');
 };
 
 const renderTopics = () => {
@@ -326,6 +335,7 @@ const exportDoc = async (kind, format, button) => {
 
 /* ── Wire up ──────────────────────────────────────────────── */
 $('epDesign').addEventListener('change', renderTopics);
+$('epPickGrade').addEventListener('change', () => { fillAreas(); renderTopics(); });
 if ($('epShowAnswers')) $('epShowAnswers').addEventListener('change', () => { if (paper) render(); });
 $('epAll').addEventListener('click', () => {
   const boxes = [...$('epTopics').querySelectorAll('input')];
