@@ -98,7 +98,7 @@
       <div class="page-header">
         <div class="page-header-left">
           <h2 class="page-header-title">Exam Papers</h2>
-          <p class="page-header-sub">Choose the topics and how many questions you want. You get a KJSEA-style paper and its marking scheme.</p>
+          <p class="page-header-sub">Choose the topics and how many questions you want. Questions come from the question bank and your notes. You get a KJSEA-style paper and its marking scheme.</p>
         </div>
       </div>
 
@@ -128,13 +128,6 @@
             <input type="text" id="epTime" maxlength="30" placeholder="e.g. 1 hour 30 minutes"/>
           </div>
           <div class="sch-field">
-            <label for="epSource">Where the questions come from</label>
-            <select id="epSource">
-              <option value="auto">Notes + AI (AI writes from your notes)</option>
-              <option value="notes">Notes only (no AI)</option>
-            </select>
-          </div>
-          <div class="sch-field">
             <label for="epTerm">Term</label>
             <select id="epTerm"><option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option></select>
           </div>
@@ -151,6 +144,22 @@
             <input type="number" id="epStr" min="0" value="8"/>
           </div>
         </div>
+      </div>
+
+      <div class="analytics-card sch-setup" id="epBankCard" hidden>
+        <div class="analytics-card-header">
+          <h3 class="analytics-card-title"><i class="fas fa-database"></i> Question bank (admin)</h3>
+        </div>
+        <div class="ep-topics-bar">
+          <button type="button" class="btn btn-secondary" id="epFill">
+            <i class="fas fa-wand-magic-sparkles"></i> Add more questions for every topic
+          </button>
+          <span class="ep-hint">Gemini reads your notes and writes new varied questions for every topic of the learning area chosen above. They are saved and used by everyone's papers. Press it again for more.</span>
+        </div>
+        <div class="sch-actions">
+          <span class="sch-writer-status" id="epFillStatus" role="status"></span>
+        </div>
+        <div class="sch-progress" id="epFillProgress" hidden><div class="sch-progress-bar" id="epFillBar"></div></div>
       </div>
 
       <div class="analytics-card sch-setup">

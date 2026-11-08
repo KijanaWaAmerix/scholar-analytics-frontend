@@ -76,8 +76,25 @@ const renderTopics = () => {
     const head = s.strandId !== strand ? `<div class="ep-strand">${esc(s.strand)}</div>` : '';
     strand = s.strandId;
     return `${head}<label class="ep-topic"><input type="checkbox" value="${esc(s.id)}"/>
-      <span>${esc(s.id)} ${esc(s.name)}<small>${esc(s.lessons)} lessons</small></span></label>`;
+      <span>${esc(s.id)} ${esc(s.name)}<small>${esc(s.lessons)} lessons<span data-bank="${esc(s.id)}"></span></small></span></label>`;
   }).join('');
+  loadBankStats();
+};
+
+/* How many questions the bank holds for each topic */
+let bankCounts = {};
+const showBankCounts = () => {
+  $('epTopics').querySelectorAll('[data-bank]').forEach((el) => {
+    const c = bankCounts[el.dataset.bank];
+    el.textContent = c ? ` · bank: ${c.mcq} multiple choice, ${c.structured} structured` : '';
+  });
+};
+const loadBankStats = async () => {
+  const design = currentDesign();
+  bankCounts = {};
+  if (!design) return;
+  const res = await API.post('/papers/bank/stats', { designKey: design.key });
+  if (res?.ok && currentDesign()?.key === design.key) { bankCounts = res.data.counts || {}; showBankCounts(); }
 };
 
 const chosen = () => [...$('epTopics').querySelectorAll('input:checked')].map((i) => i.value);
@@ -127,7 +144,7 @@ const write = async () => {
     for (let i = 0; i < parts.length; i += 1) {
       const p = parts[i];
       $('epStatus').textContent = `Writing questions… ${i + 1} of ${parts.length} (${p.subStrand})`;
-      const body = { designKey: design.key, subStrandId: p.subStrandId, mcq: p.mcq, structured: p.structured, source: $('epSource').value };
+      const body = { designKey: design.key, subStrandId: p.subStrandId, mcq: p.mcq, structured: p.structured };
       let res = await API.post('/papers/part', body);
       if (!res?.ok && (!res?.status || res.status >= 500)) res = await API.post('/papers/part', body);
 
@@ -148,9 +165,7 @@ const write = async () => {
 
     const total = got.mcq.length + got.structured.reduce((n, q) => n + q.marks, 0);
     if (!total) {
-      return showError($('epSource').value === 'notes'
-        ? 'The notes for these topics have too few definitions or lists to make questions from. Choose Notes + AI, or pick other sub-strands.'
-        : `No questions could be written${got.aiError ? ` (${got.aiError})` : ''}. Please try again, or choose Notes only.`);
+      return showError('There are no saved questions and too few definitions in the notes for these topics. Ask the admin to add questions to the bank, or pick other topics.');
     }
 
     const bands = await API.post('/papers/bands', { total });
@@ -168,6 +183,11 @@ const sectionMarks = () => ({
   b: paper.structured.reduce((n, q) => n + q.marks, 0),
 });
 
+/* Admin only: take a bad question out of the bank for good */
+const removeBtn = (kind, i) => (Auth.isAdmin() && paper[kind][i].source === 'saved' && side()
+  ? `<button type="button" class="btn btn-secondary btn-sm" data-remove="${kind}:${i}" title="Delete this question from the bank">Remove from bank</button>\n` : '');
+const side = () => ($('epShowAnswers') ? $('epShowAnswers').checked : true);
+
 const render = () => {
   const m = sectionMarks();
   const rows = [];
@@ -179,20 +199,21 @@ const render = () => {
     paper.mcq.forEach((q, i) => rows.push(
       `<tr><td style="width:6%"><strong>${i + 1}</strong></td><td style="white-space:pre-line">${esc(q.question)}\n${
         q.options.map((o, k) => `${LETTERS[k]}. ${esc(o)}`).join('\n')}</td>${
-        cell(`<strong>${esc(q.answer)}.</strong> ${esc(q.options[LETTERS.indexOf(q.answer)] || '')}${q.explanation ? `\n<em>${esc(q.explanation)}</em>` : ''}`)}</tr>`));
+        cell(`${removeBtn('mcq', i)}<strong>${esc(q.answer)}.</strong> ${esc(q.options[LETTERS.indexOf(q.answer)] || '')}${q.explanation ? `\n<em>${esc(q.explanation)}</em>` : ''}`)}</tr>`));
   }
   if (paper.structured.length) {
     rows.push(`<tr><th colspan="${cols}">SECTION B: STRUCTURED QUESTIONS (${m.b} MARKS)</th></tr>`);
     paper.structured.forEach((q, i) => rows.push(
       `<tr><td style="width:6%"><strong>${paper.mcq.length + i + 1}</strong></td><td style="white-space:pre-line">${esc(structuredText(q, false))}</td>${
-        cell(q.parts.map((p, k) => `${q.parts.length > 1 ? `${letter(k)} ` : ''}${p.answer.map((x) => `• ${esc(x)}`).join('\n')}`).join('\n'))}</tr>`));
+        cell(removeBtn('structured', i) + q.parts.map((p, k) => `${q.parts.length > 1 ? `${letter(k)} ` : ''}${p.answer.map((x) => `• ${esc(x)}`).join('\n')}`).join('\n'))}</tr>`));
   }
   $('epPreview').innerHTML = rows.join('');
   $('epPaperInfo').textContent = `${paper.total} marks · ${paper.mcq.length} multiple choice, ${paper.structured.length} structured`;
 
   const warn = $('epWarn');
   const short = paper.short;
-  const fromSaved = paper.saved ? `${paper.saved} question${paper.saved === 1 ? ' was' : 's were'} taken from your saved questions${paper.aiError ? ' because Gemini was not available' : ''}. ` : '';
+  const nNotes = [...paper.mcq, ...paper.structured].filter((q) => q.source === 'notes').length;
+  const fromSaved = nNotes ? `${nNotes} question${nNotes === 1 ? ' was' : 's were'} made straight from the notes because the bank has too few for ${nNotes === 1 ? 'that topic' : 'those topics'}. ` : '';
   if (short.mcq || short.structured) {
     warn.hidden = false;
     warn.textContent = `${fromSaved}${short.mcq + short.structured} question${short.mcq + short.structured === 1 ? '' : 's'} could not be found. Write the paper again, or ask for fewer questions.`;
@@ -343,6 +364,59 @@ $('epAll').addEventListener('click', () => {
 });
 $('epNone').addEventListener('click', () => $('epTopics').querySelectorAll('input').forEach((b) => { b.checked = false; }));
 $('epWrite').addEventListener('click', write);
+$('epPreview').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-remove]');
+  if (!b || !paper) return;
+  const [kind, idx] = b.dataset.remove.split(':');
+  const q = paper[kind][Number(idx)];
+  if (!q || !window.confirm('Delete this question from the bank for good?')) return;
+  b.disabled = true;
+  const res = await API.post('/papers/bank/remove', {
+    designKey: paper.design.key, subStrandId: q.subStrandId, kind,
+    text: kind === 'mcq' ? q.question : q.parts[0].text,
+  });
+  if (!res?.ok) { b.disabled = false; return showError(res?.data?.message || 'Could not remove the question.'); }
+  paper[kind].splice(Number(idx), 1);
+  paper.total = paper.mcq.length + paper.structured.reduce((n, x) => n + x.marks, 0);
+  if (!paper.total) { $('epResult').hidden = true; paper = null; return; }
+  const bands = await API.post('/papers/bands', { total: paper.total });
+  paper.bands = bands?.ok ? bands.data.bands : [];
+  render();
+  loadBankStats();
+});
+
+/* Admin: Gemini adds questions to the bank, one topic at a time */
+let filling = false;
+const fillBank = async () => {
+  if (filling) return;
+  const design = currentDesign();
+  if (!design) return;
+  if (!window.confirm(`Gemini will write new questions for all ${design.subStrands.length} topics of ${design.learningArea}. This uses Gemini credit. Continue?`)) return;
+  filling = true;
+  $('epFill').disabled = true;
+  $('epFillProgress').hidden = false;
+  let added = 0; let skipped = 0; let failed = 0;
+  const subs = design.subStrands;
+  for (let i = 0; i < subs.length; i += 1) {
+    $('epFillStatus').textContent = `Writing questions… ${i + 1} of ${subs.length} (${subs[i].name})`;
+    const body = { designKey: design.key, subStrandId: subs[i].id, mcq: 12, structured: 4 };
+    let res = await API.post('/papers/bank/fill', body);
+    if (!res?.ok && (!res?.status || res.status >= 500)) res = await API.post('/papers/bank/fill', body);
+    if (!res?.ok) {
+      failed += 1;
+      if (res?.status === 503 || res?.status === 403 || res?.status === 429) { $('epFillStatus').textContent = res?.data?.message || 'Stopped.'; break; }
+    } else if (res.data.skipped) skipped += 1;
+    else added += res.data.added.mcq + res.data.added.structured;
+    $('epFillBar').style.width = `${Math.round(((i + 1) / subs.length) * 100)}%`;
+  }
+  if (failed < subs.length) {
+    $('epFillStatus').textContent = `Done: ${added} new questions saved${skipped ? `; ${skipped} topic${skipped === 1 ? ' has' : 's have'} no notes yet` : ''}${failed ? `; ${failed} topic${failed === 1 ? '' : 's'} failed, press again to retry` : ''}.`;
+  }
+  filling = false;
+  $('epFill').disabled = false;
+  loadBankStats();
+};
+if (Auth.isAdmin()) { $('epBankCard').hidden = false; $('epFill').addEventListener('click', fillBank); }
 document.querySelector('.sch-downloads').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-doc]');
   if (btn) exportDoc(btn.dataset.doc, btn.dataset.fmt, btn);
