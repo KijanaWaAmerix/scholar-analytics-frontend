@@ -13,17 +13,10 @@ const API_BASE_URL = 'https://scholar-analytics-api.onrender.com/api';
 const WAKE_RETRIES = 9;   // ~1 minute of patience
 const WAKE_DELAY   = () => window.SA_WAKE_DELAY || 6000;
 
-const showWakeBanner = (on) => {
-  let bar = document.getElementById('saWakeBanner');
-  if (!on) { if (bar) bar.remove(); return; }
-  if (bar || !document.body) return;
-  bar = document.createElement('div');
-  bar.id = 'saWakeBanner';
-  bar.setAttribute('role', 'status');
-  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;padding:10px 16px;' +
-    'background:#0d2848;color:#fff;font:600 13px/1.4 "DM Sans",Arial,sans-serif;text-align:center;';
-  bar.textContent = 'Waking up the server… this can take up to a minute. Please wait.';
-  document.body.appendChild(bar);
+/* The server is woken and the request retried quietly: no message is shown on the screen */
+const showWakeBanner = () => {
+  const old = document.getElementById('saWakeBanner');
+  if (old) old.remove();
 };
 
 /* Start waking the server as soon as any page opens, so it is ready by the time you need it */
