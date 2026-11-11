@@ -111,6 +111,21 @@ const fillStartLessons = (keep = 1) => {
   box.value = String(Math.min(Math.max(Number(keep) || 1, 1), total || 1));
 };
 
+/* "Stop at lesson": 1 to the number of lessons in the chosen end sub-strand. By default the whole sub-strand is taught. */
+const fillEndLessons = (keep) => {
+  const design = currentDesign();
+  const sub = design?.subStrands.find((x) => x.id === $('schEnd').value);
+  const box = $('schEndLesson');
+  const total = Number(sub?.lessons) || 0;
+  box.innerHTML = Array.from({ length: total }, (_, i) => {
+    const n = i + 1;
+    return `<option value="${n}">${n} of ${total}${n === total ? ' (the whole sub-strand)' : ''}</option>`;
+  }).join('');
+  box.disabled = !total;
+  const want = Number(keep);
+  box.value = String(want >= 1 && want <= total ? want : (total || 1));
+};
+
 const currentDesign = () => designs.find((d) => d.key === $('schDesign').value);
 
 const onDesignChange = () => {
@@ -121,6 +136,7 @@ const onDesignChange = () => {
   if (!design) {
     start.disabled = end.disabled = true;
     $('schStartLesson').innerHTML = ''; $('schStartLesson').disabled = true;
+    $('schEndLesson').innerHTML = ''; $('schEndLesson').disabled = true;
     $('schPerWeek').textContent = '--';
     return;
   }
@@ -148,6 +164,7 @@ const onDesignChange = () => {
   start.selectedIndex = 0;
   end.selectedIndex   = design.subStrands.length - 1;
   fillStartLessons(1);
+  fillEndLessons();
 
   $('schPerWeek').textContent =
     `${design.lessonsPerWeek} (${design.lessonMinutes} minutes each)`;
@@ -190,6 +207,10 @@ const validateInputs = () => {
     if (!$(id).value) return `Please enter ${label}.`;
   }
 
+  if ($('schStart').value === $('schEnd').value && Number($('schEndLesson').value) < Number($('schStartLesson').value)) {
+    return 'The scheme cannot stop at an earlier lesson than the one it begins at.';
+  }
+
   const ts = $('schTermStart').value, te = $('schTermEnd').value;
   const hs = $('schHtStart').value,   he = $('schHtEnd').value;
 
@@ -203,7 +224,7 @@ const validateInputs = () => {
 };
 
 const SETUP_KEY = `sa_scheme_setup_${user?._id || user?.id || user?.email || 'user'}`;
-const SETUP_FIELDS = ['schDesign', 'schStart', 'schStartLesson', 'schEnd', 'schTermStart', 'schTermEnd', 'schHtStart', 'schHtEnd'];
+const SETUP_FIELDS = ['schDesign', 'schStart', 'schStartLesson', 'schEnd', 'schEndLesson', 'schTermStart', 'schTermEnd', 'schHtStart', 'schHtEnd'];
 
 const saveSetup = () => {
   try {
@@ -229,7 +250,10 @@ const restoreSetup = () => {
     $('schStart').value = data.schStart;
     fillStartLessons(data.schStartLesson);
   }
-  if (data.schEnd && [...$('schEnd').options].some((o) => o.value === data.schEnd)) $('schEnd').value = data.schEnd;
+  if (data.schEnd && [...$('schEnd').options].some((o) => o.value === data.schEnd)) {
+    $('schEnd').value = data.schEnd;
+    fillEndLessons(data.schEndLesson);
+  }
   ['schTermStart', 'schTermEnd', 'schHtStart', 'schHtEnd'].forEach((id) => { if (data[id]) $(id).value = data[id]; });
   if (Array.isArray(data.holidays)) { holidays = data.holidays.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)); renderChips(); }
 };
@@ -257,6 +281,8 @@ const generate = async () => {
       startSubStrand: $('schStart').value,
       startLesson   : Number($('schStartLesson').value) > 1 ? Number($('schStartLesson').value) : undefined,
       endSubStrand  : $('schEnd').value,
+      endLesson     : Number($('schEndLesson').value) < (Number(currentDesign()?.subStrands.find((x) => x.id === $('schEnd').value)?.lessons) || 0)
+        ? Number($('schEndLesson').value) : undefined,
       termStart     : $('schTermStart').value,
       termEnd       : $('schTermEnd').value,
       halfTermStart : $('schHtStart').value || undefined,
@@ -724,6 +750,7 @@ if (PAGE === 'scheme' && ['admin', 'superadmin'].includes(user.role)) {
 $('schDesign').addEventListener('change', onDesignChange);
 $('schPickGrade').addEventListener('change', () => { fillSubjects(); onDesignChange(); });
 $('schStart').addEventListener('change', () => fillStartLessons(1));
+$('schEnd').addEventListener('change', () => fillEndLessons());
 $('schAddHoliday').addEventListener('click', addHoliday);
 $('schHoliday').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addHoliday(); } });
 $('schChips').addEventListener('click', (e) => {
