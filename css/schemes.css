@@ -174,3 +174,13 @@
 .sch-check-list { list-style: none; margin: 0; padding: 4px 18px 16px; }
 .sch-check-list li { padding: 10px 12px; border: 1px solid #000; margin-top: 8px; line-height: 1.45; }
 .sch-check-list li strong { display: inline-block; min-width: 90px; }
+
+/* Learning resources: automatic or typed for each strand */
+.sch-resources { margin-top: 18px; padding-top: 14px; border-top: 1px solid #e3eaf4; }
+.sch-resources h4 { margin: 0 0 8px; font-size: var(--text-sm); color: var(--text-dark); }
+.sch-radio { display: block; margin: 4px 0; font-size: var(--text-sm); color: var(--text-mid); cursor: pointer; }
+.sch-radio input { margin-right: 6px; }
+.sch-res-strand { margin-top: 12px; }
+.sch-res-strand label { display: block; margin-bottom: 4px; font-size: var(--text-xs); font-weight: 600; color: var(--text-mid); }
+.sch-res-strand textarea { width: 100%; min-height: 64px; padding: 10px 12px; border: 1px solid #d1dceb; border-radius: 8px; font: inherit; resize: vertical; background: #fff; color: var(--text-dark); }
+.sch-res-hint { margin: 8px 0 0; font-size: var(--text-xs); color: var(--text-light); }

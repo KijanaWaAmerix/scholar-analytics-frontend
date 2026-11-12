@@ -126,6 +126,42 @@ const fillEndLessons = (keep) => {
   box.value = String(want >= 1 && want <= total ? want : (total || 1));
 };
 
+/* ── Learning resources: automatic, or typed once for each strand ── */
+const strandsInRange = () => {
+  const design = currentDesign();
+  if (!design) return [];
+  const ids = design.subStrands.map((x) => x.id);
+  const a = ids.indexOf($('schStart').value);
+  const b = ids.indexOf($('schEnd').value);
+  const from = a < 0 ? 0 : a;
+  const to = b < 0 ? ids.length - 1 : Math.max(b, from);
+  const seen = [];
+  design.subStrands.slice(from, to + 1).forEach((x) => { if (!seen.some((g) => g.id === x.strandId)) seen.push({ id: x.strandId, name: x.strand }); });
+  return seen;
+};
+
+const renderResourceBoxes = () => {
+  const design = currentDesign();
+  const manual = !!design && ResourceSettings.isManual(design.key);
+  document.querySelectorAll('input[name="schResMode"]').forEach((r) => { r.checked = (r.value === 'manual') === manual; });
+  const box = $('schResStrands');
+  box.hidden = !manual || !design;
+  if (box.hidden) { box.innerHTML = ''; return; }
+  box.innerHTML = strandsInRange().map((g) => `
+    <div class="sch-res-strand">
+      <label for="schRes_${esc(g.id)}">Strand ${esc(g.id)}: ${esc(g.name)}</label>
+      <textarea id="schRes_${esc(g.id)}" data-strand="${esc(g.id)}" placeholder="For example: Textbooks, charts, digital devices, number cards"></textarea>
+    </div>`).join('') +
+    '<p class="sch-res-hint">Type one resource on each line, or separate them with commas. They are used for every lesson of the strand. A strand left empty is chosen automatically.</p>';
+  box.querySelectorAll('textarea').forEach((t) => {
+    t.value = ResourceSettings.getText(design.key, t.dataset.strand);
+    t.addEventListener('input', () => ResourceSettings.setText(design.key, t.dataset.strand, t.value));
+  });
+};
+
+/* the resources of one lesson row: what the teacher typed for its strand, else the automatic ones */
+const resourcesOf = (r, c) => (currentDesign() && ResourceSettings.override(currentDesign().key, r.strandId)) || (c ? c.resources : []);
+
 const currentDesign = () => designs.find((d) => d.key === $('schDesign').value);
 
 const onDesignChange = () => {
@@ -165,6 +201,7 @@ const onDesignChange = () => {
   end.selectedIndex   = design.subStrands.length - 1;
   fillStartLessons(1);
   fillEndLessons();
+  renderResourceBoxes();
 
   $('schPerWeek').textContent =
     `${design.lessonsPerWeek} (${design.lessonMinutes} minutes each)`;
@@ -256,6 +293,7 @@ const restoreSetup = () => {
   }
   ['schTermStart', 'schTermEnd', 'schHtStart', 'schHtEnd'].forEach((id) => { if (data[id]) $(id).value = data[id]; });
   if (Array.isArray(data.holidays)) { holidays = data.holidays.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)); renderChips(); }
+  renderResourceBoxes();
 };
 
 const generate = async () => {
@@ -473,7 +511,7 @@ const buildSchemeSpec = (t, rows, withDates = false) => {
       c ? bullets(c.outcomes) : '',
       c ? bullets(c.experiences) : '',
       c ? bullets(c.kiqs) : '',
-      c ? runOn(c.resources) : '',
+      c ? runOn(resourcesOf(r, c)) : '',
       c ? bullets(c.assessment) : '',
       '',
     ]);
@@ -749,8 +787,13 @@ if (PAGE === 'scheme' && ['admin', 'superadmin'].includes(user.role)) {
 ══════════════════════════════════════════════════════════ */
 $('schDesign').addEventListener('change', onDesignChange);
 $('schPickGrade').addEventListener('change', () => { fillSubjects(); onDesignChange(); });
-$('schStart').addEventListener('change', () => fillStartLessons(1));
-$('schEnd').addEventListener('change', () => fillEndLessons());
+$('schStart').addEventListener('change', () => { fillStartLessons(1); renderResourceBoxes(); });
+document.querySelectorAll('input[name="schResMode"]').forEach((r) => r.addEventListener('change', () => {
+  const d = currentDesign();
+  if (d) ResourceSettings.setManual(d.key, document.querySelector('input[name="schResMode"]:checked').value === 'manual');
+  renderResourceBoxes();
+}));
+$('schEnd').addEventListener('change', () => { fillEndLessons(); renderResourceBoxes(); });
 $('schAddHoliday').addEventListener('click', addHoliday);
 $('schHoliday').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addHoliday(); } });
 $('schChips').addEventListener('click', (e) => {

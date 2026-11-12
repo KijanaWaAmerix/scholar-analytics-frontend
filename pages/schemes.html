@@ -224,6 +224,13 @@
           <div class="sch-chips" id="schChips"></div>
         </div>
 
+        <div class="sch-resources">
+          <h4><i class="fas fa-box-open"></i> Learning resources</h4>
+          <label class="sch-radio"><input type="radio" name="schResMode" value="auto" checked/> Choose them for me, lesson by lesson</label>
+          <label class="sch-radio"><input type="radio" name="schResMode" value="manual"/> I will type them for each strand</label>
+          <div id="schResStrands" hidden></div>
+        </div>
+
         <div class="sch-actions">
           <button type="button" class="btn btn-primary" id="schGenerate">
             <i class="fas fa-wand-magic-sparkles"></i> Generate scheme
@@ -354,6 +361,7 @@
 <script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/docs-export.js"></script>
+<script src="../js/resource-settings.js"></script>
 <script src="../js/schemes.js"></script>
 </body>
 </html>
