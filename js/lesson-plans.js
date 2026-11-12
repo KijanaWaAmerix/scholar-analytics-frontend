@@ -130,6 +130,13 @@ const plain   = (items) => (items || []).map((i) => String(i).split(':')[0].trim
 const longDate = (iso) => !iso ? '' :
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
+/* what the teacher typed for this strand on the schemes page, if they chose to type them */
+const typedResources = (cur) => {
+  const sub = currentSub();
+  const design = designs.find((d) => d.key === $('lpDesign').value);
+  return design && sub && typeof ResourceSettings !== 'undefined' ? ResourceSettings.override(design.key, sub.strandId) : null;
+};
+
 const sections = (cur) => {
   const { labels: L, lang, lesson } = cur;
   const X = TEXT[lang];
@@ -146,7 +153,7 @@ const sections = (cur) => {
     [X.competencies, plain(c.competencies)],
     [X.values, plain(c.values)],
     [X.pcis, plain(c.pcis)],
-    [L.resources, bullets(c.resources)],
+    [L.resources, bullets(typedResources(cur) || c.resources)],
     [L.organisation, c.organisation],
     [`${L.introduction} (5 ${X.minutes})`, bullets(c.introduction)],
     [`${L.development} (${total - 10} ${X.minutes})`, dev],
